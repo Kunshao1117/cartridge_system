@@ -1,0 +1,7 @@
+{"timestamp":"2026-03-28T05:42:51+08:00","workflow":"02_blueprint","phase":"planning_complete","summary":"完成記憶卡動態熱處理外掛系統的架構藍圖設計。","artifacts":[]}
+{"timestamp":"2026-03-28T05:49:41+08:00","workflow":"02_blueprint","phase":"planning_v2","summary":"外掛優先、MCP 延後。主動物理記憶卡寫入機制。","artifacts":[]}
+{"timestamp":"2026-03-28T05:54:57+08:00","workflow":"02_blueprint","phase":"planning_v3","summary":"新增基底卡匣注入器模組，三態偵測與安全防護。","artifacts":[]}
+{"timestamp":"2026-03-28T06:01:58+08:00","workflow":"03_build","phase":"execution_complete","summary":"第一階段 CLI 建構完成。16 個檔案，TypeScript 零錯誤，啟動測試通過。","artifacts":[]}
+{"timestamp":"2026-03-28T06:34:02+08:00","workflow":"02_blueprint","phase":"planning_vscode","summary":"架構升級至 VS Code Extension。保留 7 業務模組，新增 extension.ts + status-bar.ts。","artifacts":[]}
+{"timestamp":"2026-03-28T06:38:42+08:00","workflow":"03_build","phase":"vscode_execution_complete","summary":"VS Code Extension 升級建構完成。新增 extension.ts、status-bar.ts、.vscodeignore，修改 4 個設定檔，修正 injector.ts CommonJS 相容性。TypeScript 零錯誤，tsup 打包成功（dist/extension.js 24.24KB，27ms）。","artifacts":["src/extension.ts","src/status-bar.ts",".vscodeignore"]}
+{"timestamp":"2026-03-28T07:34:00+08:00","workflow":"03_build","phase":"mcp_and_package","summary":"第二階段：MCP 介面實作（mcp-server.ts）完成，新增 memory_list, memory_read, memory_update 工具。專案 LOGO 資源配置完成，並成功使用 vsce 打包產出 cartridge-system-0.1.0.vsix 安裝檔。","artifacts":["src/mcp-server.ts","package.json","tsup.config.ts","assets/logo.png"]}

@@ -1,0 +1,38 @@
+{
+  "name": "cartridge-system",
+  "displayName": "記憶卡匣監控系統",
+  "version": "0.1.0",
+  "description": "記憶卡匣動態熱處理外掛 — 主動式檔案監聽與記憶過期防禦系統",
+  "publisher": "cartridge-system",
+  "engines": { "vscode": "^1.85.0" },
+  "categories": ["Other"],
+  "icon": "assets/logo.png",
+  "activationEvents": ["workspaceContains:.agents"],
+  "main": "./dist/extension.js",
+  "contributes": {
+    "commands": [
+      { "command": "cartridge.scan", "title": "記憶卡匣：重新掃描索引" },
+      { "command": "cartridge.status", "title": "記憶卡匣：查看健康報告" }
+    ]
+  },
+  "scripts": {
+    "dev": "tsup --watch",
+    "build": "tsup",
+    "package": "vsce package",
+    "test": "vitest run",
+    "test:watch": "vitest"
+  },
+  "devDependencies": {
+    "@types/vscode": "^1.85.0",
+    "@vscode/vsce": "^3.0.0",
+    "@types/node": "^25.5.0",
+    "tsup": "^8.0.0",
+    "typescript": "^5.5.0",
+    "vitest": "^3.0.0"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.0.1",
+    "chokidar": "^4.0.0",
+    "gray-matter": "^4.0.3"
+  }
+}

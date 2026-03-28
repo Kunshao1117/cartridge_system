@@ -3,7 +3,7 @@ name: mem-_system
 description: >
   專案記憶：系統技術堆疊與部署設定。
   Use when: 確認技術選型、環境設定、部署組態時載入。
-last_updated: '2026-03-28T08:29:00+08:00'
+last_updated: '2026-03-28T09:22:00+08:00'
 status: stable
 staleness: 0
 ---
@@ -21,6 +21,7 @@ staleness: 0
 - File Watcher: `chokidar` v4
 - YAML Parser: `gray-matter`
 - Build: `tsup` v8.5.1（CJS 輸出）
+- Linter: `eslint` v9.x + `@typescript-eslint` v8.x（Flat Config）
 - Test: `vitest`
 - Config: JSON
 
@@ -49,6 +50,7 @@ staleness: 0
 - `package.json` — VS Code Extension 元數據（含 activationEvents / contributes）
 - `tsconfig.json` — CommonJS + node 模組解析
 - `tsup.config.ts` — entry: extension.ts / format: cjs / external: vscode / noExternal: chokidar, gray-matter
+- `eslint.config.js` — ESLint v9 Flat Config（CJS 格式，@typescript-eslint）
 - `.vscodeignore` — 打包排除清單
 - `cartridge_index.json` — 執行期產生
 
@@ -77,3 +79,4 @@ staleness: 0
 - D04: chokidar 和 gray-matter 必須設為 noExternal 強制打包，否則 VSIX 不含 node_modules 時會靜默崩潰
 - D05: Antigravity IDE 使用獨立的 CLI（`antigravity` 而非 `code`），安裝外掛必須用 `antigravity --install-extension`
 - D06: 指令註冊（registerCommand）必須放在 activate() 最前面，在任何可能失敗的初始化邏輯之前
+- D07: ESLint v9 無法直接解析 `.ts` 設定檔（需 jiti 套件）。CJS 專案應使用 `eslint.config.js`（`module.exports`），並以 `require()` 引入插件。`.eslintignore` 在 v9 已棄用，ignores 必須寫入 config 物件。

@@ -3,8 +3,8 @@ name: mem-mcp-tools
 description: >
   專案記憶：MCP 工具介面模組（第二階段）。
   Use when: 處理MCP伺服器註冊、工具路由、AI工具呼叫介面時載入。
-last_updated: "2026-03-28T07:29:00+08:00"
-status: active
+last_updated: "2026-03-28T09:38:00+08:00"
+status: stable
 staleness: 0
 ---
 
@@ -24,7 +24,8 @@ staleness: 0
 - 無
 
 ## Module Lessons
-- 無
+- D03: MCP 伺服器使用 `process.cwd()` 作為工作區路徑會導致 Gateway 啟動時讀取到錯誤的工作區。**正確做法**：透過 `--workspace` 命令列參數接受工作區路徑，並在 Gateway 設定檔（`cartridge-system.json`）中明確傳入目標路徑。
+- D04: `npm run package`（vsce package）不會重新執行 tsup 編譯。修改 `src/mcp-server.ts` 後，必須先執行 `npm run build` 更新 `dist/`，再執行 `gateway__rescan` 才能使修復生效。
 
 ## Relations
 - mem-index-manager（查詢卡匣資料）

@@ -22,7 +22,12 @@ function parseTrackedFiles(content: string): string[] {
 
   return trackedSection
     .split('\n')
-    .map(line => line.replace(/^-\s*/, '').trim())
+    .map(line => line
+      .replace(/^-\s*/, '')  // 去除行首「- 」
+      .replace(/`/g, '')      // 去除 Markdown 反引號
+      .replace(/\s.*$/, '')   // 截斷第一個空格後的說明文字
+      .trim()
+    )
     .filter(line => line.length > 0 && !line.startsWith('（'))
 }
 

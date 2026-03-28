@@ -20,7 +20,10 @@ const server = new Server(
   }
 )
 
-const agentsDir = path.join(process.cwd(), '.agents', 'skills')
+// 解析 --workspace 參數，退回 process.cwd() 作為預設值
+const workspaceIndex = process.argv.indexOf('--workspace')
+const workspacePath = workspaceIndex !== -1 ? process.argv[workspaceIndex + 1] : process.cwd()
+const agentsDir = path.join(workspacePath, '.agents', 'skills')
 
 const memoryReadSchema = z.object({
   moduleName: z.string().min(1),
@@ -78,8 +81,9 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
       return {
         content: [{ type: 'text', text: `Available memories:\n${modules.join('\n')}` }],
       }
-    } catch (e: any) {
-      return { content: [{ type: 'text', text: `Error: ${e.message}` }], isError: true }
+    } catch (e: unknown) {
+      const msg = e instanceof Error ? e.message : String(e)
+      return { content: [{ type: 'text', text: `Error: ${msg}` }], isError: true }
     }
   }
 
@@ -92,8 +96,9 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
       const filePath = path.join(agentsDir, parsed.data.moduleName, 'SKILL.md')
       const content = await fs.readFile(filePath, 'utf-8')
       return { content: [{ type: 'text', text: content }] }
-    } catch (e: any) {
-      return { content: [{ type: 'text', text: `Error: ${e.message}` }], isError: true }
+    } catch (e: unknown) {
+      const msg = e instanceof Error ? e.message : String(e)
+      return { content: [{ type: 'text', text: `Error: ${msg}` }], isError: true }
     }
   }
 
@@ -114,8 +119,9 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
       const filePath = path.join(agentsDir, parsed.data.moduleName, 'SKILL.md')
       await fs.writeFile(filePath, finalContent, 'utf-8')
       return { content: [{ type: 'text', text: `Successfully updated ${parsed.data.moduleName}` }] }
-    } catch (e: any) {
-      return { content: [{ type: 'text', text: `Error: ${e.message}` }], isError: true }
+    } catch (e: unknown) {
+      const msg = e instanceof Error ? e.message : String(e)
+      return { content: [{ type: 'text', text: `Error: ${msg}` }], isError: true }
     }
   }
 

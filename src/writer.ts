@@ -8,6 +8,7 @@ import path from 'node:path'
 import matter from 'gray-matter'
 import type { CartridgeConfig, StalenessLevel } from './types.js'
 import { getStalenessLevel } from './analyzer.js'
+import { getTaiwanISO } from './timestamp.js'
 
 /** 警報區塊的標記邊界 */
 const WARNING_START = '<!-- CARTRIDGE_SYSTEM_WARNING_START -->'
@@ -21,7 +22,7 @@ function generateWarningBlock(
   staleness: number,
   level: StalenessLevel,
 ): string {
-  const timestamp = new Date().toISOString()
+  const timestamp = getTaiwanISO()
   const emoji = level === 'critical' ? '🔴' : '🟠'
   const levelText = level === 'critical' ? '嚴重過期' : '顯著過期'
   const fileList = changedFiles.map(f => `\`${f}\``).join('、')

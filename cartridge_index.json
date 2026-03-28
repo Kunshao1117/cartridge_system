@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "lastScanned": "2026-03-28T04:12:29.801Z",
+  "lastScanned": "2026-03-28T05:06:53.726Z",
   "cartridges": {
     "mem-analyzer": {
       "skillPath": ".agents\\skills\\mem-analyzer\\SKILL.md",
@@ -47,11 +47,15 @@
       "trackedFiles": [
         "src/mcp-server.ts",
         "src/mcp-handlers.ts",
+        "src/path-guard.ts",
+        "src/timestamp.ts",
         "src/tests/mcp-handlers.test.ts",
+        "src/tests/path-guard.test.ts",
+        "src/tests/timestamp.test.ts",
         "package.json"
       ],
-      "staleness": 0,
-      "lastUpdated": "2026-03-28T11:32:00+08:00",
+      "staleness": 10,
+      "lastUpdated": "2026-03-28T12:58:00+08:00",
       "pendingChanges": []
     },
     "mem-watcher": {
@@ -70,7 +74,7 @@
         "src/tests/writer.test.ts"
       ],
       "staleness": 0,
-      "lastUpdated": "2026-03-28T12:11:00+08:00",
+      "lastUpdated": "2026-03-28T12:58:00+08:00",
       "pendingChanges": []
     },
     "mem-_system": {
@@ -112,7 +116,19 @@
     "src/mcp-handlers.ts": [
       "mem-mcp-tools"
     ],
+    "src/path-guard.ts": [
+      "mem-mcp-tools"
+    ],
+    "src/timestamp.ts": [
+      "mem-mcp-tools"
+    ],
     "src/tests/mcp-handlers.test.ts": [
+      "mem-mcp-tools"
+    ],
+    "src/tests/path-guard.test.ts": [
+      "mem-mcp-tools"
+    ],
+    "src/tests/timestamp.test.ts": [
       "mem-mcp-tools"
     ],
     "package.json": [

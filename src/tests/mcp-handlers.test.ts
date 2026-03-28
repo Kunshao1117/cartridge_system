@@ -8,6 +8,7 @@ import {
   handleMemoryList,
   handleMemoryRead,
   handleMemoryUpdate,
+  updateFrontmatterFields,
 } from '../mcp-handlers.js'
 
 // 模擬 fs/promises，隔離所有磁碟操作
@@ -70,6 +71,20 @@ describe('handleMemoryList', () => {
     expect(result.isError).toBe(true)
     expect(result.content[0].text).toContain('Error:')
   })
+
+  it('相對路徑應回傳 Validation Error（路徑安全防禦）', async () => {
+    const result = await handleMemoryList({ projectRoot: './relative/path' })
+
+    expect(result.isError).toBe(true)
+    expect(result.content[0].text).toContain('Validation Error')
+  })
+
+  it('路徑穿越（..）應回傳 Validation Error', async () => {
+    const result = await handleMemoryList({ projectRoot: '/foo/../../etc' })
+
+    expect(result.isError).toBe(true)
+    expect(result.content[0].text).toContain('Validation Error')
+  })
 })
 
 // ---------------------------------------------------------------------------
@@ -114,6 +129,13 @@ describe('handleMemoryRead', () => {
 
   it('moduleName 為空字串時應回傳 Validation Error', async () => {
     const result = await handleMemoryRead({ moduleName: '', projectRoot: PROJECT_ROOT })
+
+    expect(result.isError).toBe(true)
+    expect(result.content[0].text).toContain('Validation Error')
+  })
+
+  it('路徑穿越（..）應回傳 Validation Error', async () => {
+    const result = await handleMemoryRead({ moduleName: 'mem-_system', projectRoot: '/foo/../../../etc' })
 
     expect(result.isError).toBe(true)
     expect(result.content[0].text).toContain('Validation Error')
@@ -185,5 +207,65 @@ describe('handleMemoryUpdate', () => {
 
     expect(result.isError).toBe(true)
     expect(result.content[0].text).toContain('Validation Error')
+  })
+
+  it('路徑穿越（..）應回傳 Validation Error', async () => {
+    const content = `---\nlast_updated: ""\nstaleness: 0\n---`
+    const result = await handleMemoryUpdate({ moduleName: 'mem-_system', content, projectRoot: '/foo/../../etc' })
+
+    expect(result.isError).toBe(true)
+    expect(result.content[0].text).toContain('Validation Error')
+  })
+
+  it('時間戳應包含 +08:00 後綴', async () => {
+    let writtenContent = ''
+    vi.mocked(fs.writeFile).mockImplementation(async (_path, data) => {
+      writtenContent = data as string
+    })
+
+    const content = `---\nlast_updated: "old"\nstaleness: 5\n---\n# Content`
+    await handleMemoryUpdate({ moduleName: 'mem-_system', content, projectRoot: PROJECT_ROOT })
+
+    expect(writtenContent).toContain('+08:00')
+    expect(writtenContent).not.toMatch(/last_updated:.*Z/)
+  })
+})
+
+// ---------------------------------------------------------------------------
+// updateFrontmatterFields — 結構化 frontmatter 更新
+// ---------------------------------------------------------------------------
+describe('updateFrontmatterFields — frontmatter 結構化更新', () => {
+  it('雙引號 frontmatter 應正確更新', () => {
+    const input = `---\nlast_updated: "2026-01-01T00:00:00+08:00"\nstaleness: 5\n---\n# Content`
+    const result = updateFrontmatterFields(input, { last_updated: 'new-ts', staleness: 0 })
+
+    expect(result).toContain('last_updated: new-ts')
+    expect(result).toContain('staleness: 0')
+    expect(result).toContain('# Content')
+  })
+
+  it('單引號 frontmatter 應正確更新', () => {
+    const input = `---\nlast_updated: '2026-01-01T00:00:00+08:00'\nstaleness: 5\n---\n# Content`
+    const result = updateFrontmatterFields(input, { last_updated: 'new-ts', staleness: 0 })
+
+    expect(result).toContain('last_updated: new-ts')
+    expect(result).toContain('staleness: 0')
+  })
+
+  it('無引號 frontmatter 應正確更新', () => {
+    const input = `---\nlast_updated: 2026-01-01T00:00:00+08:00\nstaleness: 5\n---\n# Content`
+    const result = updateFrontmatterFields(input, { last_updated: 'new-ts', staleness: 0 })
+
+    expect(result).toContain('staleness: 0')
+    expect(result).toContain('# Content')
+  })
+
+  it('不影響其他 frontmatter 欄位', () => {
+    const input = `---\nname: mem-test\nlast_updated: "old"\nstaleness: 5\nstatus: stale\n---\n# Content`
+    const result = updateFrontmatterFields(input, { staleness: 0 })
+
+    expect(result).toContain('name: mem-test')
+    expect(result).toContain('status: stale')
+    expect(result).toContain('staleness: 0')
   })
 })

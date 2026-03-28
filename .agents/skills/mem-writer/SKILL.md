@@ -2,7 +2,7 @@
 name: mem-writer
 description: |
   專案記憶：記憶卡寫入器模組。 Use when: 處理警報植入、警報移除、記憶卡過期警示注入時載入。
-last_updated: '2026-03-28T12:11:00+08:00'
+last_updated: '2026-03-28T12:58:00+08:00'
 status: stable
 staleness: 0
 ---
@@ -20,6 +20,7 @@ staleness: 0
 - D04: 警報植入時自動更新 frontmatter（staleness 值、status: stale）
 - D05: 過期等級分兩種：🔴 嚴重（critical）和 🟠 顯著（warning）
 - D06: writer.ts 使用同步 fs API（readFileSync/writeFileSync/existsSync），測試需 vi.mock('node:fs')，非 vi.mock('fs/promises')
+- D07: 警報時間戳從 `new Date().toISOString()` 改為 `getTaiwanISO()`，統一全系統時區處理
 
 ## Known Issues
 - 無
@@ -33,3 +34,4 @@ staleness: 0
 ## Relations
 - mem-watcher（上游事件驅動者，偵測到 staleness 重設時呼叫 checkAndCleanWarning）
 - mem-analyzer（提供 getStalenessLevel() 判斷警報等級）
+- mem-mcp-tools（共用 timestamp.ts 時間戳模組）

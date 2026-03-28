@@ -2,7 +2,7 @@
 name: mem-mcp-tools
 description: |
   專案記憶：MCP 工具介面模組（第二階段）。 Use when: 處理MCP伺服器註冊、工具路由、AI工具呼叫介面時載入。
-last_updated: '2026-03-28T11:32:00+08:00'
+last_updated: '2026-03-28T12:58:00+08:00'
 status: stable
 staleness: 0
 ---
@@ -14,7 +14,11 @@ staleness: 0
 ## Tracked Files
 - src/mcp-server.ts
 - src/mcp-handlers.ts
+- src/path-guard.ts
+- src/timestamp.ts
 - src/tests/mcp-handlers.test.ts
+- src/tests/path-guard.test.ts
+- src/tests/timestamp.test.ts
 - package.json
 
 ## Key Decisions
@@ -22,6 +26,9 @@ staleness: 0
 - D02: 首發提供 3 個核心工具：`memory_list`, `memory_read`, `memory_update`，取代直接檔案寫入。
 - D05: 新增 `mcp-handlers.ts` 商業邏輯解耦層，三個純函式（handleMemoryList/Read/Update）從 MCP SDK 解耦，讓工具邏輯可獨立進行 vitest 單元測試。`mcp-server.ts` 僅保留 SDK 連接與路由職責。
 - D07: 三個工具均新增必填參數 `projectRoot`，呼叫方必須明確傳入目標專案根目錄路徑。未傳直接回傳 Validation Error，廢棄啟動時固定路徑的 fallback 設計。Handler 函式簽名移除 `agentsDir` 參數，改由內部從 `args.projectRoot` 動態組合 `.agents/skills` 路徑。
+- D09: `projectRoot` 路徑安全強化 — Zod schema 新增 `refine(isAbsolute + 無 ..)` 格式守衛 + `validateProjectRoot()` 語意守衛雙層防禦，阻擋路徑穿越攻擊。
+- D10: 時間戳生成統一改為 `getTaiwanISO()`（`Intl.DateTimeFormat` + `toLocaleString('sv')`），取代 `Date.now() + tzOffset` 手動偏移。
+- D11: frontmatter 更新從正則替換改為 `gray-matter` 結構化解析 → 修改 → 序列化（`updateFrontmatterFields()`），完整支援單引號、雙引號、無引號格式。
 
 ## Known Issues
 - 無
@@ -31,6 +38,9 @@ staleness: 0
 - D04: `npm run package`（vsce package）不會重新執行 tsup 編譯。修改 `src/mcp-server.ts` 後，必須先執行 `npm run build` 更新 `dist/`，再執行 `gateway__rescan` 才能使修復生效。
 - D06: 測試 mcp-handlers 時使用 `vi.mock('fs/promises')` 搭配 `vi.mocked().mockResolvedValue()` 即可完全隔離磁碟 I/O。`writeFile` 回傳 `undefined`（void）需使用 `mockResolvedValue(undefined)` 而非 `mockResolvedValue()`。
 - D08: 跨專案參數必填設計原則 — 共用 MCP 工具若與工作目錄相關，應將路徑設為必填而非選填 fallback，強制呼叫方在每次呼叫時明確宣告操作對象，避免跨專案誤讀。
+- D09: 路徑驗證需雙層防禦：Zod refine 做格式守衛（快速失敗），`validateProjectRoot` 做語意守衛（正規化 + 穿越檢查）。單層防禦不夠，因為 Zod refine 無法做 `path.normalize`。
+- D10: `toLocaleString('sv', { timeZone })` 是取得近似 ISO 格式最簡潔的方法，瑞典語系的日期格式天生接近 ISO 8601。
+- D11: `gray-matter` 的 `matter.stringify(content, frontmatter)` 會自動處理 YAML 序列化，不需要手動拼接引號或格式。
 
 ## Relations
 - mem-index-manager（查詢卡匣資料）

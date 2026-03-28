@@ -6,6 +6,9 @@
 import * as fs from 'fs/promises'
 import * as path from 'path'
 import * as z from 'zod'
+import matter from 'gray-matter'
+import { validateProjectRoot } from './path-guard.js'
+import { getTaiwanISO } from './timestamp.js'
 
 /** MCP 工具回傳結構（純資料結構，與 MCP SDK 相容但不依賴其型別） */
 export interface McpToolResult {
@@ -13,23 +16,47 @@ export interface McpToolResult {
   isError?: boolean
 }
 
+/** projectRoot 共用驗證規則 */
+const projectRootField = z.string().min(1).refine(
+  (p) => path.isAbsolute(p) && !p.includes('..'),
+  { message: '必須為絕對路徑且不含路徑穿越符號' }
+)
+
 /** memory_list 工具參數驗證 Schema */
 export const memoryListSchema = z.object({
-  projectRoot: z.string().min(1),
+  projectRoot: projectRootField,
 })
 
 /** memory_read 工具參數驗證 Schema */
 export const memoryReadSchema = z.object({
   moduleName: z.string().min(1),
-  projectRoot: z.string().min(1),
+  projectRoot: projectRootField,
 })
 
 /** memory_update 工具參數驗證 Schema */
 export const memoryUpdateSchema = z.object({
   moduleName: z.string().min(1),
   content: z.string().min(1),
-  projectRoot: z.string().min(1),
+  projectRoot: projectRootField,
 })
+
+/**
+ * 使用 gray-matter 結構化更新 frontmatter 欄位
+ * 取代易碎的正則替換，完整支援單引號、雙引號、無引號格式
+ */
+export function updateFrontmatterFields(
+  rawContent: string,
+  updates: Record<string, unknown>,
+): string {
+  const { data: frontmatter, content } = matter(rawContent)
+
+  // 合併更新欄位
+  for (const [key, value] of Object.entries(updates)) {
+    frontmatter[key] = value
+  }
+
+  return matter.stringify(content, frontmatter)
+}
 
 /**
  * memory_list — 列出所有 mem-* 記憶卡匣目錄名稱
@@ -37,8 +64,17 @@ export const memoryUpdateSchema = z.object({
 export async function handleMemoryList(args: unknown): Promise<McpToolResult> {
   const parsed = memoryListSchema.safeParse(args)
   if (!parsed.success) {
-    return { content: [{ type: 'text', text: 'Validation Error: projectRoot is required' }], isError: true }
+    return { content: [{ type: 'text', text: 'Validation Error: projectRoot is required (must be absolute path without ..)' }], isError: true }
   }
+
+  // 路徑安全二次驗證
+  try {
+    validateProjectRoot(parsed.data.projectRoot)
+  } catch (e: unknown) {
+    const msg = e instanceof Error ? e.message : String(e)
+    return { content: [{ type: 'text', text: `Path Validation Error: ${msg}` }], isError: true }
+  }
+
   const agentsDir = path.join(parsed.data.projectRoot, '.agents', 'skills')
   try {
     const files = await fs.readdir(agentsDir, { withFileTypes: true })
@@ -62,8 +98,17 @@ export async function handleMemoryRead(
 ): Promise<McpToolResult> {
   const parsed = memoryReadSchema.safeParse(args)
   if (!parsed.success) {
-    return { content: [{ type: 'text', text: 'Validation Error: moduleName and projectRoot are required' }], isError: true }
+    return { content: [{ type: 'text', text: 'Validation Error: moduleName and projectRoot are required (projectRoot must be absolute path without ..)' }], isError: true }
   }
+
+  // 路徑安全二次驗證
+  try {
+    validateProjectRoot(parsed.data.projectRoot)
+  } catch (e: unknown) {
+    const msg = e instanceof Error ? e.message : String(e)
+    return { content: [{ type: 'text', text: `Path Validation Error: ${msg}` }], isError: true }
+  }
+
   const agentsDir = path.join(parsed.data.projectRoot, '.agents', 'skills')
   try {
     const filePath = path.join(agentsDir, parsed.data.moduleName, 'SKILL.md')
@@ -83,17 +128,26 @@ export async function handleMemoryUpdate(
 ): Promise<McpToolResult> {
   const parsed = memoryUpdateSchema.safeParse(args)
   if (!parsed.success) {
-    return { content: [{ type: 'text', text: 'Validation Error: moduleName, content and projectRoot are required' }], isError: true }
+    return { content: [{ type: 'text', text: 'Validation Error: moduleName, content and projectRoot are required (projectRoot must be absolute path without ..)' }], isError: true }
   }
+
+  // 路徑安全二次驗證
+  try {
+    validateProjectRoot(parsed.data.projectRoot)
+  } catch (e: unknown) {
+    const msg = e instanceof Error ? e.message : String(e)
+    return { content: [{ type: 'text', text: `Path Validation Error: ${msg}` }], isError: true }
+  }
+
   const agentsDir = path.join(parsed.data.projectRoot, '.agents', 'skills')
   try {
-    const tzOffset = 8 * 60 * 60 * 1000 // UTC+8
-    const localTime = new Date(Date.now() + tzOffset)
-    const isoLocal = localTime.toISOString().replace('Z', '+08:00')
+    const isoLocal = getTaiwanISO()
 
-    const finalContent = parsed.data.content
-      .replace(/last_updated:\s*".*"/, `last_updated: "${isoLocal}"`)
-      .replace(/staleness:\s*\d+/, `staleness: 0`)
+    // 使用 gray-matter 結構化更新 frontmatter，取代易碎的正則替換
+    const finalContent = updateFrontmatterFields(parsed.data.content, {
+      last_updated: isoLocal,
+      staleness: 0,
+    })
 
     const filePath = path.join(agentsDir, parsed.data.moduleName, 'SKILL.md')
     await fs.writeFile(filePath, finalContent, 'utf-8')

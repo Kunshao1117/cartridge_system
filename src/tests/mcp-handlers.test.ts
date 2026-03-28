@@ -9,6 +9,9 @@ import {
   handleMemoryRead,
   handleMemoryUpdate,
   updateFrontmatterFields,
+  parseSections,
+  mergeSections,
+  normalizeTitle,
 } from '../mcp-handlers.js'
 
 // 模擬 fs/promises，隔離所有磁碟操作
@@ -318,5 +321,202 @@ describe('updateFrontmatterFields — frontmatter 結構化更新', () => {
     expect(result).toContain('name: mem-test')
     expect(result).toContain('status: stale')
     expect(result).toContain('staleness: 0')
+  })
+})
+
+// ---------------------------------------------------------------------------
+// normalizeTitle — 區段標題正規化
+// ---------------------------------------------------------------------------
+describe('normalizeTitle', () => {
+  it('應壓縮空格並轉為小寫', () => {
+    expect(normalizeTitle('##  Known  Issues')).toBe('## known issues')
+  })
+
+  it('應去除尾部空白', () => {
+    expect(normalizeTitle('## Tracked Files   ')).toBe('## tracked files')
+  })
+})
+
+// ---------------------------------------------------------------------------
+// parseSections — Markdown 區段分割
+// ---------------------------------------------------------------------------
+describe('parseSections', () => {
+  it('標準記憶技能結構應正確分割', () => {
+    const body = `# Title\n\n> Desc\n\n## Tracked Files\n- f1\n\n## Key Decisions\n- D01\n\n## Known Issues\n- None\n`
+    const result = parseSections(body)
+
+    expect(result.preamble).toBe('# Title\n\n> Desc\n\n')
+    expect(result.sections).toHaveLength(3)
+    expect(result.sections[0].title).toBe('## Tracked Files')
+    expect(result.sections[0].content).toContain('- f1')
+    expect(result.sections[1].title).toBe('## Key Decisions')
+    expect(result.sections[2].title).toBe('## Known Issues')
+  })
+
+  it('空內容應回傳空 preamble 和空陣列', () => {
+    const result = parseSections('')
+    expect(result.preamble).toBe('')
+    expect(result.sections).toHaveLength(0)
+  })
+
+  it('只有 preamble 無 ## 區段應正確處理', () => {
+    const body = '# Just a title\nSome text\n'
+    const result = parseSections(body)
+    expect(result.preamble).toBe('# Just a title\nSome text\n')
+    expect(result.sections).toHaveLength(0)
+  })
+
+  it('程式碼區塊內的 ## 不應被切分', () => {
+    const body = '## Real Section\ncontent\n```\n## Not A Section\n```\n## Another Real\nmore\n'
+    const result = parseSections(body)
+
+    expect(result.sections).toHaveLength(2)
+    expect(result.sections[0].title).toBe('## Real Section')
+    expect(result.sections[0].content).toContain('## Not A Section')
+    expect(result.sections[1].title).toBe('## Another Real')
+  })
+
+  it('### 子標題不應被切分', () => {
+    const body = '## Section\n### Sub\ncontent\n'
+    const result = parseSections(body)
+
+    expect(result.sections).toHaveLength(1)
+    expect(result.sections[0].content).toContain('### Sub')
+  })
+
+  it('CRLF 行尾應與 LF 產出相同結果', () => {
+    const lf = '## A\ncontent\n## B\nmore\n'
+    const crlf = '## A\r\ncontent\r\n## B\r\nmore\r\n'
+    const lfResult = parseSections(lf)
+    const crlfResult = parseSections(crlf)
+
+    expect(crlfResult.sections).toHaveLength(lfResult.sections.length)
+    expect(crlfResult.sections[0].title).toBe(lfResult.sections[0].title)
+    expect(crlfResult.sections[1].title).toBe(lfResult.sections[1].title)
+  })
+})
+
+// ---------------------------------------------------------------------------
+// mergeSections — 區段合併
+// ---------------------------------------------------------------------------
+describe('mergeSections', () => {
+  const makeSection = (title: string, content: string) => ({
+    title,
+    normalizedTitle: normalizeTitle(title),
+    content,
+  })
+
+  it('同名區段應就地替換', () => {
+    const original = [makeSection('## A', 'old\n'), makeSection('## B', 'keep\n')]
+    const patch = [makeSection('## A', 'new\n')]
+    const result = mergeSections(original, patch)
+
+    expect(result.sections[0].content).toBe('new\n')
+    expect(result.sections[1].content).toBe('keep\n')
+    expect(result.replaced).toBe(1)
+    expect(result.added).toBe(0)
+  })
+
+  it('新區段應附加到末尾', () => {
+    const original = [makeSection('## A', 'a\n')]
+    const patch = [makeSection('## B', 'b\n')]
+    const result = mergeSections(original, patch)
+
+    expect(result.sections).toHaveLength(2)
+    expect(result.sections[1].title).toBe('## B')
+    expect(result.added).toBe(1)
+  })
+
+  it('混合操作（替換 + 附加）應統計正確', () => {
+    const original = [makeSection('## A', 'old\n'), makeSection('## B', 'keep\n')]
+    const patch = [makeSection('## A', 'new\n'), makeSection('## C', 'added\n')]
+    const result = mergeSections(original, patch)
+
+    expect(result.sections).toHaveLength(3)
+    expect(result.replaced).toBe(1)
+    expect(result.added).toBe(1)
+  })
+
+  it('標題格式微差異應正規化後正確匹配', () => {
+    const original = [makeSection('## Known Issues', 'old\n')]
+    const patch = [makeSection('##  known  issues', 'new\n')]
+    const result = mergeSections(original, patch)
+
+    expect(result.replaced).toBe(1)
+    expect(result.sections[0].title).toBe('## Known Issues') // 保持原檔標題
+    expect(result.sections[0].content).toBe('new\n')
+  })
+
+  it('空內容區段應清空原有內容', () => {
+    const original = [makeSection('## Issues', '- bug1\n- bug2\n')]
+    const patch = [makeSection('## Issues', '')]
+    const result = mergeSections(original, patch)
+
+    expect(result.sections[0].content).toBe('')
+    expect(result.replaced).toBe(1)
+  })
+})
+
+// ---------------------------------------------------------------------------
+// handleMemoryUpdate — patch 模式整合測試
+// ---------------------------------------------------------------------------
+describe('handleMemoryUpdate — patch 模式', () => {
+  it('應正確替換目標區段並保留其他區段', async () => {
+    const existing = `---\nname: mem-test\nlast_updated: "old"\nstaleness: 5\n---\n\n# Title\n\n## Tracked Files\n- f1\n\n## Key Decisions\n- D01: old\n\n## Known Issues\n- None\n`
+    vi.mocked(fs.readFile).mockResolvedValue(existing as unknown as Awaited<ReturnType<typeof fs.readFile>>)
+
+    let writtenContent = ''
+    vi.mocked(fs.writeFile).mockImplementation(async (_path, data) => {
+      writtenContent = data as string
+    })
+
+    const patch = `## Key Decisions\n- D01: old\n- D02: new\n`
+    await handleMemoryUpdate({ moduleName: 'mem-test', content: patch, mode: 'patch', projectRoot: PROJECT_ROOT })
+
+    expect(writtenContent).toContain('## Tracked Files')    // 未提及的區段保留
+    expect(writtenContent).toContain('- f1')                  // 原始內容保留
+    expect(writtenContent).toContain('- D02: new')            // 新內容存在
+    expect(writtenContent).toContain('## Known Issues')       // 未提及的區段保留
+    expect(writtenContent).not.toContain('staleness: 5')      // frontmatter 已更新
+    expect(writtenContent).toContain('+08:00')                // 台灣時區
+  })
+
+  it('新區段應附加到檔案末尾', async () => {
+    const existing = `---\nname: mem-test\nlast_updated: "old"\nstaleness: 0\n---\n\n## Tracked Files\n- f1\n`
+    vi.mocked(fs.readFile).mockResolvedValue(existing as unknown as Awaited<ReturnType<typeof fs.readFile>>)
+
+    let writtenContent = ''
+    vi.mocked(fs.writeFile).mockImplementation(async (_path, data) => {
+      writtenContent = data as string
+    })
+
+    const patch = `## New Section\n- item\n`
+    const result = await handleMemoryUpdate({ moduleName: 'mem-test', content: patch, mode: 'patch', projectRoot: PROJECT_ROOT })
+
+    expect(result.isError).toBeUndefined()
+    expect(result.content[0].text).toContain('0 replaced')
+    expect(result.content[0].text).toContain('1 added')
+    expect(writtenContent).toContain('## Tracked Files')  // 原有保留
+    expect(writtenContent).toContain('## New Section')    // 新區段附加
+  })
+
+  it('patch 內容無 ## 區段應回傳驗證錯誤', async () => {
+    const existing = `---\nname: mem-test\nlast_updated: "old"\nstaleness: 0\n---\n\n## A\ncontent\n`
+    vi.mocked(fs.readFile).mockResolvedValue(existing as unknown as Awaited<ReturnType<typeof fs.readFile>>)
+
+    const result = await handleMemoryUpdate({ moduleName: 'mem-test', content: '純文字無標題', mode: 'patch', projectRoot: PROJECT_ROOT })
+
+    expect(result.isError).toBe(true)
+    expect(result.content[0].text).toContain('Patch Error')
+  })
+
+  it('目標檔案不存在時應回傳錯誤', async () => {
+    vi.mocked(fs.readFile).mockRejectedValue(new Error('ENOENT'))
+
+    const result = await handleMemoryUpdate({ moduleName: 'mem-nonexistent', content: '## A\ncontent\n', mode: 'patch', projectRoot: PROJECT_ROOT })
+
+    expect(result.isError).toBe(true)
+    expect(result.content[0].text).toContain('Patch Error')
+    expect(result.content[0].text).toContain('基底檔案')
   })
 })

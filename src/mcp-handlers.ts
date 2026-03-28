@@ -37,7 +37,7 @@ export const memoryReadSchema = z.object({
 export const memoryUpdateSchema = z.object({
   moduleName: z.string().min(1),
   content: z.string().min(1),
-  mode: z.enum(['replace', 'append']).default('replace'),
+  mode: z.enum(['replace', 'append', 'patch']).default('replace'),
   projectRoot: projectRootField,
 })
 
@@ -57,6 +57,112 @@ export function updateFrontmatterFields(
   }
 
   return matter.stringify(content, frontmatter)
+}
+
+/** 解析後的 Markdown 區段結構 */
+export interface Section {
+  title: string
+  normalizedTitle: string
+  content: string
+}
+
+/** parseSections 的回傳結構 */
+export interface ParsedDocument {
+  preamble: string
+  sections: Section[]
+}
+
+/** mergeSections 的回傳結構 */
+export interface MergeResult {
+  sections: Section[]
+  replaced: number
+  added: number
+}
+
+/**
+ * 正規化區段標題，用於比對時忽略格式差異
+ * 規則：壓縮空格 + 去尾空白 + 全小寫
+ */
+export function normalizeTitle(title: string): string {
+  return title.replace(/\s+/g, ' ').trim().toLowerCase()
+}
+
+/**
+ * 將 Markdown body 解析為前言 + ## 區段陣列
+ * - 追蹤 ``` 狀態以忽略程式碼區塊內的 ##
+ * - CRLF 在分割前統一正規化為 LF
+ */
+export function parseSections(body: string): ParsedDocument {
+  const normalized = body.replace(/\r\n/g, '\n')
+  const lines = normalized.split('\n')
+  let inCodeBlock = false
+  let charPos = 0
+  const headingPositions: number[] = []
+
+  for (const line of lines) {
+    if (line.startsWith('```')) {
+      inCodeBlock = !inCodeBlock
+    }
+    if (!inCodeBlock && line.startsWith('## ')) {
+      headingPositions.push(charPos)
+    }
+    charPos += line.length + 1
+  }
+
+  if (headingPositions.length === 0) {
+    return { preamble: normalized, sections: [] }
+  }
+
+  const preamble = normalized.substring(0, headingPositions[0])
+  const sections: Section[] = []
+
+  for (let i = 0; i < headingPositions.length; i++) {
+    const start = headingPositions[i]
+    const end = i < headingPositions.length - 1 ? headingPositions[i + 1] : normalized.length
+    const sectionText = normalized.substring(start, end)
+    const newlineIdx = sectionText.indexOf('\n')
+    const title = newlineIdx === -1 ? sectionText : sectionText.substring(0, newlineIdx)
+    const content = newlineIdx === -1 ? '' : sectionText.substring(newlineIdx + 1)
+    sections.push({ title, normalizedTitle: normalizeTitle(title), content })
+  }
+
+  return { preamble, sections }
+}
+
+/**
+ * 合併原檔區段與 patch 區段
+ * - 同名區段：就地替換（保持原檔位置與標題格式）
+ * - 新區段：附加到末尾
+ */
+export function mergeSections(
+  originalSections: Section[],
+  patchSections: Section[],
+): MergeResult {
+  const result = originalSections.map((s) => ({ ...s }))
+  const titleIndexMap = new Map<string, number>()
+  for (let i = 0; i < result.length; i++) {
+    titleIndexMap.set(result[i].normalizedTitle, i)
+  }
+
+  let replaced = 0
+  let added = 0
+
+  for (const patch of patchSections) {
+    const existingIdx = titleIndexMap.get(patch.normalizedTitle)
+    if (existingIdx !== undefined) {
+      result[existingIdx] = {
+        title: result[existingIdx].title,
+        normalizedTitle: result[existingIdx].normalizedTitle,
+        content: patch.content,
+      }
+      replaced++
+    } else {
+      result.push(patch)
+      added++
+    }
+  }
+
+  return { sections: result, replaced, added }
 }
 
 /**
@@ -149,9 +255,43 @@ export async function handleMemoryUpdate(
     const isoLocal = getTaiwanISO()
     const filePath = path.join(agentsDir, parsed.data.moduleName, 'SKILL.md')
 
-    // [D13] 依 mode 切換寫入策略
+    // [D13/D14] 依 mode 切換寫入策略
     let base: string
-    if (parsed.data.mode === 'append') {
+    let responseText = `Successfully updated ${parsed.data.moduleName} (mode: ${parsed.data.mode})`
+
+    if (parsed.data.mode === 'patch') {
+      // [D14] 區段級替換：讀取 → 解析 → 合併 → 寫回
+      let existingContent: string
+      try {
+        existingContent = await fs.readFile(filePath, 'utf-8')
+      } catch {
+        return {
+          content: [{ type: 'text', text: 'Patch Error: 目標檔案不存在，patch 模式需要基底檔案。請先用 replace 模式建立。' }],
+          isError: true,
+        }
+      }
+
+      const existingDoc = matter(existingContent)
+      const existingParsed = parseSections(existingDoc.content)
+      const patchParsed = parseSections(parsed.data.content)
+
+      if (patchParsed.sections.length === 0) {
+        return {
+          content: [{ type: 'text', text: 'Patch Error: 內容未包含任何 ## 區段。請用 ## 標題包裝更新內容。' }],
+          isError: true,
+        }
+      }
+
+      const { sections: merged, replaced, added } = mergeSections(existingParsed.sections, patchParsed.sections)
+
+      let newBody = existingParsed.preamble
+      for (const section of merged) {
+        newBody += section.title + '\n' + section.content
+      }
+
+      base = matter.stringify(newBody, existingDoc.data)
+      responseText = `Successfully patched ${parsed.data.moduleName}: ${replaced} replaced, ${added} added (mode: patch)`
+    } else if (parsed.data.mode === 'append') {
       // 附加模式：先讀取現有 SKILL.md，再附加 content 至末尾
       let existingContent = ''
       try {
@@ -172,7 +312,7 @@ export async function handleMemoryUpdate(
 
     await fs.writeFile(filePath, finalContent, 'utf-8')
     return {
-      content: [{ type: 'text', text: `Successfully updated ${parsed.data.moduleName} (mode: ${parsed.data.mode})` }],
+      content: [{ type: 'text', text: responseText }],
     }
   } catch (e: unknown) {
     const msg = e instanceof Error ? e.message : String(e)

@@ -128,7 +128,7 @@ You MUST halt and output a Traffic Light Health Report and Memory Status EXACTLY
  - 🗃️ 封存: <本次封存的歷史日誌檔案>
 【工具掃描摘要】:（取自 CLI 掃描報告）
  - 🧹 ESLint: 錯誤 {N} / 警告 {M} / 最常違反: {top 3 rules}
- - 🛡️ Snyk: 🔴{N} 🟠{N} 🟡{N} 🟢{N} / 最嚴重: {top vulnerability}
+ - 🛡️ 依賴安全 (npm/yarn audit): 🔴嚴重 {N} 🟠高危 {N} 🟡中等 {N} 🟢低 {N} / 最嚴重: {top vulnerability}
  - 📝 型別檢查: 錯誤 {N}（若有執行）
  - 🏷️ 代辦標記: TODO {N} / FIXME {N} / HACK {N}
  - 🔑 環境變數: {不一致項目數}

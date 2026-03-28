@@ -2,8 +2,8 @@
 
 > **主動式 AI 記憶防禦引擎** — 自動偵測記憶卡過期、植入攔截警報，確保 AI 不讀取失效的上下文。
 
-[![version](https://img.shields.io/badge/version-0.2.5-blue)](./CHANGELOG.md)
-[![tests](https://img.shields.io/badge/tests-70%20passed-brightgreen)](#-執行測試)
+[![version](https://img.shields.io/badge/version-0.3.0-blue)](./CHANGELOG.md)
+[![tests](https://img.shields.io/badge/tests-87%20passed-brightgreen)](#-執行測試)
 [![license](https://img.shields.io/badge/license-MIT-green)](#)
 
 ---
@@ -50,7 +50,7 @@ npm run build
 npm run package
 
 # 使用 Antigravity IDE CLI 安裝（注意：不可用 code 指令）
-antigravity --install-extension cartridge-system-0.2.5.vsix --force
+antigravity --install-extension cartridge-system-0.3.0.vsix --force
 ```
 
 ### 方法二：開發模式
@@ -94,7 +94,7 @@ Cartridge System 提供 MCP（Model Context Protocol）工具伺服器，供 AI 
 |----------|------|
 | `memory_list` | 列出指定專案中所有記憶卡匣的名稱、過期指數與追蹤檔案數 |
 | `memory_read` | 讀取特定記憶技能的完整 SKILL.md 內容 |
-| `memory_update` | 更新記憶技能內容，支援 `replace`（整張替換）與 `append`（附加到末尾）兩種模式 |
+| `memory_update` | 更新記憶技能內容，支援 `replace`（整張替換）、`append`（附加到末尾）、`patch`（`##` 區段級替換）三種模式 |
 
 ### 跨專案支援
 
@@ -112,6 +112,14 @@ memory_update({
   moduleName: 'mem-dashboard-ui',
   content: '## Module Lessons\n- D19: 新教訓內容',
   mode: 'append',
+  projectRoot: 'D:\\bartender_map'
+})
+
+// 範例：精確更新特定區段（patch 模式，不需先讀取完整檔案）
+memory_update({
+  moduleName: 'mem-dashboard-ui',
+  content: '## Known Issues\n- 更新後的已知問題清單\n',
+  mode: 'patch',
   projectRoot: 'D:\\bartender_map'
 })
 ```
@@ -132,7 +140,7 @@ memory_update({
 ## 🧪 執行測試
 
 ```bash
-# 執行完整測試套件（70 個案例）
+# 執行完整測試套件（87 個案例）
 npm test
 
 # 監聽模式（開發時使用）
@@ -144,7 +152,7 @@ npm run test:watch
 | 測試模組 | 案例數 | 涵蓋範圍 |
 |----------|--------|----------|
 | 路徑解析邏輯 | 12 | 反引號去除、說明文字截斷、CRLF 相容、分組標題過濾、HTML 標記過濾 |
-| MCP 工具介面 | 27 | 正常流程、路徑穿越防禦、時間戳驗證、replace/append 雙模式 |
+| MCP 工具介面 | 44 | 正常流程、路徑穿越防禦、時間戳驗證、replace/append/patch 三模式、段落解析與合併 |
 | 過期分析器 | 11 | 過期等級四分支、三種事件計分、閾值觸發 |
 | 警報寫入器 | 9 | 冪等植入、條件式清除、狀態回復 |
 | 路徑安全驗證 | 8 | 絕對/相對路徑、穿越攻擊拒絕 |
@@ -168,14 +176,14 @@ cartridge_system/
 │   ├── path-guard.ts      # 路徑安全驗證（雙層防禦）
 │   ├── timestamp.ts       # 時間戳生成（Intl API）
 │   ├── types.ts           # 共用型別定義
-│   └── tests/             # vitest 單元測試（6 檔 70 案例）
+│   └── tests/             # vitest 單元測試（6 檔 87 案例）
 ├── .agents/
 │   ├── skills/mem-*/      # 各模組的記憶技能（8 個）
 │   ├── workflows/         # Antigravity 工作流程
 │   └── logs/              # 審計日誌與教訓日誌
 ├── dist/                  # 編譯輸出（tsup 打包）
 ├── CHANGELOG.md           # 更新紀錄
-└── package.json           # v0.2.5
+└── package.json           # v0.3.0
 ```
 
 ### 技術堆疊

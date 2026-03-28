@@ -2,8 +2,7 @@
 name: code-audit
 description: >
   CLI-delegated code scanning procedures, scan report format, and cross-boundary analysis patterns.
-  MCP Server: eslint, snyk
-  Use when: 執行 /08_audit 深度審計、需要 ESLint/Snyk 工具掃描、
+  Use when: 執行 /08_audit 深度審計、需要 ESLint/安全 工具掃描、
   或任何涉及 程式碼品質掃描/安全漏洞掃描/工具報告解讀 的場景。
 ---
 
@@ -15,9 +14,8 @@ description: >
 
 六步掃描，依序執行：
 
-1. **ESLint 品質掃描** — 優先用專案本地 `npx eslint`，無安裝時改用 MCP `eslint__lint-files`
-2. **Snyk 原始碼安全掃描** — MCP `snyk__snyk_code_scan`
-3. **Snyk 依賴漏洞掃描** — MCP `snyk__snyk_sca_scan`
+1. **ESLint 品質掃描** — 使用專案本地 `npm run lint` 或 `npx eslint .`
+2. **依賴安全掃描** — 使用終端機原生安全查核指令 (如 Node.js 專案使用 `npm audit` 或 `yarn audit`)
 4. **TypeScript 型別檢查** — `npx tsc --noEmit`（僅 TS 專案）
 5. **代辦標記統計** — grep TODO/FIXME/HACK/XXX/TEMP
 6. **環境變數一致性** — 比對 `.env.example` 與 `process.env` 引用

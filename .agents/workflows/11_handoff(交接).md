@@ -9,8 +9,8 @@ memory_awareness: full
 > **Required Skills**: Load `memory-ops` skill before proceeding.
 
 ## 1. Memory Skill State Aggregation
-- Scan `.agents/skills/` for all `mem-*` skill folders.
-- For each memory skill, read its `SKILL.md` frontmatter (`status`, `staleness`) and body sections.
+- 調用 MCP 工具 `cartridge-system__memory_list` 取得專案內所有記憶模組清單。
+- 若需深入了解特定記憶，調用 `cartridge-system__memory_read` 取得完整內容。
 - Read `.agents/logs/episodic_log.md` for any cross-cutting lessons added during this session.
 
 ## 2. Session Delta Extraction

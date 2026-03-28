@@ -3,7 +3,7 @@ name: mem-analyzer
 description: >
   專案記憶：過期分析器模組。
   Use when: 處理過期指數計算、衰退演算法、異動事件處理時載入。
-last_updated: "2026-03-28T06:01:58+08:00"
+last_updated: "2026-03-28T10:15:00+08:00"
 status: stable
 staleness: 0
 ---
@@ -12,6 +12,7 @@ staleness: 0
 
 ## Tracked Files
 - src/analyzer.ts
+- src/tests/analyzer.test.ts
 
 ## Key Decisions
 - D01: 過期指數採四級閾值制（0/1-9/10-29/30+）
@@ -19,12 +20,14 @@ staleness: 0
 - D03: 同一檔案重複修改不重複加分
 - D04: 每 24 小時未更新的記憶卡 +1 時間衰退分
 - D05: getStalenessLevel() 公開函式供其他模組共用
+- D06: processFileEvent() 中 persist() 需 spy mock，避免測試觸及 fs；writer 以 vi.fn() stub 驗證呼叫次數與參數
 
 ## Known Issues
 - 無
 
 ## Module Lessons
-- 無
+- D01: StalenessAnalyzer 測試可直接 stub MemoryWriter 介面（vi.fn()），不需要 mock fs，測試語義最清晰
+- D02: manager.persist() 在整合流程中必須 spy mock（vi.spyOn），否則測試會嘗試寫入磁碟
 
 ## Relations
 - mem-watcher（上游事件來源）

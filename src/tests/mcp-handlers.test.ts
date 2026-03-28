@@ -146,7 +146,7 @@ describe('handleMemoryRead', () => {
 // handleMemoryUpdate — 更新記憶卡匣
 // ---------------------------------------------------------------------------
 describe('handleMemoryUpdate', () => {
-  it('應正確寫入並回傳成功訊息', async () => {
+  it('應正確寫入並回傳成功訊息（replace 模式）', async () => {
     vi.mocked(fs.writeFile).mockResolvedValue(undefined)
 
     const content = `---\nlast_updated: "2026-01-01T00:00:00+08:00"\nstaleness: 5\n---\n# Content`
@@ -181,6 +181,7 @@ describe('handleMemoryUpdate', () => {
       writtenContent = data as string
     })
 
+    // replace 模式（預設）：直接用 content 替換
     const content = `---\nlast_updated: "2026-01-01T00:00:00+08:00"\nstaleness: 99\n---\n# Content`
     await handleMemoryUpdate({ moduleName: 'mem-_system', content, projectRoot: PROJECT_ROOT })
 
@@ -215,6 +216,56 @@ describe('handleMemoryUpdate', () => {
 
     expect(result.isError).toBe(true)
     expect(result.content[0].text).toContain('Validation Error')
+  })
+
+  // [D13] mode 參數測試
+  it('[D13] append 模式應先讀現有 SKILL.md 再附加 content', async () => {
+    const existingContent = `---\nname: mem-test\nlast_updated: "old"\nstaleness: 5\n---\n\n## Tracked Files\n- src/foo.ts`
+    vi.mocked(fs.readFile).mockResolvedValue(existingContent as unknown as Awaited<ReturnType<typeof fs.readFile>>)
+
+    let writtenContent = ''
+    vi.mocked(fs.writeFile).mockImplementation(async (_path, data) => {
+      writtenContent = data as string
+    })
+
+    const patch = `## Known Issues\n- D12: 測試新增的問題`
+    await handleMemoryUpdate({ moduleName: 'mem-test', content: patch, mode: 'append', projectRoot: PROJECT_ROOT })
+
+    expect(writtenContent).toContain('## Tracked Files')    // 原始內容保留
+    expect(writtenContent).toContain('## Known Issues')      // 新增內容存在
+    expect(writtenContent).toContain('D12: 測試新增的問題') // 差分片段存在
+    expect(writtenContent).not.toContain('staleness: 5')     // frontmatter 已歸零
+  })
+
+  it('[D13] append 模式檔案不存在（首次建立）時應以 content 為起點寫入', async () => {
+    vi.mocked(fs.readFile).mockRejectedValue(new Error('ENOENT: no such file'))
+
+    let writtenContent = ''
+    vi.mocked(fs.writeFile).mockImplementation(async (_path, data) => {
+      writtenContent = data as string
+    })
+
+    const initialContent = `---\nname: mem-new\nlast_updated: ""\nstaleness: 0\n---\n# New Module`
+    const result = await handleMemoryUpdate({ moduleName: 'mem-new', content: initialContent, mode: 'append', projectRoot: PROJECT_ROOT })
+
+    expect(result.isError).toBeUndefined()
+    expect(writtenContent).toContain('# New Module')
+  })
+
+  it('[D13] append 模式讀取成功但寫入失敗時應回傳錯誤', async () => {
+    const existingContent = `---\nlast_updated: "old"\nstaleness: 0\n---\n# Content`
+    vi.mocked(fs.readFile).mockResolvedValue(existingContent as unknown as Awaited<ReturnType<typeof fs.readFile>>)
+    vi.mocked(fs.writeFile).mockRejectedValue(new Error('EACCES: permission denied'))
+
+    const result = await handleMemoryUpdate({
+      moduleName: 'mem-_system',
+      content: '額外附加段落',
+      mode: 'append',
+      projectRoot: PROJECT_ROOT,
+    })
+
+    expect(result.isError).toBe(true)
+    expect(result.content[0].text).toContain('Error:')
   })
 
   it('時間戳應包含 +08:00 後綴', async () => {

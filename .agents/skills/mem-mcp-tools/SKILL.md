@@ -2,7 +2,7 @@
 name: mem-mcp-tools
 description: |
   專案記憶：MCP 工具介面模組（第二階段）。 Use when: 處理MCP伺服器註冊、工具路由、AI工具呼叫介面時載入。
-last_updated: '2026-03-28T12:58:00+08:00'
+last_updated: '2026-03-28T17:10:00+08:00'
 status: stable
 staleness: 0
 ---
@@ -29,6 +29,8 @@ staleness: 0
 - D09: `projectRoot` 路徑安全強化 — Zod schema 新增 `refine(isAbsolute + 無 ..)` 格式守衛 + `validateProjectRoot()` 語意守衛雙層防禦，阻擋路徑穿越攻擊。
 - D10: 時間戳生成統一改為 `getTaiwanISO()`（`Intl.DateTimeFormat` + `toLocaleString('sv')`），取代 `Date.now() + tzOffset` 手動偏移。
 - D11: frontmatter 更新從正則替換改為 `gray-matter` 結構化解析 → 修改 → 序列化（`updateFrontmatterFields()`），完整支援單引號、雙引號、無引號格式。
+- D12: Read-Before-Write 保護機制（已演進為 D13 雙模式）
+- D13: memory_update 雙模式寫入 — mode='replace'(預設)整張替換 / mode='append'附加至末尾。AI 可明確選擇寫入策略，避免重複段落堆疊。
 
 ## Known Issues
 - 無
@@ -41,6 +43,7 @@ staleness: 0
 - D09: 路徑驗證需雙層防禦：Zod refine 做格式守衛（快速失敗），`validateProjectRoot` 做語意守衛（正規化 + 穿越檢查）。單層防禦不夠，因為 Zod refine 無法做 `path.normalize`。
 - D10: `toLocaleString('sv', { timeZone })` 是取得近似 ISO 格式最簡潔的方法，瑞典語系的日期格式天生接近 ISO 8601。
 - D11: `gray-matter` 的 `matter.stringify(content, frontmatter)` 會自動處理 YAML 序列化，不需要手動拼接引號或格式。
+- D12: `memory_update` 工具明確區分兩種呼叫語意：mode='replace' 傳入完整 SKILL.md 內容（含 frontmatter）；mode='append' 傳入純差分段落不含 frontmatter。測試中，replace 測試不需 readFile mock，append 測試需模擬現有檔案的 readFile 回傳。
 
 ## Relations
 - mem-index-manager（查詢卡匣資料）

@@ -90,6 +90,51 @@ describe('parseTrackedFiles — 路徑淨化邏輯', () => {
       'src/config.ts',
     ])
   })
+
+  it('應正確解析 CRLF（Windows）行尾的檔案', () => {
+    // 模擬 Windows CRLF 行尾
+    const content = '## Tracked Files\r\n- src/foo.ts\r\n- src/bar.ts\r\n\r\n## Key Decisions\r\n'
+    expect(parseTrackedFiles(content)).toEqual([
+      'src/foo.ts',
+      'src/bar.ts',
+    ])
+  })
+
+  it('應過濾 ### 分組標題（不當成路徑）', () => {
+    const content = `
+## Tracked Files
+
+### Config
+- src/config.ts
+- src/types.ts
+
+### Tests
+- src/tests/foo.test.ts
+
+## Key Decisions
+`
+    const result = parseTrackedFiles(content)
+    expect(result).toEqual([
+      'src/config.ts',
+      'src/types.ts',
+      'src/tests/foo.test.ts',
+    ])
+    expect(result).not.toContain('###')
+    expect(result).not.toContain('### Config')
+  })
+
+  it('應過濾 HTML 註解標記（如系統警報殘留）', () => {
+    const content = `
+## Tracked Files
+<!-- CARTRIDGE_SYSTEM_WARNING_START -->
+- src/foo.ts
+
+## Key Decisions
+`
+    const result = parseTrackedFiles(content)
+    expect(result).toEqual(['src/foo.ts'])
+    expect(result).not.toContain('<!--')
+  })
 })
 
 // ---------------------------------------------------------------------------

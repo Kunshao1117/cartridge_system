@@ -50,12 +50,13 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
       },
       {
         name: 'memory_update',
-        description: '寫入並更新指定專案中特定 mem-* 模組的內容（會自動更新時間戳記與健康狀態）。',
+        description: '寫入並更新指定專案中特定 mem-* 模組的內容（會自動更新時間戳記與健康狀態）。支援 replace（整張替換）與 append（附加到末尾）兩種模式。',
         inputSchema: {
           type: 'object',
           properties: {
             moduleName: { type: 'string', description: '記憶卡匣名稱' },
-            content: { type: 'string', description: '完整的 Markdown 內容' },
+            content: { type: 'string', description: '記憶卡內容。mode=replace 時傳完整 SKILL.md；mode=append 時傳要附加的差分段落' },
+            mode: { type: 'string', enum: ['replace', 'append'], description: '寫入模式。replace（預設）= 整張替換；append = 附加到現有內容末尾' },
             projectRoot: { type: 'string', description: '目標專案的根目錄絕對路徑，例如 d:\\\\BartenderMap' },
           },
           required: ['moduleName', 'content', 'projectRoot'],

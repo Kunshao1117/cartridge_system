@@ -37,6 +37,7 @@ export const memoryReadSchema = z.object({
 export const memoryUpdateSchema = z.object({
   moduleName: z.string().min(1),
   content: z.string().min(1),
+  mode: z.enum(['replace', 'append']).default('replace'),
   projectRoot: projectRootField,
 })
 
@@ -121,7 +122,11 @@ export async function handleMemoryRead(
 }
 
 /**
- * memory_update — 寫入指定記憶卡匣的 SKILL.md，自動更新時間戳記與 staleness
+ * memory_update — 更新指定記憶卡匣的 SKILL.md，自動更新時間戳記與 staleness
+ *
+ * [D13] 雙模式寫入：
+ *   - replace（預設）：用 content 整張替換 SKILL.md，適用於 AI 讀取完整內容修改後寫回
+ *   - append：先讀現有 SKILL.md，再將 content 附加至末尾，適用於 AI 只新增少量段落
  */
 export async function handleMemoryUpdate(
   args: unknown,
@@ -142,17 +147,32 @@ export async function handleMemoryUpdate(
   const agentsDir = path.join(parsed.data.projectRoot, '.agents', 'skills')
   try {
     const isoLocal = getTaiwanISO()
+    const filePath = path.join(agentsDir, parsed.data.moduleName, 'SKILL.md')
 
-    // 使用 gray-matter 結構化更新 frontmatter，取代易碎的正則替換
-    const finalContent = updateFrontmatterFields(parsed.data.content, {
+    // [D13] 依 mode 切換寫入策略
+    let base: string
+    if (parsed.data.mode === 'append') {
+      // 附加模式：先讀取現有 SKILL.md，再附加 content 至末尾
+      let existingContent = ''
+      try {
+        existingContent = await fs.readFile(filePath, 'utf-8')
+      } catch {
+        // ENOENT：首次建立，允許空白起點
+      }
+      base = existingContent.trimEnd() + '\n' + parsed.data.content.trimStart()
+    } else {
+      // 取代模式（預設）：直接用 content 替換整張 SKILL.md
+      base = parsed.data.content
+    }
+
+    const finalContent = updateFrontmatterFields(base, {
       last_updated: isoLocal,
       staleness: 0,
     })
 
-    const filePath = path.join(agentsDir, parsed.data.moduleName, 'SKILL.md')
     await fs.writeFile(filePath, finalContent, 'utf-8')
     return {
-      content: [{ type: 'text', text: `Successfully updated ${parsed.data.moduleName}` }],
+      content: [{ type: 'text', text: `Successfully updated ${parsed.data.moduleName} (mode: ${parsed.data.mode})` }],
     }
   } catch (e: unknown) {
     const msg = e instanceof Error ? e.message : String(e)

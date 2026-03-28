@@ -2,9 +2,10 @@
 name: mem-index-manager
 description: |
   專案記憶：記憶索引管理器模組。 Use when: 處理卡匣索引、檔案反向映射、持久化讀寫時載入。
-last_updated: '2026-03-28T09:50:00+08:00'
+last_updated: '2026-03-28T17:10:00+08:00'
 status: stable
 staleness: 0
+
 ---
 
 # Cartridge Index Manager — 索引管理器記憶
@@ -23,6 +24,10 @@ staleness: 0
 
 ## Known Issues
 - 無
+
+## Key Decisions Addendum
+- D07: parseTrackedFiles 在解析前統一將 CRLF (`\r\n`) 正規化為 LF (`\n`)，修復 Windows 儲存的 SKILL.md 無法解析追蹤路徑的問題
+- D08: filter 過濾 `#` / `<` / `←` 開頭的虛假行，避免 ### 分組標題、HTML 註解、備註殸留污染 fileMap
 
 ## Module Lessons
 - D01: staleness 重設後必須同步呼叫 clearPendingChanges()，否則去重邏輯會封鎖後續的相同檔案事件，導致再次修改無法觸發計分。

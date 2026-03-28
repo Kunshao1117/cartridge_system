@@ -2,11 +2,10 @@
 name: mem-watcher
 description: |
   專案記憶：檔案監聯引擎模組。 Use when: 處理檔案監聽、chokidar設定、監聽生命週期管理時載入。
-last_updated: '2026-03-28T12:07:00+08:00'
+last_updated: '2026-03-28T17:10:00+08:00'
 status: stable
 staleness: 0
 ---
-
 
 # Watcher Engine — 監聽引擎記憶
 
@@ -21,6 +20,7 @@ staleness: 0
 - D05: awaitWriteFinish 設定 300ms 穩定閾值避免重複觸發
 - D06: handleEvent 中新增 ignoreFiles 豁免守衛，跳過外掛自身產出的檔案（如 cartridge_index.json），防止自我監聽迴圈
 - D07: handleSkillFileChange 修正為「staleness=0 即同步」策略。與舊版的 `checkAndCleanWarning` 不同，新版先嘗試清除警告，若無警告但 frontmatter.staleness=0，仍然觸發快取同步。修復了 MCP `memory_update` 寫入乾淨 SKILL.md 後外掛忽略同步的問題。
+- D08: refresh() 動態更新監聽清單。scan() 後自動 diff 新舊路徑，動態 add/unwatch，解決新增追蹤路徑需重啟 VS Code 才生效的問題
 
 ## Known Issues
 - 無

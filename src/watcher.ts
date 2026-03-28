@@ -22,6 +22,7 @@ export class CartridgeWatcher {
   private analyzer: StalenessAnalyzer
   private watcher: FSWatcher | null = null
   private onUpdate?: () => void
+  private watchedPaths: Set<string> = new Set()
 
   constructor(
     config: CartridgeConfig,
@@ -64,11 +65,15 @@ export class CartridgeWatcher {
       },
     })
 
+    // 記錄初始監聽路徑
+    this.watchedPaths = new Set(absolutePaths)
+
     // 逐一加入每張記憶卡的 SKILL.md 精確路徑（Windows 不支援 path.resolve + glob）
     const cartridges = Object.values(this.indexManager.getIndex().cartridges)
     for (const cartridge of cartridges) {
       const absPath = path.resolve(this.config.projectRoot, cartridge.skillPath)
       this.watcher.add(absPath)
+      this.watchedPaths.add(absPath)
     }
 
     this.watcher
@@ -92,7 +97,39 @@ export class CartridgeWatcher {
     if (this.watcher) {
       await this.watcher.close()
       this.watcher = null
+      this.watchedPaths.clear()
       console.log('[監聽引擎] 已停止')
+    }
+  }
+
+  /**
+   * [D14] 動態更新監聽清單（scan 後呼叫）
+   * diff 出新舊差異，動態 add 新路徑、unwatch 已移除路徑
+   */
+  refresh(): void {
+    if (!this.watcher) return
+
+    const currentFiles = this.indexManager.getAllTrackedFiles()
+      .map(f => path.resolve(this.config.projectRoot, f))
+    const currentSkills = Object.values(this.indexManager.getIndex().cartridges)
+      .map(c => path.resolve(this.config.projectRoot, c.skillPath))
+    const desired = new Set([...currentFiles, ...currentSkills])
+
+    // 新增路徑
+    for (const p of desired) {
+      if (!this.watchedPaths.has(p)) {
+        this.watcher.add(p)
+        this.watchedPaths.add(p)
+        console.log(`[監聽引擎] 動態新增監聽: ${p}`)
+      }
+    }
+    // 移除路徑
+    for (const p of this.watchedPaths) {
+      if (!desired.has(p)) {
+        this.watcher.unwatch(p)
+        this.watchedPaths.delete(p)
+        console.log(`[監聽引擎] 動態移除監聽: ${p}`)
+      }
     }
   }
 
@@ -153,6 +190,7 @@ export class CartridgeWatcher {
       const cartridgeId = relPath.split('/').slice(-2)[0]
       this.indexManager.clearPendingChanges(cartridgeId)
       await this.indexManager.scan()
+      this.refresh()
       console.log(
         `[監聯引擎] 偵測到記憶卡重設，已清除警報: ${relPath}`,
       )

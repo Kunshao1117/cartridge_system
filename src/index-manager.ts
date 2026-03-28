@@ -15,7 +15,10 @@ const INDEX_FILENAME = 'cartridge_index.json'
  * 從記憶卡匣 SKILL.md 解析追蹤檔案清單
  */
 export function parseTrackedFiles(content: string): string[] {
-  const trackedSection = content.match(
+  // 統一行尾為 LF，防止 Windows CRLF 導致正則失配
+  const normalized = content.replace(/\r\n/g, '\n')
+
+  const trackedSection = normalized.match(
     /## Tracked Files\n([\s\S]*?)(?=\n## |\n---|\n$)/,
   )?.[1]
   if (!trackedSection) return []
@@ -28,7 +31,13 @@ export function parseTrackedFiles(content: string): string[] {
       .replace(/\s.*$/, '')   // 截斷第一個空格後的說明文字
       .trim()
     )
-    .filter(line => line.length > 0 && !line.startsWith('（'))
+    .filter(line =>
+      line.length > 0
+      && !line.startsWith('（')
+      && !line.startsWith('#')    // 過濾 ### 分組標題
+      && !line.startsWith('<')    // 過濾 HTML 標記
+      && !line.startsWith('←')   // 過濾行尾備註殘留
+    )
 }
 
 /**

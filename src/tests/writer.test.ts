@@ -80,7 +80,7 @@ describe('MemoryWriter.injectWarning — 警報植入', () => {
 
   it('正常流程應呼叫 writeFileSync，且輸出包含警報標記', async () => {
     vi.mocked(fs.existsSync).mockReturnValue(true)
-    vi.mocked(fs.readFileSync).mockReturnValue(makeRawClean(0) as unknown as Buffer)
+    vi.mocked(fs.readFileSync).mockReturnValue(makeRawClean(0) as unknown as ReturnType<typeof fs.readFileSync>)
 
     const writer = new MemoryWriter(config)
     await writer.injectWarning(SKILL_PATH, ['src/test.ts'], 10)
@@ -95,7 +95,7 @@ describe('MemoryWriter.injectWarning — 警報植入', () => {
 
   it('已有警報時應先清除再植入（idempotent 保證），不重複堆疊', async () => {
     vi.mocked(fs.existsSync).mockReturnValue(true)
-    vi.mocked(fs.readFileSync).mockReturnValue(makeRawWithWarning(5) as unknown as Buffer)
+    vi.mocked(fs.readFileSync).mockReturnValue(makeRawWithWarning(5) as unknown as ReturnType<typeof fs.readFileSync>)
 
     const writer = new MemoryWriter(config)
     await writer.injectWarning(SKILL_PATH, ['src/test.ts'], 20)
@@ -123,7 +123,7 @@ describe('MemoryWriter.removeWarning — 警報移除', () => {
 
   it('staleness = 0 時 status 應改為 stable，並移除警報區塊', async () => {
     vi.mocked(fs.existsSync).mockReturnValue(true)
-    vi.mocked(fs.readFileSync).mockReturnValue(makeRawWithWarning(0) as unknown as Buffer)
+    vi.mocked(fs.readFileSync).mockReturnValue(makeRawWithWarning(0) as unknown as ReturnType<typeof fs.readFileSync>)
 
     const writer = new MemoryWriter(config)
     await writer.removeWarning(SKILL_PATH)
@@ -136,7 +136,7 @@ describe('MemoryWriter.removeWarning — 警報移除', () => {
 
   it('移除後檔案內容應不含警報區塊標記', async () => {
     vi.mocked(fs.existsSync).mockReturnValue(true)
-    vi.mocked(fs.readFileSync).mockReturnValue(makeRawWithWarning(5) as unknown as Buffer)
+    vi.mocked(fs.readFileSync).mockReturnValue(makeRawWithWarning(5) as unknown as ReturnType<typeof fs.readFileSync>)
 
     const writer = new MemoryWriter(config)
     await writer.removeWarning(SKILL_PATH)
@@ -162,7 +162,7 @@ describe('MemoryWriter.checkAndCleanWarning — 條件式清除', () => {
 
   it('有警報但 staleness ≠ 0 時不應清除，回傳 false', async () => {
     vi.mocked(fs.existsSync).mockReturnValue(true)
-    vi.mocked(fs.readFileSync).mockReturnValue(makeRawWithWarning(10) as unknown as Buffer)
+    vi.mocked(fs.readFileSync).mockReturnValue(makeRawWithWarning(10) as unknown as ReturnType<typeof fs.readFileSync>)
 
     const writer = new MemoryWriter(config)
     const result = await writer.checkAndCleanWarning(SKILL_PATH)
@@ -175,7 +175,7 @@ describe('MemoryWriter.checkAndCleanWarning — 條件式清除', () => {
     vi.mocked(fs.existsSync).mockReturnValue(true)
     // 第一次 read（checkAndCleanWarning 內）回傳含警報 + staleness=0 的內容
     // 第二次 read（removeWarning 內）也需要回傳同份內容
-    vi.mocked(fs.readFileSync).mockReturnValue(makeRawWithWarning(0) as unknown as Buffer)
+    vi.mocked(fs.readFileSync).mockReturnValue(makeRawWithWarning(0) as unknown as ReturnType<typeof fs.readFileSync>)
 
     const writer = new MemoryWriter(config)
     const result = await writer.checkAndCleanWarning(SKILL_PATH)

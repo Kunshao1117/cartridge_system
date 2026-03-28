@@ -31,7 +31,9 @@ After modifying source files tracked by a memory skill, you **MUST** invoke `car
 需要更新記憶嗎？
 ├── 修改既有段落（追蹤檔案清單、架構說明、歷史決策）
 │   ├── 改動多個區段或前言 → memory_read → 修改 → memory_update(mode: replace)
-│   └── 只改 1-2 個 ## 區段 → memory_update(mode: patch)，僅傳目標區段
+│   └── 只改 1-2 個 ## 或 ### 區段 → memory_update(mode: patch)，僅傳目標區段
+│       ├── 提供的 ### 子區段會被替換，未提及的 ### 自動保留
+│       └── 郍重更新前可加 dryRun: true 先預覽變更報告
 │
 └── 純粹追加新條目（教訓紀錄 Dxx、已知問題）
     └── → 直接 memory_update(mode: append)，無需先 read
@@ -39,21 +41,28 @@ After modifying source files tracked by a memory skill, you **MUST** invoke `car
 
 - **`replace`**（預設）：傳入完整的 SKILL.md 內容，整張替換。適用於結構性修改。
 - **`append`**：傳入要附加的差分段落，附加到現有內容末尾。適用於增量追加。
-- **`patch`**：傳入包含 `##` 標題的區段，不含 frontmatter。系統自動匹配同名區段替換、新區段附加到末尾、未提及的區段保持不動。適用於只更新 1-2 個特定區段。
+- **`patch`**：傳入包含 `##` 或 `###` 標題的區段，不含 frontmatter。系統自動執行兩層合併：
+  - `##` 層：同名區段替換、新區段附加、未提及的區段保持不動
+  - `###` 層：若 patch 包含子區段，只替換提及的 `###`，保留未提及的 `###`（最小匹配原則）
+  - 支援 `dryRun: true` 參數，只回傳變更預覽不寫入磁碟
+  - 回傳結構化 JSON 報告（含替換/新增/保留/移除清單、行數差異、警告）
 
 ### Post-Update Checklist
+
 1. **Add lessons** — under `## Module Lessons` if reusable knowledge discovered (format: `Dxx: description`)
 2. **Cross-module lessons** — log in `.agents/logs/episodic_log.md`
 
 ### Passive Safety Net (被動防護網)
 
 If memory updates were missed during the workflow, two safety nets exist:
+
 1. **Completion Gate** — forces a file-to-memory cross-reference check before reporting completion
 2. **Commit Staleness Warning** — `/09_commit_log` compares `git diff` against tracked files and warns the Director before committing with stale memory
 
 ## 4. Creating New Memory (建立新記憶)
 
 When `/02_blueprint` or `/08_audit` identifies a new module:
+
 1. Create folder `.agents/skills/mem-{module}/`
 2. Create `SKILL.md` with frontmatter + standard sections
 3. Description MUST include Chinese keywords for Director instruction matching

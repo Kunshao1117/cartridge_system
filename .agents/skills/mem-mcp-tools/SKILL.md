@@ -2,7 +2,7 @@
 name: mem-mcp-tools
 description: |
   專案記憶：MCP 工具介面模組（第二階段）。 Use when: 處理MCP伺服器註冊、工具路由、AI工具呼叫介面時載入。
-last_updated: '2026-03-28T18:20:36+08:00'
+last_updated: '2026-03-29T02:59:41+08:00'
 status: stable
 staleness: 0
 ---
@@ -19,8 +19,7 @@ staleness: 0
 - src/tests/mcp-handlers.test.ts
 - src/tests/path-guard.test.ts
 - src/tests/timestamp.test.ts
-- package.json
-## Key Decisions
+- package.json## Key Decisions
 - D01: 獨立出 `mcp-server.ts` 作為標準 stdio Server 入口，與 VS Code Extension 解耦，雙核心透過實體檔案系統互動。
 - D02: 首發提供 3 個核心工具：`memory_list`, `memory_read`, `memory_update`，取代直接檔案寫入。
 - D05: 新增 `mcp-handlers.ts` 商業邏輯解耦層，三個純函式（handleMemoryList/Read/Update）從 MCP SDK 解耦，讓工具邏輯可獨立進行 vitest 單元測試。`mcp-server.ts` 僅保留 SDK 連接與路由職責。
@@ -31,6 +30,7 @@ staleness: 0
 - D12: Read-Before-Write 保護機制（已演進為 D13 雙模式）
 - D13: memory_update 雙模式寫入 — mode='replace'(預設)整張替換 / mode='append'附加至末尾。AI 可明確選擇寫入策略，避免重複段落堆疊。
 - D14: memory_update 新增 patch 模式（區段級替換）— 以 `##` 為分割粒度，同名區段就地替換、新區段附加到末尾、未提及區段保持不動。新增 `parseSections()` 段落分割函式（含 CRLF 正規化、程式碼區塊守衛）和 `mergeSections()` 合併函式（含標題正規化比對）。patch 內容必須含至少一個 `##` 區段否則回傳錯誤。回傳結果包含替換/新增統計。
+- D15: patch 模式閘門機制強化 — 三層防護：(1) `parseSubSections()` 兩層解析支援 `###` 子區段粒度合併，只替換提及的子區段保留未提及的（最小匹配原則）；(2) `dryRun` 參數支援操作前預覽，不寫入磁碟只回傳結構化 JSON 報告（含 replaced/added/removed/preserved 區段名稱列表與行數差異）；(3) 大幅刪減保護閘門，行數減少超過 30% 時自動產生警告。`MergeResult` 從數字計數升級為字串陣列追蹤具體區段名稱。`PatchReport` 介面定義結構化回傳格式。
 
 ## Known Issues
 - 無
@@ -45,7 +45,7 @@ staleness: 0
 - D11: `gray-matter` 的 `matter.stringify(content, frontmatter)` 會自動處理 YAML 序列化，不需要手動拼接引號或格式。
 - D12: `memory_update` 工具明確區分兩種呼叫語意：mode='replace' 傳入完整 SKILL.md 內容（含 frontmatter）；mode='append' 傳入純差分段落不含 frontmatter。測試中，replace 測試不需 readFile mock，append 測試需模擬現有檔案的 readFile 回傳。
 - D14: Markdown 段落分割使用字元位置切割（substring）而非逐行拼接，可精確保留原始格式（包含空行、縮排等）。合併時保持原檔區段順序，新區段附加到末尾。patch 模式的測試需同時模擬 readFile（現有檔案）和 writeFile，驗證未提及區段的完整保留。
-## Relations
+- D15: 子區段級合併的關鍵設計：當 patch 的 `##` 區段同時包含 `###` 子區段且原始區段也包含 `###` 時，執行子區段級合併；否則回退到整段替換（向下相容）。`rebuildSectionContent()` 負責從 leading + subSections 重組完整的區段文字。測試需使用 `parseSubSections()` 建構含子區段的 Section 物件。## Relations
 - mem-index-manager（查詢卡匣資料）
 - mem-analyzer（查詢過期狀態）
 - mem-watcher（控制監聽生命週期）

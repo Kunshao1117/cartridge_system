@@ -31,7 +31,7 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
         inputSchema: {
           type: 'object',
           properties: {
-            projectRoot: { type: 'string', description: '目標專案的根目錄絕對路徑，例如 d:\\\\BartenderMap' },
+            projectRoot: { type: 'string', description: '目標專案的根目錄絕對路徑' },
           },
           required: ['projectRoot'],
         },
@@ -43,21 +43,22 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
           type: 'object',
           properties: {
             moduleName: { type: 'string', description: '記憶卡匣名稱，例如 mem-_system' },
-            projectRoot: { type: 'string', description: '目標專案的根目錄絕對路徑，例如 d:\\\\BartenderMap' },
+            projectRoot: { type: 'string', description: '目標專案的根目錄絕對路徑' },
           },
           required: ['moduleName', 'projectRoot'],
         },
       },
       {
         name: 'memory_update',
-        description: '寫入並更新指定專案中特定 mem-* 模組的內容（會自動更新時間戳記與健康狀態）。支援三種模式：replace（整張替換）、append（附加到末尾）、patch（## 區段級替換）。',
+        description: '寫入並更新指定專案中特定 mem-* 模組的內容（會自動更新時間戳記與健康狀態）。支援三種模式：replace（整張替換）、append（附加到末尾）、patch（## / ### 區段級替換，支援 dryRun 預覽）。',
         inputSchema: {
           type: 'object',
           properties: {
             moduleName: { type: 'string', description: '記憶卡匣名稱' },
-            content: { type: 'string', description: '記憶卡內容。replace=完整SKILL.md；append=差分段落；patch=要替換的目標##區段（不含frontmatter）' },
-            mode: { type: 'string', enum: ['replace', 'append', 'patch'], description: '寫入模式。replace（預設）=整張替換；append=附加到末尾；patch=##區段級替換（同名替換、新區段附加、未提及保留）' },
-            projectRoot: { type: 'string', description: '目標專案的根目錄絕對路徑，例如 d:\\\\BartenderMap' },
+            content: { type: 'string', description: '記憶卡內容。replace=完整SKILL.md；append=差分段落；patch=要替換的目標##/###區段（不含frontmatter）' },
+            mode: { type: 'string', enum: ['replace', 'append', 'patch'], description: '寫入模式。replace（預設）=整張替換；append=附加到末尾；patch=區段級替換（支援##和###兩層合併，同名替換、新區段附加、未提及保留）' },
+            dryRun: { type: 'boolean', description: '僅限 patch 模式。設為 true 時不寫入磁碟，只回傳變更預覽報告（含將替換/新增/保留/刪除的區段清單和行數差異）' },
+            projectRoot: { type: 'string', description: '目標專案的根目錄絕對路徑' },
           },
           required: ['moduleName', 'content', 'projectRoot'],
         },

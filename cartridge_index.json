@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "lastScanned": "2026-03-27T22:22:07.817Z",
+  "lastScanned": "2026-03-28T00:29:41.797Z",
   "cartridges": {
     "mem-analyzer": {
       "skillPath": ".agents\\skills\\mem-analyzer\\SKILL.md",
@@ -8,17 +8,16 @@
         "src/analyzer.ts"
       ],
       "staleness": 0,
-      "lastUpdated": "2026-03-28T05:42:51+08:00",
+      "lastUpdated": "2026-03-28T06:01:58+08:00",
       "pendingChanges": []
     },
     "mem-index-manager": {
       "skillPath": ".agents\\skills\\mem-index-manager\\SKILL.md",
       "trackedFiles": [
-        "src/index-manager.ts",
-        "cartridge_index.json"
+        "src/index-manager.ts"
       ],
       "staleness": 0,
-      "lastUpdated": "2026-03-28T05:42:51+08:00",
+      "lastUpdated": "2026-03-28T06:01:58+08:00",
       "pendingChanges": []
     },
     "mem-injector": {
@@ -28,14 +27,17 @@
         "src/templates/"
       ],
       "staleness": 0,
-      "lastUpdated": "2026-03-28T05:54:57+08:00",
+      "lastUpdated": "2026-03-28T06:38:42+08:00",
       "pendingChanges": []
     },
     "mem-mcp-tools": {
       "skillPath": ".agents\\skills\\mem-mcp-tools\\SKILL.md",
-      "trackedFiles": [],
+      "trackedFiles": [
+        "`src/mcp-server.ts`",
+        "`package.json` (MCP dependencies)"
+      ],
       "staleness": 0,
-      "lastUpdated": "2026-03-28T05:49:41+08:00",
+      "lastUpdated": "2026-03-28T07:29:00+08:00",
       "pendingChanges": []
     },
     "mem-watcher": {
@@ -44,14 +46,20 @@
         "src/watcher.ts"
       ],
       "staleness": 0,
-      "lastUpdated": "2026-03-28T05:42:51+08:00",
-      "pendingChanges": []
+      "lastUpdated": "2026-03-28T08:26:00+08:00",
+      "pendingChanges": [
+        {
+          "filePath": "src/watcher.ts",
+          "eventType": "change",
+          "timestamp": "2026-03-28T00:26:21.345Z"
+        }
+      ]
     },
     "mem-_system": {
       "skillPath": ".agents\\skills\\mem-_system\\SKILL.md",
       "trackedFiles": [],
       "staleness": 0,
-      "lastUpdated": "2026-03-28T05:49:41+08:00",
+      "lastUpdated": "2026-03-28T07:29:00+08:00",
       "pendingChanges": []
     }
   },
@@ -62,14 +70,17 @@
     "src/index-manager.ts": [
       "mem-index-manager"
     ],
-    "cartridge_index.json": [
-      "mem-index-manager"
-    ],
     "src/injector.ts": [
       "mem-injector"
     ],
     "src/templates/": [
       "mem-injector"
+    ],
+    "`src/mcp-server.ts`": [
+      "mem-mcp-tools"
+    ],
+    "`package.json` (MCP dependencies)": [
+      "mem-mcp-tools"
     ],
     "src/watcher.ts": [
       "mem-watcher"

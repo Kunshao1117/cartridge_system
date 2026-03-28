@@ -105,6 +105,11 @@ export class CartridgeWatcher {
       .relative(this.config.projectRoot, absFilePath)
       .replace(/\\/g, '/')
 
+    // 系統產物豁免：跳過外掛自身產出的檔案，防止自我監聽迴圈
+    if (this.config.ignoreFiles.some(f => relPath.endsWith(f))) {
+      return
+    }
+
     // 檢查是否為記憶卡匣本身的變動（AI 重設 staleness）
     if (
       relPath.includes('.agents/skills/mem-') &&

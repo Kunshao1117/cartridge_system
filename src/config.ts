@@ -22,6 +22,11 @@ const DEFAULT_THRESHOLDS = {
   critical: 30,
 }
 
+/** 系統產物豁免清單（外掛自身產出的檔案，不觸發過期計算） */
+const DEFAULT_IGNORE_FILES = [
+  'cartridge_index.json',
+]
+
 const DEFAULT_SCORING = {
   fileChanged: 10,
   fileDeleted: 20,
@@ -42,6 +47,7 @@ export function createConfig(
     projectRoot: path.resolve(projectRoot),
     skillsDir: overrides?.skillsDir ?? '.agents/skills',
     excludeDirs: overrides?.excludeDirs ?? DEFAULT_EXCLUDES,
+    ignoreFiles: overrides?.ignoreFiles ?? DEFAULT_IGNORE_FILES,
     thresholds: {
       ...DEFAULT_THRESHOLDS,
       ...overrides?.thresholds,

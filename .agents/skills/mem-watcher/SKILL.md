@@ -1,12 +1,12 @@
 ---
 name: mem-watcher
-description: >
-  專案記憶：檔案監聽引擎模組。
-  Use when: 處理檔案監聽、chokidar設定、監聽生命週期管理時載入。
-last_updated: "2026-03-28T06:01:58+08:00"
+description: |
+  專案記憶：檔案監聯引擎模組。 Use when: 處理檔案監聽、chokidar設定、監聽生命週期管理時載入。
+last_updated: '2026-03-28T08:26:00+08:00'
 status: stable
 staleness: 0
 ---
+
 
 # Watcher Engine — 監聽引擎記憶
 
@@ -19,6 +19,7 @@ staleness: 0
 - D03: 採用事件發送器模式向過期分析器傳遞異動事件
 - D04: 同時監聽 mem-*/SKILL.md 以偵測 AI 重設 staleness 的動作
 - D05: awaitWriteFinish 設定 300ms 穩定閾值避免重複觸發
+- D06: handleEvent 中新增 ignoreFiles 豁免守衛，跳過外掛自身產出的檔案（如 cartridge_index.json），防止自我監聽迴圈
 
 ## Known Issues
 - 無
@@ -26,6 +27,7 @@ staleness: 0
 ## Module Lessons
 - D01: watcher 與 UI 層必須透過 onUpdate 回調解耦
 - D02: 在 Windows 上，不可用 path.resolve() + glob 字串（`mem-*/SKILL.md`）填入 chokidar.add()。`path.resolve` 把 `*` 當字面字符，導致 Windows 下靜默失效。正確做法是從索引取得每張記憶卡的精確絕對路徑連同加入。
+- D03: 系統自動產出的檔案（如 cartridge_index.json）嚴禁被監聽，否則外掛寫入索引 → 觸發過期 → 寫入警報 → 再觸發…形成無限迴圈。已透過 config.ignoreFiles 在插件端硬性排除。
 
 ## Relations
 - mem-analyzer（接收異動事件的下游消費者）

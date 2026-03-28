@@ -62,6 +62,8 @@ export interface CartridgeConfig {
   skillsDir: string
   /** 排除監聽的目錄 */
   excludeDirs: string[]
+  /** 系統產物豁免清單（不觸發過期計算的檔案） */
+  ignoreFiles: string[]
   /** 過期指數閾值設定 */
   thresholds: {
     /** 顯著過期閾值（植入橘色警報） */

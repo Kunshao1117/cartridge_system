@@ -1,9 +1,8 @@
 ---
 name: mem-index-manager
-description: >
-  專案記憶：記憶索引管理器模組。
-  Use when: 處理卡匣索引、檔案反向映射、持久化讀寫時載入。
-last_updated: "2026-03-28T06:01:58+08:00"
+description: |
+  專案記憶：記憶索引管理器模組。 Use when: 處理卡匣索引、檔案反向映射、持久化讀寫時載入。
+last_updated: '2026-03-28T06:01:58+08:00'
 status: stable
 staleness: 0
 ---
@@ -12,7 +11,6 @@ staleness: 0
 
 ## Tracked Files
 - src/index-manager.ts
-- cartridge_index.json
 
 ## Key Decisions
 - D01: 索引持久化為 JSON 格式（cartridge_index.json）

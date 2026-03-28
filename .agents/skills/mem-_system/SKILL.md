@@ -3,7 +3,7 @@ name: mem-_system
 description: >
   專案記憶：系統技術堆疊與部署設定。
   Use when: 確認技術選型、環境設定、部署組態時載入。
-last_updated: "2026-03-28T07:29:00+08:00"
+last_updated: '2026-03-28T08:29:00+08:00'
 status: stable
 staleness: 0
 ---
@@ -27,7 +27,7 @@ staleness: 0
 ## VS Code Extension & MCP
 - Entry: `src/extension.ts` 及 `src/mcp-server.ts`
 - Output: `dist/extension.js` 及 `dist/mcp-server.js`
-- Activation: `workspaceContains:.agents`
+- Activation: `workspaceContains:.agents` + `onStartupFinished`
 - Commands: `cartridge.scan`、`cartridge.status`
 - Engine: `vscode ^1.85.0`
 - Publisher: `cartridge-system`
@@ -48,7 +48,7 @@ staleness: 0
 ## Config Files
 - `package.json` — VS Code Extension 元數據（含 activationEvents / contributes）
 - `tsconfig.json` — CommonJS + node 模組解析
-- `tsup.config.ts` — entry: extension.ts / format: cjs / external: vscode
+- `tsup.config.ts` — entry: extension.ts / format: cjs / external: vscode / noExternal: chokidar, gray-matter
 - `.vscodeignore` — 打包排除清單
 - `cartridge_index.json` — 執行期產生
 
@@ -63,8 +63,9 @@ staleness: 0
 - D04: gray-matter 解析 YAML frontmatter
 - D05: 主動物理寫入策略
 - D06: 需安裝 @types/node
-- D07: activationEvents 設為 workspaceContains:.agents，避免在無關專案啟動
+- D07: activationEvents 包含 workspaceContains:.agents 與 onStartupFinished，確保 Antigravity IDE 中無條件啟動
 - D08: import.meta.dirname 在 CommonJS 中不可用，已改為 __dirname
+- D09: tsup noExternal 強制打包 chokidar 和 gray-matter，確保 VSIX 無需 node_modules
 
 ## Known Issues
 - 無
@@ -73,3 +74,6 @@ staleness: 0
 - D01: TypeScript ESM 使用 node: 前綴需 @types/node
 - D02: VS Code Extension 強制 CommonJS，ESM 不相容
 - D03: tsup 打包時必須將 vscode 設為 external，避免打包進 bundle
+- D04: chokidar 和 gray-matter 必須設為 noExternal 強制打包，否則 VSIX 不含 node_modules 時會靜默崩潰
+- D05: Antigravity IDE 使用獨立的 CLI（`antigravity` 而非 `code`），安裝外掛必須用 `antigravity --install-extension`
+- D06: 指令註冊（registerCommand）必須放在 activate() 最前面，在任何可能失敗的初始化邏輯之前

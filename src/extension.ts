@@ -23,53 +23,16 @@ let statusBar: CartridgeStatusBar | undefined
 export async function activate(
   context: vscode.ExtensionContext,
 ): Promise<void> {
-  const workspaceFolders = vscode.workspace.workspaceFolders
-  if (!workspaceFolders || workspaceFolders.length === 0) {
-    return
-  }
 
-  const projectRoot = workspaceFolders[0].uri.fsPath
-
-  // 建立設定
-  const config = createConfig(projectRoot)
-
-  // 初始化狀態列
-  statusBar = new CartridgeStatusBar(context)
-  statusBar.show('初始化中...')
-
-  // === 第零步：基底卡匣注入 ===
-  const injector = new CoreInjector(config)
-  await injector.inject()
-  vscode.window.setStatusBarMessage(injector.formatReport(), 5000)
-
-  // === 第一步：索引掃描 ===
-  indexManager = new CartridgeIndexManager(config)
-  const index = await indexManager.scan()
-  await indexManager.persist()
-
-  // 更新狀態列燈號
-  statusBar.update(index)
-
-  // === 第二步：啟動監聽引擎 ===
-  const writer = new MemoryWriter(config)
-  const analyzer = new StalenessAnalyzer(config, indexManager, writer)
-  const refreshStatusBar = () => statusBar?.update(indexManager?.getIndex())
-  watcher = new CartridgeWatcher(config, indexManager, analyzer, refreshStatusBar)
-  await watcher.start()
-
-  // 監聽工作區資料夾變更
-  context.subscriptions.push(
-    vscode.workspace.onDidChangeWorkspaceFolders(async () => {
-      if (!indexManager) return
-      const newIndex = await indexManager.scan()
-      statusBar?.update(newIndex)
-    }),
-  )
+  // === 最優先：無條件註冊指令 ===
 
   // 命令：重新掃描索引
   context.subscriptions.push(
     vscode.commands.registerCommand('cartridge.scan', async () => {
-      if (!indexManager) return
+      if (!indexManager) {
+        vscode.window.showWarningMessage('記憶卡匣：系統尚未初始化完成')
+        return
+      }
       const newIndex = await indexManager.scan()
       await indexManager.persist()
       statusBar?.update(newIndex)
@@ -103,6 +66,50 @@ export async function activate(
       }
     }),
   )
+
+  // === 工作區檢查（僅影響初始化，不影響指令） ===
+  const workspaceFolders = vscode.workspace.workspaceFolders
+  if (!workspaceFolders || workspaceFolders.length === 0) {
+    return
+  }
+
+  const projectRoot = workspaceFolders[0].uri.fsPath
+
+  // === 初始化流程（允許失敗但不影響指令） ===
+  try {
+    const config = createConfig(projectRoot)
+
+    statusBar = new CartridgeStatusBar(context)
+    statusBar.show('初始化中...')
+
+    const injector = new CoreInjector(config)
+    await injector.inject()
+    vscode.window.setStatusBarMessage(injector.formatReport(), 5000)
+
+    indexManager = new CartridgeIndexManager(config)
+    const index = await indexManager.scan()
+    await indexManager.persist()
+
+    statusBar.update(index)
+
+    const writer = new MemoryWriter(config)
+    const analyzer = new StalenessAnalyzer(config, indexManager, writer)
+    const refreshStatusBar = () => statusBar?.update(indexManager?.getIndex())
+    watcher = new CartridgeWatcher(config, indexManager, analyzer, refreshStatusBar)
+    await watcher.start()
+
+    context.subscriptions.push(
+      vscode.workspace.onDidChangeWorkspaceFolders(async () => {
+        if (!indexManager) return
+        const newIndex = await indexManager.scan()
+        statusBar?.update(newIndex)
+      }),
+    )
+  } catch (error: unknown) {
+    const msg = error instanceof Error ? error.message : String(error)
+    console.error('[記憶卡匣] 初始化失敗：', msg)
+    vscode.window.showErrorMessage(`記憶卡匣初始化失敗：${msg}`)
+  }
 }
 
 /**

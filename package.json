@@ -7,7 +7,7 @@
   "engines": { "vscode": "^1.85.0" },
   "categories": ["Other"],
   "icon": "assets/logo.png",
-  "activationEvents": ["workspaceContains:.agents"],
+  "activationEvents": ["workspaceContains:.agents", "onStartupFinished"],
   "main": "./dist/extension.js",
   "contributes": {
     "commands": [

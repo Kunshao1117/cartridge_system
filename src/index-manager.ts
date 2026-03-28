@@ -14,7 +14,7 @@ const INDEX_FILENAME = 'cartridge_index.json'
 /**
  * 從記憶卡匣 SKILL.md 解析追蹤檔案清單
  */
-function parseTrackedFiles(content: string): string[] {
+export function parseTrackedFiles(content: string): string[] {
   const trackedSection = content.match(
     /## Tracked Files\n([\s\S]*?)(?=\n## |\n---|\n$)/,
   )?.[1]

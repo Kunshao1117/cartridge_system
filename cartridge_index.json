@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "lastScanned": "2026-03-28T01:40:11.651Z",
+  "lastScanned": "2026-03-28T01:49:04.088Z",
   "cartridges": {
     "mem-analyzer": {
       "skillPath": ".agents\\skills\\mem-analyzer\\SKILL.md",
@@ -24,10 +24,11 @@
     "mem-index-manager": {
       "skillPath": ".agents\\skills\\mem-index-manager\\SKILL.md",
       "trackedFiles": [
-        "src/index-manager.ts"
+        "src/index-manager.ts",
+        "src/tests/index-manager.test.ts"
       ],
       "staleness": 0,
-      "lastUpdated": "2026-03-28T09:38:00+08:00",
+      "lastUpdated": "2026-03-28T09:50:00+08:00",
       "pendingChanges": []
     },
     "mem-injector": {
@@ -44,10 +45,12 @@
       "skillPath": ".agents\\skills\\mem-mcp-tools\\SKILL.md",
       "trackedFiles": [
         "src/mcp-server.ts",
+        "src/mcp-handlers.ts",
+        "src/tests/mcp-handlers.test.ts",
         "package.json"
       ],
-      "staleness": 0,
-      "lastUpdated": "2026-03-28T09:38:00+08:00",
+      "staleness": 10,
+      "lastUpdated": "",
       "pendingChanges": [
         {
           "filePath": "src/mcp-server.ts",
@@ -95,6 +98,9 @@
     "src/index-manager.ts": [
       "mem-index-manager"
     ],
+    "src/tests/index-manager.test.ts": [
+      "mem-index-manager"
+    ],
     "src/injector.ts": [
       "mem-injector"
     ],
@@ -102,6 +108,12 @@
       "mem-injector"
     ],
     "src/mcp-server.ts": [
+      "mem-mcp-tools"
+    ],
+    "src/mcp-handlers.ts": [
+      "mem-mcp-tools"
+    ],
+    "src/tests/mcp-handlers.test.ts": [
       "mem-mcp-tools"
     ],
     "package.json": [

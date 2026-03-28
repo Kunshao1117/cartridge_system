@@ -4,9 +4,12 @@ import {
   CallToolRequestSchema,
   ListToolsRequestSchema,
 } from '@modelcontextprotocol/sdk/types.js'
-import * as fs from 'fs/promises'
 import * as path from 'path'
-import * as z from 'zod'
+import {
+  handleMemoryList,
+  handleMemoryRead,
+  handleMemoryUpdate,
+} from './mcp-handlers.js'
 
 const server = new Server(
   {
@@ -24,15 +27,6 @@ const server = new Server(
 const workspaceIndex = process.argv.indexOf('--workspace')
 const workspacePath = workspaceIndex !== -1 ? process.argv[workspaceIndex + 1] : process.cwd()
 const agentsDir = path.join(workspacePath, '.agents', 'skills')
-
-const memoryReadSchema = z.object({
-  moduleName: z.string().min(1),
-})
-
-const memoryUpdateSchema = z.object({
-  moduleName: z.string().min(1),
-  content: z.string().min(1),
-})
 
 server.setRequestHandler(ListToolsRequestSchema, async () => {
   return {
@@ -69,60 +63,20 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
   }
 })
 
-server.setRequestHandler(CallToolRequestSchema, async (request) => {
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+server.setRequestHandler(CallToolRequestSchema, async (request): Promise<any> => {
   const { name, arguments: args } = request.params
 
   if (name === 'memory_list') {
-    try {
-      const files = await fs.readdir(agentsDir, { withFileTypes: true })
-      const modules = files
-        .filter((d) => d.isDirectory() && d.name.startsWith('mem-'))
-        .map((d) => d.name)
-      return {
-        content: [{ type: 'text', text: `Available memories:\n${modules.join('\n')}` }],
-      }
-    } catch (e: unknown) {
-      const msg = e instanceof Error ? e.message : String(e)
-      return { content: [{ type: 'text', text: `Error: ${msg}` }], isError: true }
-    }
+    return handleMemoryList(agentsDir)
   }
 
   if (name === 'memory_read') {
-    const parsed = memoryReadSchema.safeParse(args)
-    if (!parsed.success) {
-      return { content: [{ type: 'text', text: 'Validation Error' }], isError: true }
-    }
-    try {
-      const filePath = path.join(agentsDir, parsed.data.moduleName, 'SKILL.md')
-      const content = await fs.readFile(filePath, 'utf-8')
-      return { content: [{ type: 'text', text: content }] }
-    } catch (e: unknown) {
-      const msg = e instanceof Error ? e.message : String(e)
-      return { content: [{ type: 'text', text: `Error: ${msg}` }], isError: true }
-    }
+    return handleMemoryRead(agentsDir, args)
   }
 
   if (name === 'memory_update') {
-    const parsed = memoryUpdateSchema.safeParse(args)
-    if (!parsed.success) {
-      return { content: [{ type: 'text', text: 'Validation Error' }], isError: true }
-    }
-    try {
-      const tzOffset = 8 * 60 * 60 * 1000 // UTC+8
-      const localTime = new Date(Date.now() + tzOffset)
-      const isoLocal = localTime.toISOString().replace('Z', '+08:00')
-
-      const finalContent = parsed.data.content
-        .replace(/last_updated:\s*".*"/, `last_updated: "${isoLocal}"`)
-        .replace(/staleness:\s*\d+/, `staleness: 0`)
-
-      const filePath = path.join(agentsDir, parsed.data.moduleName, 'SKILL.md')
-      await fs.writeFile(filePath, finalContent, 'utf-8')
-      return { content: [{ type: 'text', text: `Successfully updated ${parsed.data.moduleName}` }] }
-    } catch (e: unknown) {
-      const msg = e instanceof Error ? e.message : String(e)
-      return { content: [{ type: 'text', text: `Error: ${msg}` }], isError: true }
-    }
+    return handleMemoryUpdate(agentsDir, args)
   }
 
   return { content: [{ type: 'text', text: `Unknown tool: ${name}` }], isError: true }

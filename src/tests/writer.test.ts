@@ -62,7 +62,7 @@ const config = createConfig('d:/cartridge_system')
 const SKILL_PATH = '.agents/skills/mem-test/SKILL.md'
 
 beforeEach(() => {
-  vi.clearAllMocks()
+  vi.resetAllMocks()
 })
 
 // ---------------------------------------------------------------------------

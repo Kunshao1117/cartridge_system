@@ -3,6 +3,7 @@
  * 使用 chokidar 監聽追蹤檔案的異動
  */
 
+import fs from 'node:fs'
 import path from 'node:path'
 import { watch } from 'chokidar'
 import type { FSWatcher } from 'chokidar'
@@ -10,6 +11,7 @@ import type { CartridgeConfig, FileEventType } from './types.js'
 import type { CartridgeIndexManager } from './index-manager.js'
 import type { StalenessAnalyzer } from './analyzer.js'
 import { MemoryWriter } from './writer.js'
+import matter from 'gray-matter'
 
 /**
  * 檔案監聽引擎
@@ -126,18 +128,33 @@ export class CartridgeWatcher {
 
   /**
    * 處理記憶卡匣自身的變動（偵測 AI 是否重設了過期指數）
+   * 修復：MCP 寫入乾淨 SKILL.md（無警告區塊）時也需觸發快取同步
    */
   private async handleSkillFileChange(relPath: string): Promise<void> {
     const writer = new MemoryWriter(this.config)
+
+    // 先嘗試清除舊警告（有警告 + staleness=0 的情況）
     const cleaned = await writer.checkAndCleanWarning(relPath)
-    if (cleaned) {
-      // 清空此卡匣的異動清單，讓後續修改能重新觸發計分
+
+    // 即使沒有舊警告，只要 staleness=0 就視為 AI 已重設，需同步快取
+    let needsSync = cleaned
+    if (!needsSync) {
+      const absPath = path.resolve(this.config.projectRoot, relPath)
+      try {
+        const raw = fs.readFileSync(absPath, 'utf-8')
+        const parsed = matter(raw)
+        needsSync = Number(parsed.data.staleness) === 0
+      } catch {
+        // 讀取失敗則不同步
+      }
+    }
+
+    if (needsSync) {
       const cartridgeId = relPath.split('/').slice(-2)[0]
       this.indexManager.clearPendingChanges(cartridgeId)
-      // 重新掃描索引以同步狀態
       await this.indexManager.scan()
       console.log(
-        `[監聽引擎] 偵測到記憶卡重設，已清除警報: ${relPath}`,
+        `[監聯引擎] 偵測到記憶卡重設，已清除警報: ${relPath}`,
       )
       this.onUpdate?.()
     }

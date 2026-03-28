@@ -1,14 +1,15 @@
 {
   "version": 1,
-  "lastScanned": "2026-03-28T01:49:04.088Z",
+  "lastScanned": "2026-03-28T04:12:29.801Z",
   "cartridges": {
     "mem-analyzer": {
       "skillPath": ".agents\\skills\\mem-analyzer\\SKILL.md",
       "trackedFiles": [
-        "src/analyzer.ts"
+        "src/analyzer.ts",
+        "src/tests/analyzer.test.ts"
       ],
       "staleness": 0,
-      "lastUpdated": "2026-03-28T06:01:58+08:00",
+      "lastUpdated": "2026-03-28T10:15:00+08:00",
       "pendingChanges": []
     },
     "mem-extension": {
@@ -49,15 +50,9 @@
         "src/tests/mcp-handlers.test.ts",
         "package.json"
       ],
-      "staleness": 10,
-      "lastUpdated": "",
-      "pendingChanges": [
-        {
-          "filePath": "src/mcp-server.ts",
-          "eventType": "change",
-          "timestamp": "2026-03-28T01:35:50.080Z"
-        }
-      ]
+      "staleness": 0,
+      "lastUpdated": "2026-03-28T11:32:00+08:00",
+      "pendingChanges": []
     },
     "mem-watcher": {
       "skillPath": ".agents\\skills\\mem-watcher\\SKILL.md",
@@ -65,16 +60,17 @@
         "src/watcher.ts"
       ],
       "staleness": 0,
-      "lastUpdated": "2026-03-28T08:26:00+08:00",
+      "lastUpdated": "2026-03-28T12:07:00+08:00",
       "pendingChanges": []
     },
     "mem-writer": {
       "skillPath": ".agents\\skills\\mem-writer\\SKILL.md",
       "trackedFiles": [
-        "src/writer.ts"
+        "src/writer.ts",
+        "src/tests/writer.test.ts"
       ],
       "staleness": 0,
-      "lastUpdated": "2026-03-28T09:12:00+08:00",
+      "lastUpdated": "2026-03-28T12:11:00+08:00",
       "pendingChanges": []
     },
     "mem-_system": {
@@ -87,6 +83,9 @@
   },
   "fileMap": {
     "src/analyzer.ts": [
+      "mem-analyzer"
+    ],
+    "src/tests/analyzer.test.ts": [
       "mem-analyzer"
     ],
     "src/extension.ts": [
@@ -123,6 +122,9 @@
       "mem-watcher"
     ],
     "src/writer.ts": [
+      "mem-writer"
+    ],
+    "src/tests/writer.test.ts": [
       "mem-writer"
     ]
   }

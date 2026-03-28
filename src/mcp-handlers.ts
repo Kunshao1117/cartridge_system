@@ -13,21 +13,33 @@ export interface McpToolResult {
   isError?: boolean
 }
 
+/** memory_list 工具參數驗證 Schema */
+export const memoryListSchema = z.object({
+  projectRoot: z.string().min(1),
+})
+
 /** memory_read 工具參數驗證 Schema */
 export const memoryReadSchema = z.object({
   moduleName: z.string().min(1),
+  projectRoot: z.string().min(1),
 })
 
 /** memory_update 工具參數驗證 Schema */
 export const memoryUpdateSchema = z.object({
   moduleName: z.string().min(1),
   content: z.string().min(1),
+  projectRoot: z.string().min(1),
 })
 
 /**
  * memory_list — 列出所有 mem-* 記憶卡匣目錄名稱
  */
-export async function handleMemoryList(agentsDir: string): Promise<McpToolResult> {
+export async function handleMemoryList(args: unknown): Promise<McpToolResult> {
+  const parsed = memoryListSchema.safeParse(args)
+  if (!parsed.success) {
+    return { content: [{ type: 'text', text: 'Validation Error: projectRoot is required' }], isError: true }
+  }
+  const agentsDir = path.join(parsed.data.projectRoot, '.agents', 'skills')
   try {
     const files = await fs.readdir(agentsDir, { withFileTypes: true })
     const modules = files
@@ -46,13 +58,13 @@ export async function handleMemoryList(agentsDir: string): Promise<McpToolResult
  * memory_read — 讀取指定記憶卡匣的 SKILL.md 內容
  */
 export async function handleMemoryRead(
-  agentsDir: string,
   args: unknown,
 ): Promise<McpToolResult> {
   const parsed = memoryReadSchema.safeParse(args)
   if (!parsed.success) {
-    return { content: [{ type: 'text', text: 'Validation Error' }], isError: true }
+    return { content: [{ type: 'text', text: 'Validation Error: moduleName and projectRoot are required' }], isError: true }
   }
+  const agentsDir = path.join(parsed.data.projectRoot, '.agents', 'skills')
   try {
     const filePath = path.join(agentsDir, parsed.data.moduleName, 'SKILL.md')
     const content = await fs.readFile(filePath, 'utf-8')
@@ -67,13 +79,13 @@ export async function handleMemoryRead(
  * memory_update — 寫入指定記憶卡匣的 SKILL.md，自動更新時間戳記與 staleness
  */
 export async function handleMemoryUpdate(
-  agentsDir: string,
   args: unknown,
 ): Promise<McpToolResult> {
   const parsed = memoryUpdateSchema.safeParse(args)
   if (!parsed.success) {
-    return { content: [{ type: 'text', text: 'Validation Error' }], isError: true }
+    return { content: [{ type: 'text', text: 'Validation Error: moduleName, content and projectRoot are required' }], isError: true }
   }
+  const agentsDir = path.join(parsed.data.projectRoot, '.agents', 'skills')
   try {
     const tzOffset = 8 * 60 * 60 * 1000 // UTC+8
     const localTime = new Date(Date.now() + tzOffset)

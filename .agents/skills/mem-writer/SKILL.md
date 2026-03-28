@@ -1,9 +1,8 @@
 ---
 name: mem-writer
-description: >
-  專案記憶：記憶卡寫入器模組。
-  Use when: 處理警報植入、警報移除、記憶卡過期警示注入時載入。
-last_updated: "2026-03-28T10:15:00+08:00"
+description: |
+  專案記憶：記憶卡寫入器模組。 Use when: 處理警報植入、警報移除、記憶卡過期警示注入時載入。
+last_updated: '2026-03-28T12:11:00+08:00'
 status: stable
 staleness: 0
 ---
@@ -29,6 +28,7 @@ staleness: 0
 - D01: `matter.stringify()` 在前後新增 frontmatter 時，內容的前導換行需謹慎處理，否則警報移除後可能殘留空行
 - D02: gray-matter 在測試中可讓它真實執行（純字串解析），不需要 mock，測試語義更完整
 - D03: vi.mock('node:fs') 需同時 mock default export 與 named exports，否則 ESM 解構引入會失敗
+- D04: vitest 對 `node:fs` 的 vi.mock factory 存在 ESM interop 邊緣問題，新增於 mock factory 中的 `readFileSync` vi.fn() 在某些測試順序下會回傳意料之外的值。避免在已用 vi.mock('node:fs') 的測試檔中新增使用 readFileSync 的新方法。
 
 ## Relations
 - mem-watcher（上游事件驅動者，偵測到 staleness 重設時呼叫 checkAndCleanWarning）

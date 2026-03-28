@@ -4,7 +4,6 @@ import {
   CallToolRequestSchema,
   ListToolsRequestSchema,
 } from '@modelcontextprotocol/sdk/types.js'
-import * as path from 'path'
 import {
   handleMemoryList,
   handleMemoryRead,
@@ -23,40 +22,43 @@ const server = new Server(
   }
 )
 
-// 解析 --workspace 參數，退回 process.cwd() 作為預設值
-const workspaceIndex = process.argv.indexOf('--workspace')
-const workspacePath = workspaceIndex !== -1 ? process.argv[workspaceIndex + 1] : process.cwd()
-const agentsDir = path.join(workspacePath, '.agents', 'skills')
-
 server.setRequestHandler(ListToolsRequestSchema, async () => {
   return {
     tools: [
       {
         name: 'memory_list',
-        description: '列出專案中所有已被系統追蹤的記憶卡匣清單。',
-        inputSchema: { type: 'object', properties: {} },
+        description: '列出指定專案中所有已被系統追蹤的記憶卡匣清單。',
+        inputSchema: {
+          type: 'object',
+          properties: {
+            projectRoot: { type: 'string', description: '目標專案的根目錄絕對路徑，例如 d:\\\\BartenderMap' },
+          },
+          required: ['projectRoot'],
+        },
       },
       {
         name: 'memory_read',
-        description: '讀取特定 mem-* 模組的完整內容。',
+        description: '讀取指定專案中特定 mem-* 模組的完整內容。',
         inputSchema: {
           type: 'object',
           properties: {
             moduleName: { type: 'string', description: '記憶卡匣名稱，例如 mem-_system' },
+            projectRoot: { type: 'string', description: '目標專案的根目錄絕對路徑，例如 d:\\\\BartenderMap' },
           },
-          required: ['moduleName'],
+          required: ['moduleName', 'projectRoot'],
         },
       },
       {
         name: 'memory_update',
-        description: '寫入並更新特定 mem-* 模組的內容（會自動更新時間戳記與健康狀態）。',
+        description: '寫入並更新指定專案中特定 mem-* 模組的內容（會自動更新時間戳記與健康狀態）。',
         inputSchema: {
           type: 'object',
           properties: {
-            moduleName: { type: 'string' },
+            moduleName: { type: 'string', description: '記憶卡匣名稱' },
             content: { type: 'string', description: '完整的 Markdown 內容' },
+            projectRoot: { type: 'string', description: '目標專案的根目錄絕對路徑，例如 d:\\\\BartenderMap' },
           },
-          required: ['moduleName', 'content'],
+          required: ['moduleName', 'content', 'projectRoot'],
         },
       },
     ],
@@ -68,15 +70,15 @@ server.setRequestHandler(CallToolRequestSchema, async (request): Promise<any> =>
   const { name, arguments: args } = request.params
 
   if (name === 'memory_list') {
-    return handleMemoryList(agentsDir)
+    return handleMemoryList(args)
   }
 
   if (name === 'memory_read') {
-    return handleMemoryRead(agentsDir, args)
+    return handleMemoryRead(args)
   }
 
   if (name === 'memory_update') {
-    return handleMemoryUpdate(agentsDir, args)
+    return handleMemoryUpdate(args)
   }
 
   return { content: [{ type: 'text', text: `Unknown tool: ${name}` }], isError: true }

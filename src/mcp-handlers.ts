@@ -10,6 +10,17 @@ import matter from 'gray-matter'
 import { validateProjectRoot } from './path-guard.js'
 import { getTaiwanISO } from './timestamp.js'
 
+/** 過期等級閾值（預設值，與 Extension 的 CartridgeConfig 解耦） */
+const STALENESS_THRESHOLDS = { significant: 10, critical: 30 }
+
+/** 過期指數轉換為人類可讀等級（輕量版，不依賴 CartridgeConfig） */
+export function stalenessToLevel(staleness: number): string {
+  if (staleness <= 0) return 'healthy'
+  if (staleness < STALENESS_THRESHOLDS.significant) return 'mild'
+  if (staleness < STALENESS_THRESHOLDS.critical) return 'significant'
+  return 'critical'
+}
+
 /** MCP 工具回傳結構（純資料結構，與 MCP SDK 相容但不依賴其型別） */
 export interface McpToolResult {
   content: Array<{ type: string; text: string }>
@@ -29,6 +40,12 @@ export const memoryListSchema = z.object({
 
 /** memory_read 工具參數驗證 Schema */
 export const memoryReadSchema = z.object({
+  moduleName: z.string().min(1),
+  projectRoot: projectRootField,
+})
+
+/** memory_status 工具參數驗證 Schema */
+export const memoryStatusSchema = z.object({
   moduleName: z.string().min(1),
   projectRoot: projectRootField,
 })
@@ -286,7 +303,7 @@ export function mergeSections(
 }
 
 /**
- * memory_list — 列出所有 mem-* 記憶卡匣目錄名稱
+ * memory_list — 列出所有 mem-* 記憶卡匣目錄名稱（含過期狀態增強）
  */
 export async function handleMemoryList(args: unknown): Promise<McpToolResult> {
   const parsed = memoryListSchema.safeParse(args)
@@ -308,8 +325,35 @@ export async function handleMemoryList(args: unknown): Promise<McpToolResult> {
     const modules = files
       .filter((d) => d.isDirectory() && d.name.startsWith('mem-'))
       .map((d) => d.name)
-    return {
-      content: [{ type: 'text', text: `Available memories:\n${modules.join('\n')}` }],
+
+    // 嘗試從索引檔讀取過期狀態（增強回傳）
+    const indexPath = path.join(parsed.data.projectRoot, 'cartridge_index.json')
+    try {
+      const indexRaw = await fs.readFile(indexPath, 'utf-8')
+      const index = JSON.parse(indexRaw)
+      const cartridges = index.cartridges ?? {}
+
+      const enriched = modules.map((mod) => {
+        const entry = cartridges[mod]
+        if (entry) {
+          return {
+            module: mod,
+            staleness: entry.staleness ?? 0,
+            level: stalenessToLevel(entry.staleness ?? 0),
+            pendingChangesCount: entry.pendingChanges?.length ?? 0,
+          }
+        }
+        return { module: mod, staleness: 0, level: 'healthy', pendingChangesCount: 0 }
+      })
+
+      return {
+        content: [{ type: 'text', text: JSON.stringify(enriched, null, 2) }],
+      }
+    } catch {
+      // 索引不存在時回退到純文字模式（向後相容）
+      return {
+        content: [{ type: 'text', text: `Available memories:\n${modules.join('\n')}` }],
+      }
     }
   } catch (e: unknown) {
     const msg = e instanceof Error ? e.message : String(e)
@@ -344,6 +388,106 @@ export async function handleMemoryRead(
   } catch (e: unknown) {
     const msg = e instanceof Error ? e.message : String(e)
     return { content: [{ type: 'text', text: `Error: ${msg}` }], isError: true }
+  }
+}
+
+/**
+ * memory_status — 查詢過期修復所需的診斷資訊
+ * 回傳：過期指數、等級、異動檔案清單（含絕對路徑）、行動指引
+ */
+export async function handleMemoryStatus(
+  args: unknown,
+): Promise<McpToolResult> {
+  const parsed = memoryStatusSchema.safeParse(args)
+  if (!parsed.success) {
+    return { content: [{ type: 'text', text: 'Validation Error: moduleName and projectRoot are required (projectRoot must be absolute path without ..)' }], isError: true }
+  }
+
+  // 路徑安全二次驗證
+  try {
+    validateProjectRoot(parsed.data.projectRoot)
+  } catch (e: unknown) {
+    const msg = e instanceof Error ? e.message : String(e)
+    return { content: [{ type: 'text', text: `Path Validation Error: ${msg}` }], isError: true }
+  }
+
+  const { moduleName, projectRoot } = parsed.data
+  const indexPath = path.join(projectRoot, 'cartridge_index.json')
+
+  // 嘗試從索引檔讀取完整資訊
+  try {
+    const indexRaw = await fs.readFile(indexPath, 'utf-8')
+    const index = JSON.parse(indexRaw)
+    const entry = index.cartridges?.[moduleName]
+
+    if (!entry) {
+      return { content: [{ type: 'text', text: `Error: Module "${moduleName}" not found in cartridge index.` }], isError: true }
+    }
+
+    const level = stalenessToLevel(entry.staleness ?? 0)
+    const pendingChanges = (entry.pendingChanges ?? []).map(
+      (change: { filePath: string; eventType: string; timestamp: string }) => ({
+        ...change,
+        absolutePath: path.resolve(projectRoot, change.filePath),
+      })
+    )
+
+    // 組建行動指引
+    let actionRequired = ''
+    if (entry.staleness > 0 && pendingChanges.length > 0) {
+      const fileList = pendingChanges
+        .map((c: { absolutePath: string; eventType: string }) => `- ${c.absolutePath} (${c.eventType})`)
+        .join('\n')
+      actionRequired = `此記憶卡已過期。更新前請先使用 view_file 讀取以下異動檔案：\n${fileList}\n讀取後再呼叫 memory_update 根據最新原始碼更新記憶內容。`
+    } else if (entry.staleness > 0) {
+      actionRequired = `此記憶卡已過期（staleness: ${entry.staleness}），但無已記錄的異動檔案。請手動檢查追蹤檔案清單中的原始碼。`
+    }
+
+    const status = {
+      module: moduleName,
+      staleness: entry.staleness ?? 0,
+      level,
+      lastUpdated: entry.lastUpdated ?? '',
+      trackedFiles: entry.trackedFiles ?? [],
+      pendingChanges,
+      actionRequired,
+    }
+
+    return { content: [{ type: 'text', text: JSON.stringify(status, null, 2) }] }
+  } catch {
+    // 索引檔不存在 — 回退到讀取 SKILL.md frontmatter
+    const agentsDir = path.join(projectRoot, '.agents', 'skills')
+    try {
+      const filePath = path.join(agentsDir, moduleName, 'SKILL.md')
+      const raw = await fs.readFile(filePath, 'utf-8')
+      const fmMatch = raw.match(/^---\n([\s\S]*?)\n---/)
+      let staleness = 0
+      let lastUpdated = ''
+      if (fmMatch) {
+        const smatch = fmMatch[1].match(/staleness:\s*(\d+)/)
+        const tmatch = fmMatch[1].match(/last_updated:\s*['"]?([^'"\n]+)/)
+        if (smatch) staleness = parseInt(smatch[1], 10)
+        if (tmatch) lastUpdated = tmatch[1].trim()
+      }
+
+      const status = {
+        module: moduleName,
+        staleness,
+        level: stalenessToLevel(staleness),
+        lastUpdated,
+        trackedFiles: [],
+        pendingChanges: [],
+        actionRequired: staleness > 0
+          ? `此記憶卡已過期（staleness: ${staleness}）。索引檔不存在，無法提供異動檔案清單。請手動檢查追蹤檔案清單中的原始碼。`
+          : '',
+        _note: '索引檔不存在，過期資訊來自 SKILL.md frontmatter。pendingChanges 和 trackedFiles 無法提供。',
+      }
+
+      return { content: [{ type: 'text', text: JSON.stringify(status, null, 2) }] }
+    } catch (e: unknown) {
+      const msg = e instanceof Error ? e.message : String(e)
+      return { content: [{ type: 'text', text: `Error: ${msg}` }], isError: true }
+    }
   }
 }
 
@@ -489,6 +633,21 @@ export async function handleMemoryUpdate(
     })
 
     await fs.writeFile(filePath, finalContent, 'utf-8')
+
+    // 清除索引檔中對應模組的 pendingChanges（graceful，失敗不影響更新結果）
+    try {
+      const indexPath = path.join(parsed.data.projectRoot, 'cartridge_index.json')
+      const indexRaw = await fs.readFile(indexPath, 'utf-8')
+      const index = JSON.parse(indexRaw)
+      if (index.cartridges?.[parsed.data.moduleName]) {
+        index.cartridges[parsed.data.moduleName].pendingChanges = []
+        index.cartridges[parsed.data.moduleName].staleness = 0
+        await fs.writeFile(indexPath, JSON.stringify(index, null, 2), 'utf-8')
+      }
+    } catch {
+      // 索引檔不存在或讀寫失敗 — 靜默忽略，不影響更新結果
+    }
+
     return {
       content: [{ type: 'text', text: responseText }],
     }

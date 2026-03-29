@@ -2,8 +2,8 @@
 
 > **主動式 AI 記憶防禦引擎** — 自動偵測記憶卡過期、植入攔截警報，確保 AI 不讀取失效的上下文。
 
-[![version](https://img.shields.io/badge/version-0.3.1-blue)](./CHANGELOG.md)
-[![tests](https://img.shields.io/badge/tests-97%20passed-brightgreen)](#-執行測試)
+[![version](https://img.shields.io/badge/version-0.4.0-blue)](./CHANGELOG.md)
+[![tests](https://img.shields.io/badge/tests-110%20passed-brightgreen)](#-執行測試)
 [![license](https://img.shields.io/badge/license-MIT-green)](#)
 
 ---
@@ -32,7 +32,7 @@ Cartridge System 是一個為 [Antigravity 框架](https://github.com/Kunshao111
 | 📊 **過期指數計算** | 根據異動類型（新增/修改/刪除）與時間衰退計算分數 |
 | 🚨 **警報自動植入** | 過期指數超過閾值時，自動在 SKILL.md 頂部插入攔截警報 |
 | 🟢 **狀態列燈號** | VS Code 狀態列即時顯示記憶卡健康概覽（🟢/🟠/🔴） |
-| 🛠️ **MCP 工具介面** | 提供三個標準化 AI 工具，支援跨專案動態路徑解析 |
+| 🛠️ **MCP 工具介面** | 提供四個標準化 AI 工具，支援跨專案動態路徑解析 |
 | 🔄 **監聽器動態更新** | 記憶卡追蹤清單變更時，自動 diff 並動態調整 chokidar 監聽清單 |
 | 🌐 **跨平台相容** | 完整支援 Windows CRLF 與 Unix LF 行尾格式 |
 | 🛡️ **路徑安全防禦** | 雙層路徑驗證（Zod 格式守衛 + 語意守衛），阻擋路徑穿越攻擊 |
@@ -50,7 +50,7 @@ npm run build
 npm run package
 
 # 使用 Antigravity IDE CLI 安裝（注意：不可用 code 指令）
-antigravity --install-extension cartridge-system-0.3.1.vsix --force
+antigravity --install-extension cartridge-system-0.4.0.vsix --force
 ```
 
 ### 方法二：開發模式
@@ -92,9 +92,10 @@ Cartridge System 提供 MCP（Model Context Protocol）工具伺服器，供 AI 
 
 | 工具名稱 | 說明 |
 |----------|------|
-| `memory_list` | 列出指定專案中所有記憶卡匣的名稱、過期指數與追蹤檔案數 |
+| `memory_list` | 列出指定專案中所有記憶卡匣（含過期指數、健康等級、待處理異動數量） |
 | `memory_read` | 讀取特定記憶技能的完整 SKILL.md 內容 |
-| `memory_update` | 更新記憶技能內容，支援 `replace`（整張替換）、`append`（附加到末尾）、`patch`（`##`/`###` 兩層區段級替換，支援 `dryRun` 預覽）三種模式 |
+| `memory_update` | 更新記憶技能內容，支援 `replace`（整張替換）、`append`（附加到末尾）、`patch`（`##`/`###` 兩層區段級替換，支援 `dryRun` 預覽）三種模式。成功後自動清除待處理異動紀錄 |
+| `memory_status` | 查詢指定記憶卡的過期修復診斷：過期指數、異動檔案清單（含絕對路徑）及修復行動指引 |
 
 ### 跨專案支援
 
@@ -132,6 +133,13 @@ memory_update({
   projectRoot: 'D:\\bartender_map'
 })
 // 回傳結構化 JSON 報告：替換/新增/保留/移除的區段清單與行數差異
+
+// 範例：查詢過期記憶卡的修復診斷
+memory_status({
+  moduleName: 'mem-dashboard-ui',
+  projectRoot: 'D:\\bartender_map'
+})
+// 回傳：過期指數、異動檔案清單（含絕對路徑）、修復行動指引
 ```
 
 ---
@@ -150,7 +158,7 @@ memory_update({
 ## 🧪 執行測試
 
 ```bash
-# 執行完整測試套件（97 個案例）
+# 執行完整測試套件（110 個案例）
 npm test
 
 # 監聽模式（開發時使用）
@@ -162,7 +170,7 @@ npm run test:watch
 | 測試模組 | 案例數 | 涵蓋範圍 |
 |----------|--------|----------|
 | 路徑解析邏輯 | 12 | 反引號去除、說明文字截斷、CRLF 相容、分組標題過濾、HTML 標記過濾 |
-| MCP 工具介面 | 54 | 正常流程、路徑穿越防禦、時間戳驗證、replace/append/patch 三模式、段落解析與合併、子區段級合併、dryRun 閘門、大幅刪減保護 |
+| MCP 工具介面 | 67 | 正常流程、路徑穿越防禦、時間戳驗證、replace/append/patch 三模式、段落解析與合併、子區段級合併、dryRun 閘門、大幅刪減保護、過期狀態診斷、增強列表、pendingChanges 清除 |
 | 過期分析器 | 11 | 過期等級四分支、三種事件計分、閾值觸發 |
 | 警報寫入器 | 9 | 冪等植入、條件式清除、狀態回復 |
 | 路徑安全驗證 | 8 | 絕對/相對路徑、穿越攻擊拒絕 |
@@ -186,14 +194,14 @@ cartridge_system/
 │   ├── path-guard.ts      # 路徑安全驗證（雙層防禦）
 │   ├── timestamp.ts       # 時間戳生成（Intl API）
 │   ├── types.ts           # 共用型別定義
-│   └── tests/             # vitest 單元測試（6 檔 97 案例）
+│   └── tests/             # vitest 單元測試（6 檔 110 案例）
 ├── .agents/
 │   ├── skills/mem-*/      # 各模組的記憶技能（8 個）
 │   ├── workflows/         # Antigravity 工作流程
 │   └── logs/              # 審計日誌與教訓日誌
 ├── dist/                  # 編譯輸出（tsup 打包）
 ├── CHANGELOG.md           # 更新紀錄
-└── package.json           # v0.3.1
+└── package.json           # v0.4.0
 ```
 
 ### 技術堆疊

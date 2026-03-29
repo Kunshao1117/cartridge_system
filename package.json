@@ -1,7 +1,7 @@
 {
   "name": "cartridge-system",
   "displayName": "記憶卡匣監控系統",
-  "version": "0.3.1",
+  "version": "0.4.0",
   "description": "記憶卡匣動態熱處理外掛 — 主動式檔案監聽與記憶過期防禦系統",
   "publisher": "cartridge-system",
   "repository": {

@@ -8,6 +8,7 @@ import {
   handleMemoryList,
   handleMemoryRead,
   handleMemoryUpdate,
+  handleMemoryStatus,
 } from './mcp-handlers.js'
 
 const server = new Server(
@@ -63,6 +64,18 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
           required: ['moduleName', 'content', 'projectRoot'],
         },
       },
+      {
+        name: 'memory_status',
+        description: '查詢指定記憶卡匣的過期修復診斷資訊。回傳過期指數、等級、異動檔案清單（含絕對路徑）以及具體的修復行動指引。用於在更新過期記憶前，取得需要讀取的原始碼檔案清單。',
+        inputSchema: {
+          type: 'object',
+          properties: {
+            moduleName: { type: 'string', description: '記憶卡匣名稱，例如 mem-analyzer' },
+            projectRoot: { type: 'string', description: '目標專案的根目錄絕對路徑' },
+          },
+          required: ['moduleName', 'projectRoot'],
+        },
+      },
     ],
   }
 })
@@ -81,6 +94,10 @@ server.setRequestHandler(CallToolRequestSchema, async (request): Promise<any> =>
 
   if (name === 'memory_update') {
     return handleMemoryUpdate(args)
+  }
+
+  if (name === 'memory_status') {
+    return handleMemoryStatus(args)
   }
 
   return { content: [{ type: 'text', text: `Unknown tool: ${name}` }], isError: true }

@@ -21,7 +21,29 @@ description: >
 - **總覽** — 交接 (`/11_handoff`) 或需要一覽全局時，調用 `memory_list` 取得所有模組名稱與健康度
 - **單模組** — 執行任務前提取系統前置脈絡時，調用 `memory_read` 傳入目標模組名稱（例如 `mem-_system`）
 
-## 3. Updating Memory (更新記憶)
+## 3. Repairing Stale Memory (過期修復)
+
+When a memory cartridge has staleness > 0, you **MUST NOT** simply call `memory_update` to reset staleness. Follow this repair procedure:
+
+### Staleness Repair Procedure (過期修復流程)
+
+```
+發現過期記憶卡？
+├── 步驟 1：呼叫 memory_status(moduleName) ← 診斷過期狀態
+│   ⇒ 取得：過期指數、異動檔案清單（含絕對路徑）、行動指引
+├── 步驟 2：呼叫 view_file 讀取每個異動檔案
+│   ⇒ 理解原始碼的最新狀態
+├── 步驟 3：呼叫 memory_read(moduleName)
+│   ⇒ 讀取現有記憶內容
+├── 步驟 4：比對原始碼變更 vs 現有記憶
+│   ⇒ 產出更新後的記憶內容（更新決策/已知問題/教訓等區段）
+└── 步驟 5：呼叫 memory_update(mode: patch 或 replace)
+    ⇒ staleness 自動歸零 + pendingChanges 自動清除
+```
+
+> **核心原則**：過期修復的目的是「同步記憶與原始碼」，不是「消除警報」。staleness 歸零只是原始碼同步完成後的副作用。
+
+## 4. Updating Memory (更新記憶)
 
 After modifying source files tracked by a memory skill, you **MUST** invoke `cartridge-system__memory_update`.
 
@@ -31,7 +53,9 @@ After modifying source files tracked by a memory skill, you **MUST** invoke `car
 需要更新記憶嗎？
 ├── 修改既有段落（追蹤檔案清單、架構說明、歷史決策）
 │   ├── 改動多個區段或前言 → memory_read → 修改 → memory_update(mode: replace)
-│   └── 只改 1-2 個 ## 區段 → memory_update(mode: patch)，僅傳目標區段
+│   └── 只改 1-2 個 ## 或 ### 區段 → memory_update(mode: patch)，僅傳目標區段
+│       ├── 提供的 ### 子區段會被替換，未提及的 ### 自動保留
+│       └── 慎重更新前可加 dryRun: true 先預覽變更報告
 │
 └── 純粹追加新條目（教訓紀錄 Dxx、已知問題）
     └── → 直接 memory_update(mode: append)，無需先 read
@@ -39,7 +63,11 @@ After modifying source files tracked by a memory skill, you **MUST** invoke `car
 
 - **`replace`**（預設）：傳入完整的 SKILL.md 內容，整張替換。適用於結構性修改。
 - **`append`**：傳入要附加的差分段落，附加到現有內容末尾。適用於增量追加。
-- **`patch`**：傳入包含 `##` 標題的區段，不含 frontmatter。系統自動匹配同名區段替換、新區段附加到末尾、未提及的區段保持不動。適用於只更新 1-2 個特定區段。
+- **`patch`**：傳入包含 `##` 或 `###` 標題的區段，不含 frontmatter。系統自動執行兩層合併：
+  - `##` 層：同名區段替換、新區段附加、未提及的區段保持不動
+  - `###` 層：若 patch 包含子區段，只替換提及的 `###`，保留未提及的 `###`（最小匹配原則）
+  - 支援 `dryRun: true` 參數，只回傳變更預覽不寫入磁碟
+  - 回傳結構化 JSON 報告（含替換/新增/保留/移除清單、行數差異、警告）
 
 ### Post-Update Checklist
 1. **Add lessons** — under `## Module Lessons` if reusable knowledge discovered (format: `Dxx: description`)
@@ -51,7 +79,7 @@ If memory updates were missed during the workflow, two safety nets exist:
 1. **Completion Gate** — forces a file-to-memory cross-reference check before reporting completion
 2. **Commit Staleness Warning** — `/09_commit_log` compares `git diff` against tracked files and warns the Director before committing with stale memory
 
-## 4. Creating New Memory (建立新記憶)
+## 5. Creating New Memory (建立新記憶)
 
 When `/02_blueprint` or `/08_audit` identifies a new module:
 1. Create folder `.agents/skills/mem-{module}/`
@@ -60,7 +88,7 @@ When `/02_blueprint` or `/08_audit` identifies a new module:
 
 > 完整模板見 `references/memory-template.md`
 
-## 5. System Memory (系統記憶)
+## 6. System Memory (系統記憶)
 
 `mem-_system/SKILL.md` stores tech stack, host platform, and deployment config.
 Same update rules apply.

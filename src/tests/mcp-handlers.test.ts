@@ -8,6 +8,8 @@ import {
   handleMemoryList,
   handleMemoryRead,
   handleMemoryUpdate,
+  handleMemoryStatus,
+  stalenessToLevel,
   updateFrontmatterFields,
   parseSections,
   parseSubSections,
@@ -697,5 +699,182 @@ describe('handleMemoryUpdate — dryRun 閘門', () => {
     expect(report.warnings.some((w: string) => w.includes('大幅刪減'))).toBe(true)
     // 仍然寫入（只警告不阻擋）
     expect(writtenContent).toContain('- short')
+  })
+})
+
+// ---------------------------------------------------------------------------
+// stalenessToLevel — 過期等級轉換
+// ---------------------------------------------------------------------------
+describe('stalenessToLevel — 過期等級轉換', () => {
+  it('0 應為 healthy', () => {
+    expect(stalenessToLevel(0)).toBe('healthy')
+  })
+  it('5 應為 mild', () => {
+    expect(stalenessToLevel(5)).toBe('mild')
+  })
+  it('10 應為 significant', () => {
+    expect(stalenessToLevel(10)).toBe('significant')
+  })
+  it('30 應為 critical', () => {
+    expect(stalenessToLevel(30)).toBe('critical')
+  })
+  it('負數應為 healthy', () => {
+    expect(stalenessToLevel(-1)).toBe('healthy')
+  })
+})
+
+// ---------------------------------------------------------------------------
+// handleMemoryStatus — 過期狀態診斷
+// ---------------------------------------------------------------------------
+describe('handleMemoryStatus', () => {
+  it('應從索引檔回傳結構化 JSON', async () => {
+    const indexData = {
+      cartridges: {
+        'mem-analyzer': {
+          staleness: 15,
+          lastUpdated: '2026-03-28T10:15:00+08:00',
+          trackedFiles: ['src/analyzer.ts'],
+          pendingChanges: [
+            { filePath: 'src/analyzer.ts', eventType: 'change', timestamp: '2026-03-29T11:00:00+08:00' },
+          ],
+        },
+      },
+    }
+    vi.mocked(fs.readFile).mockResolvedValue(
+      JSON.stringify(indexData) as unknown as Awaited<ReturnType<typeof fs.readFile>>
+    )
+
+    const result = await handleMemoryStatus({ moduleName: 'mem-analyzer', projectRoot: PROJECT_ROOT })
+    const status = JSON.parse(result.content[0].text)
+
+    expect(status.module).toBe('mem-analyzer')
+    expect(status.staleness).toBe(15)
+    expect(status.level).toBe('significant')
+    expect(status.pendingChanges).toHaveLength(1)
+    expect(status.pendingChanges[0].absolutePath).toContain('analyzer.ts')
+    expect(status.actionRequired).toContain('view_file')
+  })
+
+  it('索引檔不存在時應回退讀 SKILL.md frontmatter', async () => {
+    const skillContent = '---\nname: mem-test\nlast_updated: "2026-03-28T10:00:00+08:00"\nstaleness: 5\n---\n# Test'
+    vi.mocked(fs.readFile)
+      .mockRejectedValueOnce(new Error('ENOENT'))
+      .mockResolvedValueOnce(skillContent as unknown as Awaited<ReturnType<typeof fs.readFile>>)
+
+    const result = await handleMemoryStatus({ moduleName: 'mem-test', projectRoot: PROJECT_ROOT })
+    const status = JSON.parse(result.content[0].text)
+
+    expect(status.staleness).toBe(5)
+    expect(status.level).toBe('mild')
+    expect(status._note).toContain('索引檔不存在')
+  })
+
+  it('模組不在索引中應回傳錯誤', async () => {
+    vi.mocked(fs.readFile).mockResolvedValue(
+      JSON.stringify({ cartridges: {} }) as unknown as Awaited<ReturnType<typeof fs.readFile>>
+    )
+
+    const result = await handleMemoryStatus({ moduleName: 'mem-nonexistent', projectRoot: PROJECT_ROOT })
+
+    expect(result.isError).toBe(true)
+    expect(result.content[0].text).toContain('not found')
+  })
+
+  it('路徑穿越（..）應回傳 Validation Error', async () => {
+    const result = await handleMemoryStatus({ moduleName: 'mem-test', projectRoot: '/foo/../../etc' })
+
+    expect(result.isError).toBe(true)
+    expect(result.content[0].text).toContain('Validation Error')
+  })
+})
+
+// ---------------------------------------------------------------------------
+// handleMemoryList — 增強回傳（含過期狀態）
+// ---------------------------------------------------------------------------
+describe('handleMemoryList — 增強回傳', () => {
+  it('有索引時應回傳含過期狀態的 JSON 陣列', async () => {
+    vi.mocked(fs.readdir).mockResolvedValue([
+      { isDirectory: () => true, name: 'mem-_system' },
+      { isDirectory: () => true, name: 'mem-analyzer' },
+    ] as unknown as Awaited<ReturnType<typeof fs.readdir>>)
+
+    const indexData = {
+      cartridges: {
+        'mem-_system': { staleness: 0, pendingChanges: [] },
+        'mem-analyzer': { staleness: 15, pendingChanges: [{ filePath: 'src/analyzer.ts' }] },
+      },
+    }
+    vi.mocked(fs.readFile).mockResolvedValue(
+      JSON.stringify(indexData) as unknown as Awaited<ReturnType<typeof fs.readFile>>
+    )
+
+    const result = await handleMemoryList({ projectRoot: PROJECT_ROOT })
+    const list = JSON.parse(result.content[0].text)
+
+    expect(list).toHaveLength(2)
+    expect(list[0].module).toBe('mem-_system')
+    expect(list[0].level).toBe('healthy')
+    expect(list[1].module).toBe('mem-analyzer')
+    expect(list[1].level).toBe('significant')
+    expect(list[1].pendingChangesCount).toBe(1)
+  })
+
+  it('索引不存在時應回退到純文字模式', async () => {
+    vi.mocked(fs.readdir).mockResolvedValue([
+      { isDirectory: () => true, name: 'mem-_system' },
+    ] as unknown as Awaited<ReturnType<typeof fs.readdir>>)
+    vi.mocked(fs.readFile).mockRejectedValue(new Error('ENOENT'))
+
+    const result = await handleMemoryList({ projectRoot: PROJECT_ROOT })
+
+    expect(result.content[0].text).toContain('Available memories:')
+    expect(result.content[0].text).toContain('mem-_system')
+  })
+})
+
+// ---------------------------------------------------------------------------
+// handleMemoryUpdate — pendingChanges 清除
+// ---------------------------------------------------------------------------
+describe('handleMemoryUpdate — pendingChanges 清除', () => {
+  it('更新成功後應清除索引中的 pendingChanges', async () => {
+    const indexData = {
+      cartridges: {
+        'mem-test': { staleness: 10, pendingChanges: [{ filePath: 'src/test.ts' }] },
+      },
+    }
+    let writtenIndex = ''
+
+    vi.mocked(fs.writeFile).mockImplementation(async (filePath, data) => {
+      const fp = filePath as string
+      if (fp.includes('cartridge_index')) {
+        writtenIndex = data as string
+      }
+    })
+    vi.mocked(fs.readFile).mockResolvedValue(
+      JSON.stringify(indexData) as unknown as Awaited<ReturnType<typeof fs.readFile>>
+    )
+
+    const content = '---\nname: mem-test\nlast_updated: "old"\nstaleness: 5\n---\n# Content'
+    await handleMemoryUpdate({ moduleName: 'mem-test', content, projectRoot: PROJECT_ROOT })
+
+    expect(writtenIndex).toBeTruthy()
+    const parsed = JSON.parse(writtenIndex)
+    expect(parsed.cartridges['mem-test'].pendingChanges).toEqual([])
+    expect(parsed.cartridges['mem-test'].staleness).toBe(0)
+  })
+
+  it('索引不存在時更新仍應成功', async () => {
+    // 第一次 writeFile 寫 SKILL.md 成功，第二次寫索引失敗
+    vi.mocked(fs.writeFile).mockImplementation(async () => {
+      // 不拋出任何錯誤，讓寫入全部成功
+    })
+    // readFile 讀取索引檔失敗
+    vi.mocked(fs.readFile).mockRejectedValue(new Error('ENOENT'))
+
+    const content = '---\nname: mem-test\nlast_updated: "old"\nstaleness: 0\n---\n# Content'
+    const result = await handleMemoryUpdate({ moduleName: 'mem-test', content, projectRoot: PROJECT_ROOT })
+
+    expect(result.isError).toBeUndefined()
+    expect(result.content[0].text).toContain('Successfully updated')
   })
 })

@@ -2,7 +2,7 @@
 name: mem-mcp-tools
 description: |
   專案記憶：MCP 工具介面模組（第二階段）。 Use when: 處理MCP伺服器註冊、工具路由、AI工具呼叫介面時載入。
-last_updated: '2026-03-29T02:59:41+08:00'
+last_updated: '2026-03-29T11:58:14+08:00'
 status: stable
 staleness: 0
 ---
@@ -45,7 +45,6 @@ staleness: 0
 - D11: `gray-matter` 的 `matter.stringify(content, frontmatter)` 會自動處理 YAML 序列化，不需要手動拼接引號或格式。
 - D12: `memory_update` 工具明確區分兩種呼叫語意：mode='replace' 傳入完整 SKILL.md 內容（含 frontmatter）；mode='append' 傳入純差分段落不含 frontmatter。測試中，replace 測試不需 readFile mock，append 測試需模擬現有檔案的 readFile 回傳。
 - D14: Markdown 段落分割使用字元位置切割（substring）而非逐行拼接，可精確保留原始格式（包含空行、縮排等）。合併時保持原檔區段順序，新區段附加到末尾。patch 模式的測試需同時模擬 readFile（現有檔案）和 writeFile，驗證未提及區段的完整保留。
-- D15: 子區段級合併的關鍵設計：當 patch 的 `##` 區段同時包含 `###` 子區段且原始區段也包含 `###` 時，執行子區段級合併；否則回退到整段替換（向下相容）。`rebuildSectionContent()` 負責從 leading + subSections 重組完整的區段文字。測試需使用 `parseSubSections()` 建構含子區段的 Section 物件。## Relations
-- mem-index-manager（查詢卡匣資料）
-- mem-analyzer（查詢過期狀態）
-- mem-watcher（控制監聽生命週期）
+- D15: 子區段級合併的關鍵設計：當 patch 的 `##` 區段同時包含 `###` 子區段且原始區段也包含 `###` 時，執行子區段級合併；否則回退到整段替換（向下相容）。`rebuildSectionContent()` 負責從 leading + subSections 重組完整的區段文字。測試需使用 `parseSubSections()` 建構含子區段的 Section 物件。
+- D16: `memory_status` 的 fallback 路徑使用正則解析 SKILL.md frontmatter，而非 `gray-matter`，因為 handler 已 mock `fs/promises` 不需要處理 gray-matter 的 stringify。正則解析需處理單引號、雙引號和無引號三種格式。
+- D17: 測試 mock 中避免宣告僅用於計數的變數（如 `writeCount++`），ESLint no-unused-vars 會報錯。若不需要驗證呼叫次數，直接用空的 mockImplementation 即可。

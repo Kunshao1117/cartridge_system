@@ -2,7 +2,7 @@
 name: mem-injector
 description: |
   專案記憶：基底卡匣注入器模組。 Use when: 處理基礎技能注入、範本比對、專案初始化佈署時載入。
-last_updated: '2026-03-30T03:13:03+08:00'
+last_updated: '2026-03-30T03:40:26+08:00'
 status: stable
 staleness: 0
 ---
@@ -22,9 +22,9 @@ staleness: 0
 
 ## Known Issues
 - 無
+
 ## Module Lessons
 - D01: 從 ESM 轉 CommonJS 後，import.meta.dirname 需改為 __dirname
-
-## Relations
+- D02: 注入器依賴 `dist/templates/` 目錄存在，但 tsup 不會自動複製靜態資源。必須在 `tsup.config.ts` 的 `onSuccess` hook 中手動複製，否則注入器會靜默跳過所有規則比對## Relations
 - mem-extension（父卡：注入完成後交棒給外掛主流程）
 - mem-watcher（兄弟卡：注入完成後啟動監聽引擎）

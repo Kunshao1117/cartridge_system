@@ -1,9 +1,8 @@
 ---
 name: mem-_system
-description: >
-  專案記憶：系統技術堆疊與部署設定。
-  Use when: 確認技術選型、環境設定、部署組態時載入。
-last_updated: '2026-03-30T03:20:06+08:00'
+description: |
+  專案記憶：系統技術堆疊與部署設定。 Use when: 確認技術選型、環境設定、部署組態時載入。
+last_updated: '2026-03-30T03:45:36+08:00'
 status: stable
 staleness: 0
 ---
@@ -50,37 +49,22 @@ staleness: 0
 - `vitest` ^3.0.0
 
 ## Config Files
-- `package.json` — VS Code Extension 元數據（含 activationEvents / contributes）
+- `package.json` — VS Code Extension 元數據（含 activationEvents / contributes），當前版本 **0.5.4**
 - `tsconfig.json` — CommonJS + node 模組解析
-- `tsup.config.ts` — entry: extension.ts / format: cjs / external: vscode / noExternal: chokidar, gray-matter
+- `tsup.config.ts` — entry: extension.ts / format: cjs / external: vscode / noExternal: chokidar, gray-matter / **onSuccess: 複製範本目錄**
 - `eslint.config.js` — ESLint v9 Flat Config（CJS 格式，@typescript-eslint）
 - `.vscodeignore` — 打包排除清單
-- `cartridge_index.json` — 執行期產生
-
-## Deploy
+- `cartridge_index.json` — 執行期產生## Deploy
 - 開發模式：VS Code F5 啟動 Extension Development Host
 - 打包：`npm run package`（`npx vsce package`）
 
 ## Key Decisions
-- D01: 業務邏輯模組（7 個）全部保留，只替換外殼層
-- D02: chokidar 跨平台穩定
-- D03: VS Code Extension 強制 CommonJS 輸出（`"type": "module"` 已移除）
-- D04: gray-matter 解析 YAML frontmatter
-- D05: 主動物理寫入策略
-- D06: 需安裝 @types/node
-- D07: activationEvents 包含 workspaceContains:.agents 與 onStartupFinished，確保 Antigravity IDE 中無條件啟動
-- D08: import.meta.dirname 在 CommonJS 中不可用，已改為 __dirname
-- D09: tsup noExternal 強制打包 chokidar 和 gray-matter，確保 VSIX 無需 node_modules
-- D10: `package.json` 為全專案共用元資訊檔（版本、依賴、VS Code 設定），由系統記憶卡統一追蹤
+### D11
+D11: tsup `onSuccess` hook 負責在建置完成後自動複製 `src/templates/` 至 `dist/templates/`，確保注入器的靜態範本隨外掛打包
 
 ## Known Issues
 - 無
 
 ## Module Lessons
-- D01: TypeScript ESM 使用 node: 前綴需 @types/node
-- D02: VS Code Extension 強制 CommonJS，ESM 不相容
-- D03: tsup 打包時必須將 vscode 設為 external，避免打包進 bundle
-- D04: chokidar 和 gray-matter 必須設為 noExternal 強制打包，否則 VSIX 不含 node_modules 時會靜默崩潰
-- D05: Antigravity IDE 使用獨立的 CLI（`antigravity` 而非 `code`），安裝外掛必須用 `antigravity --install-extension`
-- D06: 指令註冊（registerCommand）必須放在 activate() 最前面，在任何可能失敗的初始化邏輯之前
-- D07: ESLint v9 無法直接解析 `.ts` 設定檔（需 jiti 套件）。CJS 專案應使用 `eslint.config.js`（`module.exports`），並以 `require()` 引入插件。`.eslintignore` 在 v9 已棄用，ignores 必須寫入 config 物件。
+### D08
+D08: tsup 只打包 TypeScript 模組樹，不會自動複製非程式碼的靜態資源（Markdown、JSONL 等）。需透過 `onSuccess` hook 手動複製

@@ -7,7 +7,6 @@
 ```yaml
 ---
 name: mem-{module}
-parent: mem-{parent}
 scopePath: path/to/owned/directory/
 description: >
   專案記憶：{中文模組描述}。

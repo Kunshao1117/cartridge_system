@@ -157,6 +157,8 @@ describe('CartridgeIndexManager — addPendingChange 去重邏輯', () => {
           staleness: 0,
           lastUpdated: '',
           pendingChanges: [],
+          depth: 1,
+          parent: null,
         },
       },
       fileMap: { 'src/test.ts': ['mem-test'] },
@@ -183,5 +185,200 @@ describe('CartridgeIndexManager — addPendingChange 去重邏輯', () => {
     const result = manager.getAffectedCartridges('src\\test.ts')
     // Windows 反斜線正規化後應找到 mem-test
     expect(result).toEqual(['mem-test'])
+  })
+})
+
+// ---------------------------------------------------------------------------
+// CartridgeIndexManager — findOwner 最長前綴匹配
+// ---------------------------------------------------------------------------
+describe('CartridgeIndexManager — findOwner 最長前綴匹配', () => {
+  let manager: CartridgeIndexManager
+
+  beforeEach(() => {
+    const config = createConfig('d:/test-project')
+    manager = new CartridgeIndexManager(config)
+    manager['index'] = {
+      version: 1,
+      lastScanned: '',
+      cartridges: {
+        'mem-api': {
+          skillPath: '.agents/skills/mem-api/SKILL.md',
+          trackedFiles: [],
+          staleness: 0,
+          lastUpdated: '',
+          pendingChanges: [],
+          depth: 1,
+          parent: null,
+          scopePath: 'app/api/',
+        },
+        'mem-api-auth': {
+          skillPath: '.agents/skills/mem-api/mem-api-auth/SKILL.md',
+          trackedFiles: ['app/api/auth/login/route.ts'],
+          staleness: 0,
+          lastUpdated: '',
+          pendingChanges: [],
+          depth: 2,
+          parent: 'mem-api',
+          scopePath: 'app/api/auth/',
+        },
+        'mem-api-manage': {
+          skillPath: '.agents/skills/mem-api/mem-api-manage/SKILL.md',
+          trackedFiles: ['app/api/manage/export/route.ts'],
+          staleness: 0,
+          lastUpdated: '',
+          pendingChanges: [],
+          depth: 2,
+          parent: 'mem-api',
+          scopePath: 'app/api/manage/',
+        },
+        'mem-no-scope': {
+          skillPath: '.agents/skills/mem-no-scope/SKILL.md',
+          trackedFiles: ['src/utils.ts'],
+          staleness: 0,
+          lastUpdated: '',
+          pendingChanges: [],
+          depth: 1,
+          parent: null,
+        },
+      },
+      fileMap: {
+        'app/api/auth/login/route.ts': ['mem-api-auth'],
+        'app/api/manage/export/route.ts': ['mem-api-manage'],
+        'src/utils.ts': ['mem-no-scope'],
+      },
+    }
+  })
+
+  it('應回傳最長前綴匹配的記憶卡', () => {
+    // app/api/manage/import/route.ts 匹配 mem-api-manage (app/api/manage/) 比 mem-api (app/api/) 更長
+    expect(manager.findOwner('app/api/manage/import/route.ts')).toBe('mem-api-manage')
+  })
+
+  it('應回傳次長匹配當子卡不匹配時', () => {
+    // app/api/posts/route.ts 不匹配 mem-api-auth 或 mem-api-manage，但匹配 mem-api
+    expect(manager.findOwner('app/api/posts/route.ts')).toBe('mem-api')
+  })
+
+  it('無匹配時應回傳 null', () => {
+    expect(manager.findOwner('src/components/Button.tsx')).toBeNull()
+  })
+
+  it('應正規化 Windows 反斜線路徑', () => {
+    expect(manager.findOwner('app\\api\\manage\\backup\\route.ts')).toBe('mem-api-manage')
+  })
+})
+
+// ---------------------------------------------------------------------------
+// CartridgeIndexManager — getChildren 子卡查詢
+// ---------------------------------------------------------------------------
+describe('CartridgeIndexManager — getChildren 子卡查詢', () => {
+  let manager: CartridgeIndexManager
+
+  beforeEach(() => {
+    const config = createConfig('d:/test-project')
+    manager = new CartridgeIndexManager(config)
+    manager['index'] = {
+      version: 1,
+      lastScanned: '',
+      cartridges: {
+        'mem-api': {
+          skillPath: '.agents/skills/mem-api/SKILL.md',
+          trackedFiles: [],
+          staleness: 0,
+          lastUpdated: '',
+          pendingChanges: [],
+          depth: 1,
+          parent: null,
+        },
+        'mem-api-auth': {
+          skillPath: '.agents/skills/mem-api/mem-api-auth/SKILL.md',
+          trackedFiles: [],
+          staleness: 0,
+          lastUpdated: '',
+          pendingChanges: [],
+          depth: 2,
+          parent: 'mem-api',
+        },
+        'mem-api-manage': {
+          skillPath: '.agents/skills/mem-api/mem-api-manage/SKILL.md',
+          trackedFiles: [],
+          staleness: 0,
+          lastUpdated: '',
+          pendingChanges: [],
+          depth: 2,
+          parent: 'mem-api',
+        },
+      },
+      fileMap: {},
+    }
+  })
+
+  it('應回傳指定記憶卡的子卡清單', () => {
+    const children = manager.getChildren('mem-api')
+    expect(children).toHaveLength(2)
+    expect(children).toContain('mem-api-auth')
+    expect(children).toContain('mem-api-manage')
+  })
+
+  it('無子卡時應回傳空陣列', () => {
+    expect(manager.getChildren('mem-api-auth')).toEqual([])
+  })
+
+  it('不存在的記憶卡應回傳空陣列', () => {
+    expect(manager.getChildren('mem-nonexistent')).toEqual([])
+  })
+})
+
+// ---------------------------------------------------------------------------
+// CartridgeIndexManager — resolveModulePath 巢狀路徑解析
+// ---------------------------------------------------------------------------
+describe('CartridgeIndexManager — resolveModulePath', () => {
+  let manager: CartridgeIndexManager
+
+  beforeEach(() => {
+    const config = createConfig('d:/test-project')
+    manager = new CartridgeIndexManager(config)
+    manager['index'] = {
+      version: 1,
+      lastScanned: '',
+      cartridges: {
+        'mem-api': {
+          skillPath: '.agents/skills/mem-api/SKILL.md',
+          trackedFiles: [],
+          staleness: 0,
+          lastUpdated: '',
+          pendingChanges: [],
+          depth: 1,
+          parent: null,
+        },
+        'mem-api-auth': {
+          skillPath: '.agents/skills/mem-api/mem-api-auth/SKILL.md',
+          trackedFiles: [],
+          staleness: 0,
+          lastUpdated: '',
+          pendingChanges: [],
+          depth: 2,
+          parent: 'mem-api',
+        },
+      },
+      fileMap: {},
+    }
+  })
+
+  it('索引中存在的模組應回傳絕對路徑', () => {
+    const result = manager.resolveModulePath('mem-api')
+    expect(result).toContain('mem-api')
+    expect(result).toContain('SKILL.md')
+  })
+
+  it('巢狀模組應回傳包含巢狀路徑', () => {
+    const result = manager.resolveModulePath('mem-api-auth')
+    expect(result).toContain('mem-api')
+    expect(result).toContain('mem-api-auth')
+    expect(result).toContain('SKILL.md')
+  })
+
+  it('索引中不存在的模組應回傳 null', () => {
+    expect(manager.resolveModulePath('mem-nonexistent')).toBeNull()
   })
 })

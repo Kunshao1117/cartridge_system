@@ -11,6 +11,9 @@ import { getSkillsAbsPath } from './config.js'
 
 const INDEX_FILENAME = 'cartridge_index.json'
 
+/** 巢狀目錄最大掃描深度 */
+const MAX_SCAN_DEPTH = 4
+
 /**
  * 從記憶卡匣 SKILL.md 解析追蹤檔案清單
  */
@@ -58,7 +61,7 @@ export class CartridgeIndexManager {
   }
 
   /**
-   * 掃描所有記憶卡匣並建立索引
+   * 掃描所有記憶卡匣並建立索引（支援巢狀目錄，最大 4 層）
    */
   async scan(): Promise<CartridgeIndex> {
     const skillsDir = getSkillsAbsPath(this.config)
@@ -75,13 +78,42 @@ export class CartridgeIndexManager {
       return this.index
     }
 
-    const entries = fs.readdirSync(skillsDir, { withFileTypes: true })
+    // 遞迴掃描巢狀目錄
+    this.scanRecursive(skillsDir, 1, null, newCartridges, newFileMap)
+
+    this.index = {
+      version: 1,
+      lastScanned: new Date().toISOString(),
+      cartridges: newCartridges,
+      fileMap: newFileMap,
+    }
+
+    return this.index
+  }
+
+  /**
+   * 遞迴掃描 mem-* 目錄，從目錄結構推導 depth 和 parent
+   */
+  private scanRecursive(
+    dir: string,
+    depth: number,
+    parentId: string | null,
+    cartridges: Record<string, CartridgeEntry>,
+    fileMap: Record<string, string[]>,
+  ): void {
+    if (depth > MAX_SCAN_DEPTH) return
+
+    let entries: fs.Dirent[]
+    try {
+      entries = fs.readdirSync(dir, { withFileTypes: true })
+    } catch {
+      return
+    }
 
     for (const entry of entries) {
-      // 只處理 mem-* 前綴的記憶卡匣
       if (!entry.isDirectory() || !entry.name.startsWith('mem-')) continue
 
-      const skillPath = path.join(skillsDir, entry.name, 'SKILL.md')
+      const skillPath = path.join(dir, entry.name, 'SKILL.md')
       if (!fs.existsSync(skillPath)) continue
 
       const raw = fs.readFileSync(skillPath, 'utf-8')
@@ -93,31 +125,34 @@ export class CartridgeIndexManager {
       // 保留既有的 pendingChanges（若有的話）
       const existingEntry = this.index.cartridges[cartridgeId]
 
-      newCartridges[cartridgeId] = {
+      cartridges[cartridgeId] = {
         skillPath: path.relative(this.config.projectRoot, skillPath),
         trackedFiles,
         staleness: (frontmatter.staleness as number) ?? 0,
         lastUpdated: (frontmatter.last_updated as string) ?? '',
         pendingChanges: existingEntry?.pendingChanges ?? [],
+        depth,
+        parent: parentId,
+        scopePath: (frontmatter.scopePath as string) ?? undefined,
       }
 
       // 建立反向映射
       for (const file of trackedFiles) {
-        if (!newFileMap[file]) newFileMap[file] = []
-        if (!newFileMap[file].includes(cartridgeId)) {
-          newFileMap[file].push(cartridgeId)
+        if (!fileMap[file]) fileMap[file] = []
+        if (!fileMap[file].includes(cartridgeId)) {
+          fileMap[file].push(cartridgeId)
         }
       }
-    }
 
-    this.index = {
-      version: 1,
-      lastScanned: new Date().toISOString(),
-      cartridges: newCartridges,
-      fileMap: newFileMap,
+      // 遞迴掃描子目錄
+      this.scanRecursive(
+        path.join(dir, entry.name),
+        depth + 1,
+        cartridgeId,
+        cartridges,
+        fileMap,
+      )
     }
-
-    return this.index
   }
 
   /**
@@ -143,6 +178,45 @@ export class CartridgeIndexManager {
    */
   getAllTrackedFiles(): string[] {
     return Object.keys(this.index.fileMap)
+  }
+
+  /**
+   * 透過最長前綴匹配，找出檔案路徑最匹配的記憶卡
+   * 用於新增檔案時自動判斷歸屬
+   */
+  findOwner(filePath: string): string | null {
+    const normalized = filePath.replace(/\\/g, '/')
+    let bestMatch: string | null = null
+    let bestLength = 0
+    for (const [id, entry] of Object.entries(this.index.cartridges)) {
+      if (
+        entry.scopePath
+        && normalized.startsWith(entry.scopePath)
+        && entry.scopePath.length > bestLength
+      ) {
+        bestMatch = id
+        bestLength = entry.scopePath.length
+      }
+    }
+    return bestMatch
+  }
+
+  /**
+   * 取得指定記憶卡的子卡清單
+   */
+  getChildren(cartridgeId: string): string[] {
+    return Object.entries(this.index.cartridges)
+      .filter(([, entry]) => entry.parent === cartridgeId)
+      .map(([id]) => id)
+  }
+
+  /**
+   * 將模組名稱解析為實際 SKILL.md 檔案路徑
+   */
+  resolveModulePath(moduleName: string): string | null {
+    const entry = this.index.cartridges[moduleName]
+    if (entry) return path.resolve(this.config.projectRoot, entry.skillPath)
+    return null
   }
 
   /**

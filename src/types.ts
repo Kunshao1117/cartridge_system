@@ -20,6 +20,12 @@ export interface CartridgeEntry {
   lastUpdated: string
   /** 待處理的異動檔案 */
   pendingChanges: PendingChange[]
+  /** 記憶卡在樹中的深度（1=根層, 2=功能域, 3=子模組, 4=極限） */
+  depth: number
+  /** 父記憶卡名稱（從目錄結構推導，非手動設定） */
+  parent: string | null
+  /** 該記憶卡負責的目錄範圍前綴（用於新檔案自動歸屬） */
+  scopePath?: string
 }
 
 /** 待處理的異動紀錄 */

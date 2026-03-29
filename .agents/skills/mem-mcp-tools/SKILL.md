@@ -2,7 +2,7 @@
 name: mem-mcp-tools
 description: |
   專案記憶：MCP 工具介面模組（第二階段）。 Use when: 處理MCP伺服器註冊、工具路由、AI工具呼叫介面時載入。
-last_updated: '2026-03-29T11:58:14+08:00'
+last_updated: '2026-03-29T14:22:00+08:00'
 status: stable
 staleness: 0
 ---
@@ -48,3 +48,22 @@ staleness: 0
 - D15: 子區段級合併的關鍵設計：當 patch 的 `##` 區段同時包含 `###` 子區段且原始區段也包含 `###` 時，執行子區段級合併；否則回退到整段替換（向下相容）。`rebuildSectionContent()` 負責從 leading + subSections 重組完整的區段文字。測試需使用 `parseSubSections()` 建構含子區段的 Section 物件。
 - D16: `memory_status` 的 fallback 路徑使用正則解析 SKILL.md frontmatter，而非 `gray-matter`，因為 handler 已 mock `fs/promises` 不需要處理 gray-matter 的 stringify。正則解析需處理單引號、雙引號和無引號三種格式。
 - D17: 測試 mock 中避免宣告僅用於計數的變數（如 `writeCount++`），ESLint no-unused-vars 會報錯。若不需要驗證呼叫次數，直接用空的 mockImplementation 即可。
+- D18: resolveSkillPath 會在 handler 進入商業邏輯前調用 fs.readFile 讀取索引檔，測試必須新增 fs.access mock 且理解 readFile 的呼叫順序變化（第一次不再是 SKILL.md 而是 cartridge_index.json）。
+## Key Decisions
+- D01: 獨立出 `mcp-server.ts` 作為標準 stdio Server 入口，與 VS Code Extension 解耦，雙核心透過實體檔案系統互動。
+- D02: 首發提供 3 個核心工具：`memory_list`, `memory_read`, `memory_update`，取代直接檔案寫入。
+- D05: 新增 `mcp-handlers.ts` 商業邏輯解耦層，三個純函式（handleMemoryList/Read/Update）從 MCP SDK 解耦，讓工具邏輯可獨立進行 vitest 單元測試。`mcp-server.ts` 僅保留 SDK 連接與路由職責。
+- D07: 三個工具均新增必填參數 `projectRoot`，呼叫方必須明確傳入目標專案根目錄路徑。未傳直接回傳 Validation Error，廢棄啟動時固定路徑的 fallback 設計。Handler 函式簽名移除 `agentsDir` 參數，改由內部從 `args.projectRoot` 動態組合 `.agents/skills` 路徑。
+- D09: `projectRoot` 路徑安全強化 — Zod schema 新增 `refine(isAbsolute + 無 ..)` 格式守衛 + `validateProjectRoot()` 語意守衛雙層防禦，阻擋路徑穿越攻擊。
+- D10: 時間戳生成統一改為 `getTaiwanISO()`（`Intl.DateTimeFormat` + `toLocaleString('sv')`），取代 `Date.now() + tzOffset` 手動偏移。
+- D11: frontmatter 更新從正則替換改為 `gray-matter` 結構化解析 → 修改 → 序列化（`updateFrontmatterFields()`），完整支援單引號、雙引號、無引號格式。
+- D12: Read-Before-Write 保護機制（已演進為 D13 雙模式）
+- D13: memory_update 雙模式寫入 — mode='replace'(預設)整張替換 / mode='append'附加至末尾。AI 可明確選擇寫入策略，避免重複段落堆疊。
+- D14: memory_update 新增 patch 模式（區段級替換）— 以 `##` 為分割粒度，同名區段就地替換、新區段附加到末尾、未提及區段保持不動。新增 `parseSections()` 段落分割函式（含 CRLF 正規化、程式碼區塊守衛）和 `mergeSections()` 合併函式（含標題正規化比對）。patch 內容必須含至少一個 `##` 區段否則回傳錯誤。回傳結果包含替換/新增統計。
+- D15: patch 模式閘門機制強化 — 三層防護：(1) `parseSubSections()` 兩層解析支援 `###` 子區段粒度合併，只替換提及的子區段保留未提及的（最小匹配原則）；(2) `dryRun` 參數支援操作前預覽，不寫入磁碟只回傳結構化 JSON 報告（含 replaced/added/removed/preserved 區段名稱列表與行數差異）；(3) 大幅刪減保護閘門，行數減少超過 30% 時自動產生警告。`MergeResult` 從數字計數升級為字串陣列追蹤具體區段名稱。`PatchReport` 介面定義結構化回傳格式。
+- D16: memory_list 回傳增強 — 每個模組包含 parent、scopePath、trackedFilesCount、splitSuggestion 欄位。追蹤超過 8 個檔案的模組自動附帶拆分建議。
+- D17: memory_read 回傳增強 — 讀取記憶卡時若索引存在，附加父子節點提示（提示 AI 同時讀取父卡獲取共用架構脈絡）。
+- D18: memory_update patch 模式新增 pendingChanges 遺漏偵測 — 若 pendingChanges 中有 add 事件但 patch 未包含 ## Tracked Files 區段，在 warnings 中提醒 AI 確認是否需要更新追蹤清單。
+- D19: 新增 resolveSkillPath() 共用路徑解析函式，三層策略：索引查找（最快）→ 平面路徑回退（向後相容）→ 遞迴搜尋（最後手段）。四個 MCP 工具全部改用此函式解析巢狀路徑。
+- D20: memory_list 回傳新增 depth 欄位，取代過度暴露的 parent 細節
+- D21: memory_update 的 replace/append 模式允許 resolveSkillPath 回傳 null（新建情境），回退到平面路徑創建

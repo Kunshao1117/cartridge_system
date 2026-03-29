@@ -59,6 +59,7 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
             content: { type: 'string', description: '記憶卡內容。replace=完整SKILL.md；append=差分段落；patch=要替換的目標##/###區段（不含frontmatter）' },
             mode: { type: 'string', enum: ['replace', 'append', 'patch'], description: '寫入模式。replace（預設）=整張替換；append=附加到末尾；patch=區段級替換（支援##和###兩層合併，同名替換、新區段附加、未提及保留）' },
             dryRun: { type: 'boolean', description: '僅限 patch 模式。設為 true 時不寫入磁碟，只回傳變更預覽報告（含將替換/新增/保留/刪除的區段清單和行數差異）' },
+            parentModule: { type: 'string', description: '巢狀建立時指定父記憶卡名稱。新建模組會放在父卡目錄下的子目錄中。僅在新建記憶卡時有效。' },
             projectRoot: { type: 'string', description: '目標專案的根目錄絕對路徑' },
           },
           required: ['moduleName', 'content', 'projectRoot'],

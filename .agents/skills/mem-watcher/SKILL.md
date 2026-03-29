@@ -2,7 +2,7 @@
 name: mem-watcher
 description: |
   專案記憶：檔案監聯引擎模組。 Use when: 處理檔案監聽、chokidar設定、監聽生命週期管理時載入。
-last_updated: '2026-03-28T17:10:00+08:00'
+last_updated: '2026-03-29T14:22:00+08:00'
 status: stable
 staleness: 0
 ---
@@ -13,14 +13,15 @@ staleness: 0
 - src/watcher.ts
 
 ## Key Decisions
-- D01: 使用 chokidar v4 作為檔案監聽器
-- D02: 僅監聽記憶卡匣中明確追蹤的檔案，非整個專案目錄
-- D03: 採用事件發送器模式向過期分析器傳遞異動事件
-- D04: 同時監聽 mem-*/SKILL.md 以偵測 AI 重設 staleness 的動作
-- D05: awaitWriteFinish 設定 300ms 穩定閾值避免重複觸發
-- D06: handleEvent 中新增 ignoreFiles 豁免守衛，跳過外掛自身產出的檔案（如 cartridge_index.json），防止自我監聽迴圈
-- D07: handleSkillFileChange 修正為「staleness=0 即同步」策略。與舊版的 `checkAndCleanWarning` 不同，新版先嘗試清除警告，若無警告但 frontmatter.staleness=0，仍然觸發快取同步。修復了 MCP `memory_update` 寫入乾淨 SKILL.md 後外掛忽略同步的問題。
-- D08: refresh() 動態更新監聽清單。scan() 後自動 diff 新舊路徑，動態 add/unwatch，解決新增追蹤路徑需重啟 VS Code 才生效的問題
+- D01: chokidar v4 使用 `watch(paths, options)` 一次性初始化（非鏈式呼叫）
+- D02: 僅監聽記憶卡中明確追蹤的檔案，非整個專案目錄
+- D03: start() 同時加入記憶卡 SKILL.md 路徑，用於偵測 AI 更新記憶
+- D04: 偵測到 SKILL.md 變動時觸發特殊流程（讀取新 staleness → 若歸零則清除警報 → 重新掃描索引 → 刷新監聽清單）
+- D05: D14 動態更新機制（refresh）— 每次 scan 後 diff 新舊路徑，動態 add/unwatch
+- D06: start() 加入 scopePath 目錄監控 — 若記憶卡設有 scopePath，監聯該目錄以偵測新增檔案
+- D07: handleEvent() 新增未追蹤檔案歸屬偵測 — 新增檔案（add 事件）若不在已追蹤清單中，透過 findOwner() 最長前綴匹配嘗試歸屬，匹配成功則加入該模組的 pendingChanges
+- D08: refresh() 同步 scopePath 目錄 — 刷新監聽清單時一併處理 scopePath 路徑的新增/移除
+- D09: handleSkillFileChange 的 cartridgeId 提取改用 lastIndexOf('SKILL.md') 取前一層目錄名，確保巢狀路徑下正確識別記憶卡
 
 ## Known Issues
 - 無

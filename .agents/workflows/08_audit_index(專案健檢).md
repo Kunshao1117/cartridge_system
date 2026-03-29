@@ -28,12 +28,14 @@ memory_awareness: full
 - **Absolute Rule**: Do NOT scan or map directories matching `.git`, `node_modules`, `venv`, `__pycache__`, `dist`, `build`, `.next`, or any binary/image files.
 - **Phase A (Structure Scan)**: Scan the project directory tree from `project_root`. List all existing `mem-*` skills. For each, `view_file` its `SKILL.md` — do NOT skip reading the actual content.
 - **Phase B (Gap Detection)**: Identify source files/modules NOT covered by any existing `mem-*` skill's `## Tracked Files`.
-  - For each uncovered module: create a new `mem-{module}/SKILL.md` with auto-detected tracked files, key decisions, bilingual `description` (English + Chinese keywords), and relations.
+  - For each uncovered module: check if it belongs to an existing functional domain card (using `scopePath` containment). If yes, create as a nested child card. If no, create at root level. Follow the Nesting Decision Tree in `memory-ops` skill § 5.
+  - Populate with auto-detected tracked files, key decisions, bilingual `description` (English + Chinese keywords), and relations.
 - **Phase C (Staleness & Schema Check)**: For each existing `mem-*` skill, `view_file` the `SKILL.md` and validate:
   1. **Schema Compliance**: All required sections per `memory-ops` skill are present (frontmatter with `last_updated`, `status`, `staleness` + body with `Tracked Files`, `Key Decisions`, `Known Issues`, `Module Lessons`, `Relations`).
   2. **Field Type Check**: `status` is one of `stable`, `in_progress`, `deprecated`. `staleness` is a number.
   3. **Tracked File Verification**: Each `## Tracked Files` entry exists on disk.
   4. **Staleness Evaluation**: Read `staleness` value.
+  5. **Granularity Check**: Count tracked files. If > 8, flag as 🟡 and include split suggestion in the report. Scan nested subdirectories for child cards (max depth 4). If `scopePath` is missing, note as upgrade candidate.
   - If `staleness` > 10, trigger an automatic regeneration of the skill content.
   - If ALL tracked files are gone → move the entire skill folder to `_archived/`.
   - If SOME tracked files changed → update the skill and reset `staleness` to 0.

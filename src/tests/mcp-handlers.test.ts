@@ -22,6 +22,7 @@ vi.mock('fs/promises', () => ({
   readdir: vi.fn(),
   readFile: vi.fn(),
   writeFile: vi.fn(),
+  access: vi.fn(),
 }))
 
 import * as fs from 'fs/promises'
@@ -30,6 +31,8 @@ const PROJECT_ROOT = '/mock/other-project'
 
 beforeEach(() => {
   vi.clearAllMocks()
+  // resolveSkillPath 會呼叫 fs.access 驗證路徑存在，預設為成功（平面路徑回退）
+  vi.mocked(fs.access).mockResolvedValue(undefined)
 })
 
 // ---------------------------------------------------------------------------
@@ -112,10 +115,12 @@ describe('handleMemoryRead', () => {
 
     await handleMemoryRead({ moduleName: 'mem-_system', projectRoot: PROJECT_ROOT })
 
-    const calledPath = vi.mocked(fs.readFile).mock.calls[0][0] as string
-    expect(calledPath).toContain('other-project')
-    expect(calledPath).toContain('mem-_system')
-    expect(calledPath).toContain('SKILL.md')
+    // resolveSkillPath 先讀索引、再由 handler 讀 SKILL.md，取最後一次包含模組名的呼叫
+    const calls = vi.mocked(fs.readFile).mock.calls
+    const skillReadCall = calls.find(c => (c[0] as string).includes('mem-_system'))
+    expect(skillReadCall).toBeDefined()
+    expect(skillReadCall![0] as string).toContain('other-project')
+    expect(skillReadCall![0] as string).toContain('SKILL.md')
   })
 
   it('未傳入 projectRoot 時應回傳 Validation Error', async () => {
@@ -757,7 +762,9 @@ describe('handleMemoryStatus', () => {
 
   it('索引檔不存在時應回退讀 SKILL.md frontmatter', async () => {
     const skillContent = '---\nname: mem-test\nlast_updated: "2026-03-28T10:00:00+08:00"\nstaleness: 5\n---\n# Test'
+    // 呼叫流程：1. handler 讀索引(reject) → 2. resolveSkillPath 讀索引(reject) → 3. 讀 SKILL.md(resolve)
     vi.mocked(fs.readFile)
+      .mockRejectedValueOnce(new Error('ENOENT'))
       .mockRejectedValueOnce(new Error('ENOENT'))
       .mockResolvedValueOnce(skillContent as unknown as Awaited<ReturnType<typeof fs.readFile>>)
 
@@ -878,3 +885,40 @@ describe('handleMemoryUpdate — pendingChanges 清除', () => {
     expect(result.content[0].text).toContain('Successfully updated')
   })
 })
+
+// ---------------------------------------------------------------------------
+// handleMemoryUpdate — parentModule 巢狀建立
+// ---------------------------------------------------------------------------
+describe('handleMemoryUpdate — parentModule 巢狀建立', () => {
+  it('指定 parentModule 時應建在父卡目錄下', async () => {
+    // resolveSkillPath 找不到子卡（null）也找不到索引 → fs.access 平面路徑檢查
+    vi.mocked(fs.access)
+      .mockRejectedValueOnce(new Error('ENOENT'))  // resolveSkillPath 策略 1: 索引讀取後 access 失敗
+      .mockRejectedValueOnce(new Error('ENOENT'))  // resolveSkillPath 策略 2: 平面路徑不存在（子卡）
+      .mockResolvedValueOnce(undefined)             // resolveSkillPath 策略 2: 平面路徑存在（父卡）
+
+    // readFile: 索引讀取失敗（子卡和父卡的 resolveSkillPath 各一次）
+    vi.mocked(fs.readFile)
+      .mockRejectedValueOnce(new Error('ENOENT'))
+      .mockRejectedValueOnce(new Error('ENOENT'))
+
+    let writtenPath = ''
+    vi.mocked(fs.writeFile).mockImplementation(async (filePath) => {
+      if (!writtenPath) writtenPath = filePath as string
+    })
+
+    const content = '---\nname: mem-api-auth\nlast_updated: "old"\nstaleness: 0\n---\n# Auth Module'
+    await handleMemoryUpdate({
+      moduleName: 'mem-api-auth',
+      content,
+      projectRoot: PROJECT_ROOT,
+      parentModule: 'mem-api',
+    })
+
+    // 應包含父卡名稱作為路徑的一部分
+    expect(writtenPath).toContain('mem-api')
+    expect(writtenPath).toContain('mem-api-auth')
+    expect(writtenPath).toContain('SKILL.md')
+  })
+})
+

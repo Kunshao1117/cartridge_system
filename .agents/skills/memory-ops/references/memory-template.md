@@ -7,6 +7,8 @@
 ```yaml
 ---
 name: mem-{module}
+parent: mem-{parent}
+scopePath: path/to/owned/directory/
 description: >
   專案記憶：{中文模組描述}。
   Use when: {何時應該載入此記憶}。

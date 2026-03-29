@@ -4,3 +4,4 @@ Before reporting completion to the Director, verify ALL of the following:
 - [ ] `audit_trail.jsonL` appended
 - [ ] Memory Update Summary included in output
 - [ ] **Interface Layer Check (介面層檢查)**: The completion report uses business-level descriptions, NOT raw code identifiers. Memory Update Summary must describe WHAT CHANGED in business terms (e.g., "更新了安全模組的已知問題" instead of "updated mem-security/SKILL.md Known Issues section").
+- [ ] **Granularity Gate (粒度閘門)**: For each `mem-*` skill updated in this session, verify trackedFiles count ≤ 8. If exceeded → propose split to Director before reporting completion.

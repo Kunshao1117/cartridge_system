@@ -56,6 +56,7 @@ export const memoryUpdateSchema = z.object({
   content: z.string().min(1),
   mode: z.enum(['replace', 'append', 'patch']).default('replace'),
   dryRun: z.boolean().default(false),
+  parentModule: z.string().optional(),
   projectRoot: projectRootField,
 })
 
@@ -75,6 +76,61 @@ export function updateFrontmatterFields(
   }
 
   return matter.stringify(content, frontmatter)
+}
+
+/**
+ * 共用路徑解析函式：將模組名稱解析為 SKILL.md 絕對路徑
+ * 三層策略確保向後相容：索引查找 → 平面回退 → 遞迴搜尋
+ */
+export async function resolveSkillPath(projectRoot: string, moduleName: string): Promise<string | null> {
+  // 策略 1：從索引查找（最快）
+  const indexPath = path.join(projectRoot, 'cartridge_index.json')
+  try {
+    const raw = await fs.readFile(indexPath, 'utf-8')
+    const index = JSON.parse(raw)
+    const entry = index.cartridges?.[moduleName]
+    if (entry?.skillPath) {
+      const resolved = path.join(projectRoot, entry.skillPath)
+      try {
+        await fs.access(resolved)
+        return resolved
+      } catch { /* 索引記錄的路徑不存在，繼續嘗試 */ }
+    }
+  } catch { /* 索引不存在 */ }
+
+  // 策略 2：平面路徑回退（向後相容）
+  const flatPath = path.join(projectRoot, '.agents', 'skills', moduleName, 'SKILL.md')
+  try {
+    await fs.access(flatPath)
+    return flatPath
+  } catch { /* 不存在 */ }
+
+  // 策略 3：遞迴搜尋（最慢，最後手段）
+  return findSkillRecursive(path.join(projectRoot, '.agents', 'skills'), moduleName, 1)
+}
+
+/**
+ * 遞迴搜尋巢狀目錄中的 SKILL.md
+ */
+async function findSkillRecursive(dir: string, moduleName: string, depth: number): Promise<string | null> {
+  if (depth > 4) return null
+  try {
+    const entries = await fs.readdir(dir, { withFileTypes: true })
+    for (const entry of entries) {
+      if (!entry.isDirectory() || !entry.name.startsWith('mem-')) continue
+      if (entry.name === moduleName) {
+        const candidate = path.join(dir, entry.name, 'SKILL.md')
+        try {
+          await fs.access(candidate)
+          return candidate
+        } catch { continue }
+      }
+      // 遞迴搜尋子目錄
+      const found = await findSkillRecursive(path.join(dir, entry.name), moduleName, depth + 1)
+      if (found) return found
+    }
+  } catch { /* 目錄不存在 */ }
+  return null
 }
 
 /** 解析後的 Markdown 子區段結構（### 層級） */
@@ -336,14 +392,22 @@ export async function handleMemoryList(args: unknown): Promise<McpToolResult> {
       const enriched = modules.map((mod) => {
         const entry = cartridges[mod]
         if (entry) {
+          const trackedCount = entry.trackedFiles?.length ?? 0
           return {
             module: mod,
             staleness: entry.staleness ?? 0,
             level: stalenessToLevel(entry.staleness ?? 0),
             pendingChangesCount: entry.pendingChanges?.length ?? 0,
+            depth: entry.depth ?? 1,
+            parent: entry.parent ?? null,
+            scopePath: entry.scopePath ?? null,
+            trackedFilesCount: trackedCount,
+            splitSuggestion: trackedCount > 8
+              ? `此模組追蹤了 ${trackedCount} 個檔案，建議考慮拆分為子模組以提升維護性。`
+              : null,
           }
         }
-        return { module: mod, staleness: 0, level: 'healthy', pendingChangesCount: 0 }
+        return { module: mod, staleness: 0, level: 'healthy', pendingChangesCount: 0, depth: 1, parent: null, scopePath: null, trackedFilesCount: 0, splitSuggestion: null }
       })
 
       return {
@@ -380,11 +444,33 @@ export async function handleMemoryRead(
     return { content: [{ type: 'text', text: `Path Validation Error: ${msg}` }], isError: true }
   }
 
-  const agentsDir = path.join(parsed.data.projectRoot, '.agents', 'skills')
   try {
-    const filePath = path.join(agentsDir, parsed.data.moduleName, 'SKILL.md')
+    const filePath = await resolveSkillPath(parsed.data.projectRoot, parsed.data.moduleName)
+    if (!filePath) {
+      return { content: [{ type: 'text', text: `Error: Module "${parsed.data.moduleName}" not found. Searched: index → flat path → recursive scan.` }], isError: true }
+    }
     const content = await fs.readFile(filePath, 'utf-8')
-    return { content: [{ type: 'text', text: content }] }
+
+    // 嘗試從索引取得父子關係提示
+    let parentHint = ''
+    try {
+      const indexPath = path.join(parsed.data.projectRoot, 'cartridge_index.json')
+      const indexRaw = await fs.readFile(indexPath, 'utf-8')
+      const index = JSON.parse(indexRaw)
+      const entry = index.cartridges?.[parsed.data.moduleName]
+      if (entry?.parent) {
+        parentHint += `\n\n---\n_提示：此模組的父節點為 ${entry.parent}，建議同時讀取以獲取共用架構脈絡。_`
+      }
+      const children = Object.entries(index.cartridges ?? {})
+        .filter(([, e]: [string, unknown]) => (e as { parent?: string }).parent === parsed.data.moduleName)
+        .map(([id]: [string, unknown]) => id)
+      if (children.length > 0) {
+        parentHint += `\n_此模組的子節點：${children.join(', ')}_`
+      }
+    } catch {
+      // 索引不存在 — 靜默忽略
+    }
+    return { content: [{ type: 'text', text: content + parentHint }] }
   } catch (e: unknown) {
     const msg = e instanceof Error ? e.message : String(e)
     return { content: [{ type: 'text', text: `Error: ${msg}` }], isError: true }
@@ -456,9 +542,11 @@ export async function handleMemoryStatus(
     return { content: [{ type: 'text', text: JSON.stringify(status, null, 2) }] }
   } catch {
     // 索引檔不存在 — 回退到讀取 SKILL.md frontmatter
-    const agentsDir = path.join(projectRoot, '.agents', 'skills')
     try {
-      const filePath = path.join(agentsDir, moduleName, 'SKILL.md')
+      const filePath = await resolveSkillPath(projectRoot, moduleName)
+      if (!filePath) {
+        return { content: [{ type: 'text', text: `Error: Module "${moduleName}" not found.` }], isError: true }
+      }
       const raw = await fs.readFile(filePath, 'utf-8')
       const fmMatch = raw.match(/^---\n([\s\S]*?)\n---/)
       let staleness = 0
@@ -535,10 +623,22 @@ export async function handleMemoryUpdate(
     return { content: [{ type: 'text', text: `Path Validation Error: ${msg}` }], isError: true }
   }
 
-  const agentsDir = path.join(parsed.data.projectRoot, '.agents', 'skills')
   try {
     const isoLocal = getTaiwanISO()
-    const filePath = path.join(agentsDir, parsed.data.moduleName, 'SKILL.md')
+    const resolvedPath = await resolveSkillPath(parsed.data.projectRoot, parsed.data.moduleName)
+    // 決定檔案路徑：已存在 → 巢狀新建 → 根層新建
+    let filePath: string
+    if (resolvedPath) {
+      filePath = resolvedPath
+    } else if (parsed.data.parentModule) {
+      // 巢狀建立：放到父卡目錄下
+      const parentPath = await resolveSkillPath(parsed.data.projectRoot, parsed.data.parentModule)
+      const parentDir = parentPath ? path.dirname(parentPath) : path.join(parsed.data.projectRoot, '.agents', 'skills', parsed.data.parentModule)
+      filePath = path.join(parentDir, parsed.data.moduleName, 'SKILL.md')
+    } else {
+      // 根層建立（向後相容）
+      filePath = path.join(parsed.data.projectRoot, '.agents', 'skills', parsed.data.moduleName, 'SKILL.md')
+    }
 
     // [D13/D14/D15] 依 mode 切換寫入策略
     let base: string
@@ -602,6 +702,32 @@ export async function handleMemoryUpdate(
         report.warnings.push(
           `⚠️ 大幅刪減警告：行數從 ${linesBefore} 減少到 ${linesAfter}（減少 ${Math.round((1 - linesAfter / linesBefore) * 100)}%，超過 ${SHRINKAGE_THRESHOLD * 100}% 閾值）`
         )
+      }
+
+      // 新增檔案遺漏偵測：pendingChanges 有 add 事件但 patch 未包含 Tracked Files
+      const hasTrackedFilesInPatch = patchTitles.has(normalizeTitle('## Tracked Files'))
+      if (!hasTrackedFilesInPatch) {
+        try {
+          const indexCheckPath = path.join(parsed.data.projectRoot, 'cartridge_index.json')
+          const indexCheckRaw = await fs.readFile(indexCheckPath, 'utf-8')
+          const idx = JSON.parse(indexCheckRaw)
+          const idxEntry = idx.cartridges?.[parsed.data.moduleName]
+          if (idxEntry?.pendingChanges?.length > 0) {
+            const addedFiles = idxEntry.pendingChanges.filter(
+              (c: { eventType: string }) => c.eventType === 'add'
+            )
+            if (addedFiles.length > 0) {
+              const fileList = addedFiles
+                .map((c: { filePath: string }) => c.filePath)
+                .join(', ')
+              report.warnings.push(
+                `ℹ️ 建議檢查：pendingChanges 中有 ${addedFiles.length} 個新增檔案（${fileList}），但本次 patch 未包含 ## Tracked Files 區段。請確認是否需要更新追蹤檔案清單。`
+              )
+            }
+          }
+        } catch {
+          // 索引不存在 — 靜默略過
+        }
       }
 
       // dryRun 模式：不寫入磁碟，只回傳預覽報告

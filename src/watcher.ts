@@ -74,6 +74,13 @@ export class CartridgeWatcher {
       const absPath = path.resolve(this.config.projectRoot, cartridge.skillPath)
       this.watcher.add(absPath)
       this.watchedPaths.add(absPath)
+
+      // 加入 scopePath 目錄監控（若存在）
+      if (cartridge.scopePath) {
+        const scopeAbsPath = path.resolve(this.config.projectRoot, cartridge.scopePath)
+        this.watcher.add(scopeAbsPath)
+        this.watchedPaths.add(scopeAbsPath)
+      }
     }
 
     this.watcher
@@ -113,7 +120,10 @@ export class CartridgeWatcher {
       .map(f => path.resolve(this.config.projectRoot, f))
     const currentSkills = Object.values(this.indexManager.getIndex().cartridges)
       .map(c => path.resolve(this.config.projectRoot, c.skillPath))
-    const desired = new Set([...currentFiles, ...currentSkills])
+    const currentScopes = Object.values(this.indexManager.getIndex().cartridges)
+      .filter(c => c.scopePath)
+      .map(c => path.resolve(this.config.projectRoot, c.scopePath!))
+    const desired = new Set([...currentFiles, ...currentSkills, ...currentScopes])
 
     // 新增路徑
     for (const p of desired) {
@@ -158,6 +168,19 @@ export class CartridgeWatcher {
       return
     }
 
+    // 檢查是否為未追蹤但匹配 scopePath 的新檔案
+    const affected = this.indexManager.getAffectedCartridges(relPath)
+    if (affected.length === 0 && eventType === 'add') {
+      const owner = this.indexManager.findOwner(relPath)
+      if (owner) {
+        console.log(`[監聽引擎] 新檔案歸屬偵測: ${relPath} → ${owner}`)
+        this.indexManager.addPendingChange(owner, relPath, 'add')
+        await this.indexManager.persist()
+        this.onUpdate?.()
+        return
+      }
+    }
+
     console.log(`[監聽引擎] 偵測到異動: ${eventType} ${relPath}`)
     await this.analyzer.processFileEvent(relPath, eventType)
     this.onUpdate?.()
@@ -187,7 +210,10 @@ export class CartridgeWatcher {
     }
 
     if (needsSync) {
-      const cartridgeId = relPath.split('/').slice(-2)[0]
+      // 巢狀路徑：取 SKILL.md 前一層目錄名作為 cartridgeId
+      const pathParts = relPath.split('/')
+      const skillIdx = pathParts.lastIndexOf('SKILL.md')
+      const cartridgeId = skillIdx > 0 ? pathParts[skillIdx - 1] : pathParts.slice(-2)[0]
       this.indexManager.clearPendingChanges(cartridgeId)
       await this.indexManager.scan()
       this.refresh()

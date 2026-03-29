@@ -32,6 +32,8 @@ You MUST execute BOTH of the following actions synchronously:
   2. Create one `mem-{module}/SKILL.md` per major functional module identified in the blueprint. Populate with standard sections: Tracked Files, Key Decisions, Known Issues, Module Lessons, Relations.
   3. Memory skill descriptions MUST include Chinese keywords for Director instruction matching.
   4. Memory skill frontmatter MUST include `last_updated`, `status`, and `staleness: 0`.
+  5. Memory skill granularity: each card SHOULD track no more than 8 files. Use nested directories to establish tree hierarchy (max depth 4). Layer 3-4 cards go inside their parent card's directory. Group shared decisions in parent cards.
+  6. **Nesting Analysis**: Before creating cards, analyze module relationships. If module B's `scopePath` is a sub-path of module A's, create B inside A's directory. Follow the Nesting Decision Tree in `memory-ops` skill § 5.
 
 ## COMPLETION GATE（完成閘門 — 不可略過）
 > Inherits: `.agents/workflows/_completion_gate.md`

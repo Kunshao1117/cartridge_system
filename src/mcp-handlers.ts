@@ -377,44 +377,41 @@ export async function handleMemoryList(args: unknown): Promise<McpToolResult> {
 
   const agentsDir = path.join(parsed.data.projectRoot, '.agents', 'skills')
   try {
-    const files = await fs.readdir(agentsDir, { withFileTypes: true })
-    const modules = files
-      .filter((d) => d.isDirectory() && d.name.startsWith('mem-'))
-      .map((d) => d.name)
-
-    // 嘗試從索引檔讀取過期狀態（增強回傳）
+    // 優先從索引檔讀取全部卡匣（含巢狀子卡）
     const indexPath = path.join(parsed.data.projectRoot, 'cartridge_index.json')
     try {
       const indexRaw = await fs.readFile(indexPath, 'utf-8')
       const index = JSON.parse(indexRaw)
       const cartridges = index.cartridges ?? {}
+      const modules = Object.keys(cartridges)
 
       const enriched = modules.map((mod) => {
         const entry = cartridges[mod]
-        if (entry) {
-          const trackedCount = entry.trackedFiles?.length ?? 0
-          return {
-            module: mod,
-            staleness: entry.staleness ?? 0,
-            level: stalenessToLevel(entry.staleness ?? 0),
-            pendingChangesCount: entry.pendingChanges?.length ?? 0,
-            depth: entry.depth ?? 1,
-            parent: entry.parent ?? null,
-            scopePath: entry.scopePath ?? null,
-            trackedFilesCount: trackedCount,
-            splitSuggestion: trackedCount > 8
-              ? `此模組追蹤了 ${trackedCount} 個檔案，建議考慮拆分為子模組以提升維護性。`
-              : null,
-          }
+        const trackedCount = entry.trackedFiles?.length ?? 0
+        return {
+          module: mod,
+          staleness: entry.staleness ?? 0,
+          level: stalenessToLevel(entry.staleness ?? 0),
+          pendingChangesCount: entry.pendingChanges?.length ?? 0,
+          depth: entry.depth ?? 1,
+          parent: entry.parent ?? null,
+          scopePath: entry.scopePath ?? null,
+          trackedFilesCount: trackedCount,
+          splitSuggestion: trackedCount > 8
+            ? `此模組追蹤了 ${trackedCount} 個檔案，建議考慮拆分為子模組以提升維護性。`
+            : null,
         }
-        return { module: mod, staleness: 0, level: 'healthy', pendingChangesCount: 0, depth: 1, parent: null, scopePath: null, trackedFilesCount: 0, splitSuggestion: null }
       })
 
       return {
         content: [{ type: 'text', text: JSON.stringify(enriched, null, 2) }],
       }
     } catch {
-      // 索引不存在時回退到純文字模式（向後相容）
+      // 索引不存在 — 回退到目錄掃描（只能看到根層）
+      const files = await fs.readdir(agentsDir, { withFileTypes: true })
+      const modules = files
+        .filter((d) => d.isDirectory() && d.name.startsWith('mem-'))
+        .map((d) => d.name)
       return {
         content: [{ type: 'text', text: `Available memories:\n${modules.join('\n')}` }],
       }
@@ -782,3 +779,4 @@ export async function handleMemoryUpdate(
     return { content: [{ type: 'text', text: `Error: ${msg}` }], isError: true }
   }
 }
+

@@ -1,12 +1,20 @@
 ---
 name: mem-injector
-description: >
-  專案記憶：基底卡匣注入器模組。
-  Use when: 處理基礎技能注入、範本比對、專案初始化佈署時載入。
-last_updated: "2026-03-30T02:10:00+08:00"
-status: stable
-staleness: 0
+description: |
+  專案記憶：基底卡匣注入器模組。 Use when: 處理基礎技能注入、範本比對、專案初始化佈署時載入。
+last_updated: '2026-03-30T02:10:00+08:00'
+status: stale
+staleness: 10
 ---
+<!-- CARTRIDGE_SYSTEM_WARNING_START -->
+
+> [!CAUTION]
+> 🟠 **系統強制攔截**：此記憶已過期失真！
+> 追蹤檔案異動：`src/injector.ts`（2026-03-30T02:42:16+08:00）
+> AI 嚴禁基於此記憶施工，必須優先閱讀最新原始碼並更新此記憶卡。
+> staleness: 10 | threshold: 🟠 顯著過期
+
+<!-- CARTRIDGE_SYSTEM_WARNING_END -->
 
 # Core Injector — 基底注入器記憶
 

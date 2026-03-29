@@ -2,7 +2,7 @@
 name: mem-index-manager
 description: |
   專案記憶：記憶索引管理器模組。 Use when: 處理卡匣索引、檔案反向映射、持久化讀寫時載入。
-last_updated: '2026-03-29T14:22:00+08:00'
+last_updated: '2026-03-30T03:09:15+08:00'
 status: stable
 staleness: 0
 ---
@@ -42,3 +42,4 @@ staleness: 0
 - mem-watcher（mem-extension 子卡：提供監聽檔案清單）
 - mem-analyzer（mem-extension 子卡：接收過期指數更新）
 - mem-mcp-tools（根層模組：第二階段對外暴露查詢能力）
+- D08: `detectMissedChanges()` 新增至索引管理器，在 scan 之後自動比對追蹤檔案的 mtime 與記憶卡的 lastUpdated。跳過目錄型追蹤路徑（尾部 `/`）。staleness 重算使用與 `StalenessAnalyzer.calculateStaleness()` 相同的計分權重。

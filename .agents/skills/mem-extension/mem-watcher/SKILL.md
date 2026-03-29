@@ -3,9 +3,18 @@ name: mem-watcher
 description: |
   專案記憶：檔案監聯引擎模組。 Use when: 處理檔案監聽、chokidar設定、監聽生命週期管理時載入。
 last_updated: '2026-03-30T02:10:00+08:00'
-status: stable
-staleness: 0
+status: stale
+staleness: 10
 ---
+<!-- CARTRIDGE_SYSTEM_WARNING_START -->
+
+> [!CAUTION]
+> 🟠 **系統強制攔截**：此記憶已過期失真！
+> 追蹤檔案異動：`src/watcher.ts`（2026-03-30T02:42:16+08:00）
+> AI 嚴禁基於此記憶施工，必須優先閱讀最新原始碼並更新此記憶卡。
+> staleness: 10 | threshold: 🟠 顯著過期
+
+<!-- CARTRIDGE_SYSTEM_WARNING_END -->
 
 # Watcher Engine — 監聽引擎記憶
 

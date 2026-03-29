@@ -262,6 +262,48 @@ export class CartridgeIndexManager {
   }
 
   /**
+   * 啟動時偵測停機期間遺漏的檔案變動
+   * 比對每個追蹤檔案的修改時間（mtime）與記憶卡的 lastUpdated，
+   * 若檔案比記憶卡還新，則補記 pendingChange 並更新 staleness
+   */
+  detectMissedChanges(scoring: CartridgeConfig['scoring']): void {
+    for (const [cartridgeId, entry] of Object.entries(this.index.cartridges)) {
+      if (!entry.lastUpdated || entry.trackedFiles.length === 0) continue
+
+      const lastUpdatedMs = new Date(entry.lastUpdated).getTime()
+      if (isNaN(lastUpdatedMs)) continue
+
+      for (const trackedFile of entry.trackedFiles) {
+        // 跳過目錄型追蹤（如 src/templates/）
+        if (trackedFile.endsWith('/')) continue
+
+        const absPath = path.resolve(this.config.projectRoot, trackedFile)
+        try {
+          const stat = fs.statSync(absPath)
+          if (stat.mtimeMs > lastUpdatedMs) {
+            this.addPendingChange(cartridgeId, trackedFile, 'change')
+          }
+        } catch {
+          // 檔案不存在 — 可能已刪除
+        }
+      }
+
+      // 重新計算 staleness
+      if (entry.pendingChanges.length > 0) {
+        let score = 0
+        for (const change of entry.pendingChanges) {
+          switch (change.eventType) {
+            case 'change': score += scoring.fileChanged; break
+            case 'unlink': score += scoring.fileDeleted; break
+            case 'add':    score += scoring.fileAdded;   break
+          }
+        }
+        entry.staleness = score
+      }
+    }
+  }
+
+  /**
    * 持久化索引至 JSON 檔案
    */
   async persist(): Promise<void> {

@@ -3,9 +3,18 @@ name: mem-analyzer
 description: |
   專案記憶：過期分析器模組。 Use when: 處理過期指數計算、衰退演算法、異動事件處理時載入。
 last_updated: '2026-03-30T02:10:00+08:00'
-status: stable
-staleness: 0
+status: stale
+staleness: 20
 ---
+<!-- CARTRIDGE_SYSTEM_WARNING_START -->
+
+> [!CAUTION]
+> 🟠 **系統強制攔截**：此記憶已過期失真！
+> 追蹤檔案異動：`src/analyzer.ts`、`src/tests/analyzer.test.ts`（2026-03-30T02:42:16+08:00）
+> AI 嚴禁基於此記憶施工，必須優先閱讀最新原始碼並更新此記憶卡。
+> staleness: 20 | threshold: 🟠 顯著過期
+
+<!-- CARTRIDGE_SYSTEM_WARNING_END -->
 
 # Staleness Analyzer — 過期分析器記憶
 

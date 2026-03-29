@@ -2,9 +2,9 @@
 name: mem-mcp-tools
 description: |
   專案記憶：MCP 工具介面模組（第二階段）。 Use when: 處理MCP伺服器註冊、工具路由、AI工具呼叫介面時載入。
-last_updated: '2026-03-29T16:36:00+08:00'
+last_updated: '2026-03-30T02:58:24+08:00'
 status: stale
-staleness: 10
+staleness: 0
 ---
 <!-- CARTRIDGE_SYSTEM_WARNING_START -->
 
@@ -66,3 +66,5 @@ staleness: 10
 - D16: `memory_status` 的 fallback 路徑使用正則解析 SKILL.md frontmatter，而非 `gray-matter`，因為 handler 已 mock `fs/promises` 不需要處理 gray-matter 的 stringify。正則解析需處理單引號、雙引號和無引號三種格式。
 - D17: 測試 mock 中避免宣告僅用於計數的變數（如 `writeCount++`），ESLint no-unused-vars 會報錯。若不需要驗證呼叫次數，直接用空的 mockImplementation 即可。
 - D18: resolveSkillPath 會在 handler 進入商業邏輯前調用 fs.readFile 讀取索引檔，測試必須新增 fs.access mock 且理解 readFile 的呼叫順序變化（第一次不再是 SKILL.md 而是 cartridge_index.json）。
+- D22: memory_list 改為優先從索引檔讀取全部卡匣（含巢狀子卡），不再依賴目錄掃描。索引檔透過 `Object.keys(cartridges)` 取得模組清單，確保 depth=2+ 的子卡也被包含在回傳結果中。目錄掃描降級為索引不存在時的回退方案。
+- D19: `memory_list` 若依賴 `readdir` 掃描 `.agents/skills/` 的直接子目錄，巢狀在父卡底下的子卡會被完全遺漏。正確做法是從 `cartridge_index.json` 讀取全量卡匣清單，因為索引管理器在掃描時已執行遞迴搜尋。

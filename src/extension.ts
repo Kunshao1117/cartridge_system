@@ -51,18 +51,39 @@ export async function activate(
         vscode.window.showWarningMessage('記憶卡匣：尚未初始化')
         return
       }
-      const stale = Object.entries(idx.cartridges).filter(
-        ([, v]) => v.staleness > 0,
+      const entries = Object.entries(idx.cartridges)
+      const totalScore = entries.reduce(
+        (sum, [, v]) => sum + v.staleness, 0,
       )
-      if (stale.length === 0) {
+      if (totalScore === 0) {
         vscode.window.showInformationMessage(
           '記憶卡匣 🟢 全部健康，無過期卡匣',
         )
       } else {
-        const report = stale
-          .map(([id, v]) => `${id}: staleness=${v.staleness}`)
-          .join('\n')
-        vscode.window.showWarningMessage(`記憶卡匣過期報告：\n${report}`)
+        const channel = vscode.window.createOutputChannel(
+          '記憶卡匣健康報告',
+        )
+        const sorted = entries
+          .filter(([, v]) => v.staleness > 0)
+          .sort(([, a], [, b]) => b.staleness - a.staleness)
+        const tierIcon = (s: number) =>
+          s >= 100 ? '🔴' : s >= 60 ? '🟠' : s >= 30 ? '🟡' : s >= 10 ? '🔵' : '🟢'
+
+        channel.clear()
+        channel.appendLine(`⚠️ 記憶卡匣過期報告（總分：${totalScore}）`)
+        channel.appendLine('')
+        for (const [id, v] of sorted) {
+          const icon = tierIcon(v.staleness)
+          const changes = v.pendingChanges?.length ?? 0
+          channel.appendLine(
+            `${icon} ${id.padEnd(24)} staleness=${String(v.staleness).padStart(3)}  (${changes} 個檔案異動)`,
+          )
+        }
+        const healthy = entries.filter(([, v]) => v.staleness === 0)
+        for (const [id] of healthy) {
+          channel.appendLine(`🟢 ${id.padEnd(24)} staleness=  0`)
+        }
+        channel.show(true)
       }
     }),
   )
@@ -88,6 +109,7 @@ export async function activate(
 
     indexManager = new CartridgeIndexManager(config)
     const index = await indexManager.scan()
+    indexManager.detectMissedChanges(config.scoring)
     await indexManager.persist()
 
     statusBar.update(index)
@@ -120,3 +142,4 @@ export async function deactivate(): Promise<void> {
   await indexManager?.persist()
   statusBar?.dispose()
 }
+

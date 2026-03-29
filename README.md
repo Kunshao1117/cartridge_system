@@ -2,7 +2,7 @@
 
 > **主動式 AI 記憶防禦引擎** — 自動偵測記憶卡過期、植入攔截警報，確保 AI 不讀取失效的上下文。
 
-[![version](https://img.shields.io/badge/version-0.5.1-blue)](./CHANGELOG.md)
+[![version](https://img.shields.io/badge/version-0.5.3-blue)](./CHANGELOG.md)
 [![tests](https://img.shields.io/badge/tests-121%20passed-brightgreen)](#-執行測試)
 [![license](https://img.shields.io/badge/license-MIT-green)](#)
 
@@ -31,7 +31,7 @@ Cartridge System 是一個為 [Antigravity 框架](https://github.com/Kunshao111
 | 🔍 **即時檔案監聽** | 使用 chokidar v4 監聽所有被記憶技能列管的原始碼檔案，支援動態新增/移除 |
 | 📊 **過期指數計算** | 根據異動類型（新增/修改/刪除）與時間衰退計算分數 |
 | 🚨 **警報自動植入** | 過期指數超過閾值時，自動在 SKILL.md 頂部插入攔截警告 |
-| 🟢 **狀態列燈號** | VS Code 狀態列即時顯示記憶卡健康概覽（🟢/🟠/🔴） |
+| 🟢 **狀態列燈號** | VS Code 狀態列即時顯示記憶卡健康概覽（五層等級：🟢🔵🟡🟠🔴） |
 | 🛠️ **MCP 工具介面** | 提供四個標準化 AI 工具，支援跨專案動態路徑解析 |
 | 🔄 **監聽器動態更新** | 記憶卡追蹤清單變更時，自動 diff 並動態調整 chokidar 監聽清單 |
 | 🌐 **跨平台相容** | 完整支援 Windows CRLF 與 Unix LF 行尾格式 |
@@ -52,7 +52,7 @@ npm run build
 npm run package
 
 # 使用 Antigravity IDE CLI 安裝（注意：不可用 code 指令）
-antigravity --install-extension cartridge-system-0.5.1.vsix --force
+antigravity --install-extension cartridge-system-0.5.3.vsix --force
 ```
 
 ### 方法二：開發模式
@@ -222,7 +222,7 @@ cartridge_system/
 │   └── logs/              # 審計日誌與教訓日誌
 ├── dist/                  # 編譯輸出（tsup 打包）
 ├── CHANGELOG.md           # 更新紀錄
-└── package.json           # v0.5.1
+└── package.json           # v0.5.3
 ```
 
 ### 技術堆疊

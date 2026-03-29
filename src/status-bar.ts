@@ -31,7 +31,7 @@ export class CartridgeStatusBar {
   }
 
   /**
-   * 根據索引資料更新燈號
+   * 根據索引資料更新燈號（五層等級總分制）
    */
   update(index?: CartridgeIndex): void {
     if (!index) {
@@ -41,26 +41,13 @@ export class CartridgeStatusBar {
     }
 
     const cartridges = Object.values(index.cartridges)
-    const critical = cartridges.filter(c => c.staleness >= 30)
-    const significant = cartridges.filter(
-      c => c.staleness >= 10 && c.staleness < 30,
-    )
-    const total = cartridges.length
+    const totalScore = cartridges.reduce((sum, c) => sum + c.staleness, 0)
+    const { icon, label, codicon, background } = getScoreTier(totalScore)
 
-    if (critical.length > 0) {
-      this.item.text = `$(error) 記憶卡匣 🔴 ${critical.length} 張嚴重過期`
-      this.item.backgroundColor = new vscode.ThemeColor(
-        'statusBarItem.errorBackground',
-      )
-    } else if (significant.length > 0) {
-      this.item.text = `$(warning) 記憶卡匣 🟠 ${significant.length} 張顯著過期`
-      this.item.backgroundColor = new vscode.ThemeColor(
-        'statusBarItem.warningBackground',
-      )
-    } else {
-      this.item.text = `$(shield) 記憶卡匣 🟢 ${total} 張健康`
-      this.item.backgroundColor = undefined
-    }
+    this.item.text = `$(${codicon}) 記憶卡匣 ${icon} ${label}`
+    this.item.backgroundColor = background
+      ? new vscode.ThemeColor(background)
+      : undefined
 
     this.item.show()
   }
@@ -72,3 +59,28 @@ export class CartridgeStatusBar {
     this.item.dispose()
   }
 }
+
+/**
+ * 五層等級判定（依總分）
+ */
+function getScoreTier(totalScore: number): {
+  icon: string
+  label: string
+  codicon: string
+  background: string | undefined
+} {
+  if (totalScore >= 100) {
+    return { icon: '🔴', label: '嚴重過期', codicon: 'error', background: 'statusBarItem.errorBackground' }
+  }
+  if (totalScore >= 60) {
+    return { icon: '🟠', label: '顯著過期', codicon: 'warning', background: 'statusBarItem.warningBackground' }
+  }
+  if (totalScore >= 30) {
+    return { icon: '🟡', label: '需注意', codicon: 'warning', background: 'statusBarItem.warningBackground' }
+  }
+  if (totalScore >= 10) {
+    return { icon: '🔵', label: '有變動', codicon: 'info', background: undefined }
+  }
+  return { icon: '🟢', label: '全部同步', codicon: 'shield', background: undefined }
+}
+

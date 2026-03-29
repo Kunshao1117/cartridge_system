@@ -2,19 +2,10 @@
 name: mem-analyzer
 description: |
   專案記憶：過期分析器模組。 Use when: 處理過期指數計算、衰退演算法、異動事件處理時載入。
-last_updated: '2026-03-30T02:10:00+08:00'
-status: stale
-staleness: 20
+last_updated: '2026-03-30T03:13:01+08:00'
+status: stable
+staleness: 0
 ---
-<!-- CARTRIDGE_SYSTEM_WARNING_START -->
-
-> [!CAUTION]
-> 🟠 **系統強制攔截**：此記憶已過期失真！
-> 追蹤檔案異動：`src/analyzer.ts`、`src/tests/analyzer.test.ts`（2026-03-30T02:42:16+08:00）
-> AI 嚴禁基於此記憶施工，必須優先閱讀最新原始碼並更新此記憶卡。
-> staleness: 20 | threshold: 🟠 顯著過期
-
-<!-- CARTRIDGE_SYSTEM_WARNING_END -->
 
 # Staleness Analyzer — 過期分析器記憶
 
@@ -32,7 +23,6 @@ staleness: 20
 
 ## Known Issues
 - 無
-
 ## Module Lessons
 - D01: StalenessAnalyzer 測試可直接 stub MemoryWriter 介面（vi.fn()），不需要 mock fs，測試語義最清晰
 - D02: manager.persist() 在整合流程中必須 spy mock（vi.spyOn），否則測試會嘗試寫入磁碟

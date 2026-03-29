@@ -2,20 +2,11 @@
 name: mem-core-types
 description: |
   專案記憶：共用型別與設定模組。 Use when: 處理系統共用型別定義、設定工廠函式、預設參數時載入。
-last_updated: '2026-03-29T16:36:00+08:00'
-status: stale
-staleness: 20
+last_updated: '2026-03-30T03:13:00+08:00'
+status: stable
+staleness: 0
 scopePath: src/
 ---
-<!-- CARTRIDGE_SYSTEM_WARNING_START -->
-
-> [!CAUTION]
-> 🟠 **系統強制攔截**：此記憶已過期失真！
-> 追蹤檔案異動：`src/types.ts`、`src/config.ts`（2026-03-30T02:42:15+08:00）
-> AI 嚴禁基於此記憶施工，必須優先閱讀最新原始碼並更新此記憶卡。
-> staleness: 20 | threshold: 🟠 顯著過期
-
-<!-- CARTRIDGE_SYSTEM_WARNING_END -->
 
 # Core Types & Config — 共用型別與設定記憶
 
@@ -35,7 +26,6 @@ scopePath: src/
 
 ## Known Issues
 - 無
-
 ## Module Lessons
 - D01: types.ts 是純型別定義檔（無執行邏輯），修改時需確認所有引用模組的型別相容性
 - D02: config.ts 的 DEFAULT_EXCLUDES 清單需與 watcher 的實際排除邏輯保持一致

@@ -3,12 +3,15 @@ name: mem-_system
 description: >
   專案記憶：系統技術堆疊與部署設定。
   Use when: 確認技術選型、環境設定、部署組態時載入。
-last_updated: '2026-03-28T09:22:00+08:00'
+last_updated: '2026-03-30T03:20:06+08:00'
 status: stable
 staleness: 0
 ---
 
 # System — 系統記憶
+
+## Tracked Files
+- package.json
 
 ## Runtime & Host
 - OS: Windows 11 家用版 (10.0.26200, 64-bit)
@@ -68,6 +71,7 @@ staleness: 0
 - D07: activationEvents 包含 workspaceContains:.agents 與 onStartupFinished，確保 Antigravity IDE 中無條件啟動
 - D08: import.meta.dirname 在 CommonJS 中不可用，已改為 __dirname
 - D09: tsup noExternal 強制打包 chokidar 和 gray-matter，確保 VSIX 無需 node_modules
+- D10: `package.json` 為全專案共用元資訊檔（版本、依賴、VS Code 設定），由系統記憶卡統一追蹤
 
 ## Known Issues
 - 無

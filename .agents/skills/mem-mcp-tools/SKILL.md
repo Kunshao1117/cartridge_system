@@ -2,19 +2,11 @@
 name: mem-mcp-tools
 description: |
   專案記憶：MCP 工具介面模組（第二階段）。 Use when: 處理MCP伺服器註冊、工具路由、AI工具呼叫介面時載入。
-last_updated: '2026-03-30T02:58:24+08:00'
-status: stale
+last_updated: '2026-03-30T03:20:06+08:00'
+status: stable
 staleness: 0
 ---
-<!-- CARTRIDGE_SYSTEM_WARNING_START -->
 
-> [!CAUTION]
-> 🟠 **系統強制攔截**：此記憶已過期失真！
-> 追蹤檔案異動：`package.json`（2026-03-30T02:23:54+08:00）
-> AI 嚴禁基於此記憶施工，必須優先閱讀最新原始碼並更新此記憶卡。
-> staleness: 10 | threshold: 🟠 顯著過期
-
-<!-- CARTRIDGE_SYSTEM_WARNING_END -->
 
 # MCP Tool Interface — 工具介面記憶（第二階段）
 
@@ -28,7 +20,6 @@ staleness: 0
 - src/tests/mcp-handlers.test.ts
 - src/tests/path-guard.test.ts
 - src/tests/timestamp.test.ts
-- package.json
 
 ## Key Decisions
 - D01: 獨立出 `mcp-server.ts` 作為標準 stdio Server 入口，與 VS Code Extension 解耦，雙核心透過實體檔案系統互動。
@@ -48,6 +39,7 @@ staleness: 0
 - D19: 新增 resolveSkillPath() 共用路徑解析函式，三層策略：索引查找（最快）→ 平面路徑回退（向後相容）→ 遞迴搜尋（最後手段）。四個 MCP 工具全部改用此函式解析巢狀路徑。
 - D20: memory_list 回傳新增 depth 欄位，取代過度暴露的 parent 細節
 - D21: memory_update 的 replace/append 模式允許 resolveSkillPath 回傳 null（新建情境），回退到平面路徑創建
+- D23: `package.json` 為全專案共用設定檔，由系統記憶卡統一追蹤。MCP 工具模組不再重複追蹤，追蹤數從 8 降至 7。
 
 ## Known Issues
 - 無

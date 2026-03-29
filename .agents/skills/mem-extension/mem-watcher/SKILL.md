@@ -2,19 +2,10 @@
 name: mem-watcher
 description: |
   專案記憶：檔案監聯引擎模組。 Use when: 處理檔案監聽、chokidar設定、監聽生命週期管理時載入。
-last_updated: '2026-03-30T02:10:00+08:00'
-status: stale
-staleness: 10
+last_updated: '2026-03-30T03:13:03+08:00'
+status: stable
+staleness: 0
 ---
-<!-- CARTRIDGE_SYSTEM_WARNING_START -->
-
-> [!CAUTION]
-> 🟠 **系統強制攔截**：此記憶已過期失真！
-> 追蹤檔案異動：`src/watcher.ts`（2026-03-30T02:42:16+08:00）
-> AI 嚴禁基於此記憶施工，必須優先閱讀最新原始碼並更新此記憶卡。
-> staleness: 10 | threshold: 🟠 顯著過期
-
-<!-- CARTRIDGE_SYSTEM_WARNING_END -->
 
 # Watcher Engine — 監聽引擎記憶
 
@@ -34,7 +25,6 @@ staleness: 10
 
 ## Known Issues
 - 無
-
 ## Module Lessons
 - D01: watcher 與 UI 層必須透過 onUpdate 回調解耦
 - D02: 在 Windows 上，不可用 path.resolve() + glob 字串（`mem-*/SKILL.md`）填入 chokidar.add()。`path.resolve` 把 `*` 當字面字符，導致 Windows 下靜默失效。正確做法是從索引取得每張記憶卡的精確絕對路徑連同加入。

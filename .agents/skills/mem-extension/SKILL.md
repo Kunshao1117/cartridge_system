@@ -3,12 +3,15 @@ name: mem-extension
 description: >
   專案記憶：VS Code 外掛入口與狀態列模組。
   Use when: 處理外掛啟動生命週期、指令註冊、狀態列 UI 更新時載入。
-last_updated: "2026-03-28T09:12:00+08:00"
+last_updated: "2026-03-30T02:10:00+08:00"
 status: stable
 staleness: 0
+scopePath: src/
 ---
 
 # Extension & Status Bar — 外掛入口記憶
+
+> 本模組為外掛的主入口和 UI 層，負責編排所有運行時子模組的啟動、監聽和關閉。
 
 ## Tracked Files
 - src/extension.ts
@@ -30,6 +33,11 @@ staleness: 0
 - D02: Antigravity IDE 使用獨立 CLI（`antigravity`），安裝時須用 `antigravity --install-extension`，不可用 `code`
 
 ## Relations
+- mem-core-types（引用共用型別與設定工廠函式）
+- mem-index-manager（呼叫掃描以建立初始索引）
+- mem-mcp-tools（雙入口架構，共用檔案系統互動）
+### 子模組
 - mem-injector（啟動時呼叫注入器確保記憶卡匣存在）
 - mem-watcher（啟動後委託監聽引擎管理檔案監聽）
-- mem-index-manager（呼叫掃描以建立初始索引）
+- mem-analyzer（過期分析器，接收監聽事件計算衰退指數）
+- mem-writer（記憶卡寫入器，植入/移除過期警報）

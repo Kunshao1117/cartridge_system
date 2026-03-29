@@ -39,6 +39,6 @@ staleness: 0
 - D04: 遞迴掃描必須給 readdir 可能拋错的目錄加 try-catch，否則單一損壞的子目錄會導致整個掃描失敗。
 
 ## Relations
-- mem-watcher（提供監聽檔案清單）
-- mem-analyzer（接收過期指數更新）
-- mem-mcp-tools（第二階段對外暴露查詢能力）
+- mem-watcher（mem-extension 子卡：提供監聽檔案清單）
+- mem-analyzer（mem-extension 子卡：接收過期指數更新）
+- mem-mcp-tools（根層模組：第二階段對外暴露查詢能力）

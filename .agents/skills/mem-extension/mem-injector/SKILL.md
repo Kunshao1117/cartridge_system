@@ -3,7 +3,7 @@ name: mem-injector
 description: >
   專案記憶：基底卡匣注入器模組。
   Use when: 處理基礎技能注入、範本比對、專案初始化佈署時載入。
-last_updated: "2026-03-28T06:38:42+08:00"
+last_updated: "2026-03-30T02:10:00+08:00"
 status: stable
 staleness: 0
 ---
@@ -28,4 +28,5 @@ staleness: 0
 - D01: 從 ESM 轉 CommonJS 後，import.meta.dirname 需改為 __dirname
 
 ## Relations
-- mem-watcher（注入完成後啟動監聽引擎）
+- mem-extension（父卡：注入完成後交棒給外掛主流程）
+- mem-watcher（兄弟卡：注入完成後啟動監聽引擎）

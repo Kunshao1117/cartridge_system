@@ -2,7 +2,7 @@
 name: mem-analyzer
 description: |
   專案記憶：過期分析器模組。 Use when: 處理過期指數計算、衰退演算法、異動事件處理時載入。
-last_updated: '2026-03-28T10:15:00+08:00'
+last_updated: '2026-03-30T02:10:00+08:00'
 status: stable
 staleness: 0
 ---
@@ -29,5 +29,7 @@ staleness: 0
 - D02: manager.persist() 在整合流程中必須 spy mock（vi.spyOn），否則測試會嘗試寫入磁碟
 
 ## Relations
-- mem-watcher（上游事件來源）
-- mem-index-manager（讀取反向映射表、寫入過期指數）
+- mem-extension（父卡：由外掛主流程編排）
+- mem-watcher（兄弟卡：上游事件來源）
+- mem-writer（兄弟卡：下游警報寫入）
+- mem-index-manager（根層共用服務：讀取反向映射表、寫入過期指數）

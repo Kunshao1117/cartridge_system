@@ -2,7 +2,7 @@
 name: mem-watcher
 description: |
   專案記憶：檔案監聯引擎模組。 Use when: 處理檔案監聽、chokidar設定、監聽生命週期管理時載入。
-last_updated: '2026-03-29T14:22:00+08:00'
+last_updated: '2026-03-30T02:10:00+08:00'
 status: stable
 staleness: 0
 ---
@@ -33,5 +33,6 @@ staleness: 0
 - D04: vitest 對 `node:fs` 的 vi.mock factory 存在 ESM interop 邊緣問題，新增於 mock factory 中的 `readFileSync` vi.fn() 在某些測試順序下會回傳意料之外的值。解決方案：避免在已用 vi.mock('node:fs') 的測試檔中新增使用 readFileSync 的 writer 方法，改在呼叫端（watcher）直接讀取。
 
 ## Relations
-- mem-analyzer（接收異動事件的下游消費者）
-- mem-index-manager（提供需監聽的檔案清單）
+- mem-extension（父卡：外掛啟動後委託監聽）
+- mem-analyzer（兄弟卡：接收異動事件的下游消費者）
+- mem-index-manager（根層共用服務：提供需監聽的檔案清單）

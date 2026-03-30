@@ -2,7 +2,7 @@
 name: injector
 description: |
   專案記憶：基底卡匣注入器模組。 Use when: 處理基礎技能注入、範本比對、專案初始化佈署時載入。
-last_updated: '2026-03-31T05:12:44+08:00'
+last_updated: '2026-03-31T06:36:48+08:00'
 status: stable
 staleness: 0
 ---
@@ -21,6 +21,7 @@ staleness: 0
 - D04: 黃金範本隨外掛原始碼打包
 - D05: CommonJS 環境使用 __dirname 取得範本路徑（非 import.meta.dirname）
 - D06: v4.0 路徑遷移 — 安全防護擴展至 memory/ 目錄，除了 mem-* 前綴判斷外新增 memory/ 路徑保護
+- D07: v4.1 棄用日誌系統 — 移除 inject() 啟動時自動建立 .agents/logs 目錄的邏輯，logs 目錄不再由注入器管理
 ## Known Issues
 - 無
 

@@ -22,7 +22,7 @@ staleness: 0
 - D07: handleEvent() 新增未追蹤檔案歸屬偵測 — 新增檔案（add 事件）若不在已追蹤清單中，透過 findOwner() 最長前綴匹配嘗試歸屬
 - D08: refresh() 同步 scopePath 目錄 — 刷新監聽清單時一併處理 scopePath 路徑的新增/移除
 - D09: handleSkillFileChange 的 cartridgeId 提取改用 lastIndexOf('SKILL.md') 取前一層目錄名，確保巢狀路徑下正確識別記憶卡
-- D10: v4.0 路徑遷移 — 記憶卡自身變動偵測擴展至 .agents/memory/ 路徑，與舊 .agents/skills/mem- 取聯集
+- D10: v4.0 路徑遷移 — 記憶卡自身變動偵測擴展至 .agents/memory/ 路徑，與舊 .agents/skills/ 取聯集
 ## Known Issues
 - 無
 ## Module Lessons

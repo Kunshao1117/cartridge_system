@@ -20,7 +20,7 @@ All workflows that modify physical project source code MUST follow this lifecycl
 1. **PLANNING Mode**: Call `task_boundary` to enter planning mode. Produce `implementation_plan.md`. DO NOT write source code.
 2. **Auto-Arbitration Gate**: Trigger validation. Linter + Tests pass = Auto-Pass. Load `browser-testing` Skill for procedures.
 3. **EXECUTION Mode**: After passing the gate, call `task_boundary` to switch to execution mode.
-4. **COMPLETION Protocol**: Update affected `mem-*` memory skills and include Memory Update Summary.
+4. **COMPLETION Protocol**: Update affected memory cards and include Memory Update Summary.
 
 ## 4. Project Memory System (專案記憶系統)
 - **Memory Directory**: Project knowledge is stored in `.agents/memory/` as individual SKILL.md files per module. A symlink at `.agents/skills/_memory` points to this directory, enabling IDE auto-discovery.

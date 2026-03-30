@@ -68,12 +68,6 @@ export class CoreInjector {
       fs.mkdirSync(agentsDir, { recursive: true })
     }
 
-    // 確保 logs 目錄存在
-    const logsDir = path.resolve(agentsDir, 'logs')
-    if (!fs.existsSync(logsDir)) {
-      fs.mkdirSync(logsDir, { recursive: true })
-    }
-
     // 掃描範本目錄中的所有檔案
     if (!fs.existsSync(this.templatesDir)) {
       console.log('[注入器] 範本目錄不存在，跳過注入')

@@ -47,6 +47,7 @@ function createTestConfig(): CartridgeConfig {
   return {
     projectRoot: PROJECT_ROOT,
     skillsDir: '.agents/skills',
+    memoryDir: '.agents/memory',
     excludeDirs: [],
     ignoreFiles: [],
     thresholds: { significant: 10, critical: 30 },
@@ -109,15 +110,13 @@ describe('CoreInjector — 範本偵測與注入', () => {
     /**
      * existsSync 呼叫順序：
      *  1. agentsDir (.agents)        → true（已存在）
-     *  2. logsDir (.agents/logs)     → true（已存在）
-     *  3. templatesDir (dist/templates) → true（範本目錄存在）
-     *  4. listFilesRecursive: existsSync(dir) → true（範本目錄）
-     *  5. detectStatus: targetPath (.agents/rules) → false（目標檔案不存在 → missing）
-     *  6. inject 內 targetDir 檢查   → true（目標目錄已存在）
+     *  2. templatesDir (dist/templates) → true（範本目錄存在）
+     *  3. listFilesRecursive: existsSync(dir) → true（範本目錄）
+     *  4. detectStatus: targetPath (.agents/rules) → false（目標檔案不存在 → missing）
+     *  5. inject 內 targetDir 檢查   → true（目標目錄已存在）
      */
     vi.mocked(fs.existsSync)
       .mockReturnValueOnce(true)   // agentsDir
-      .mockReturnValueOnce(true)   // logsDir
       .mockReturnValueOnce(true)   // templatesDir
       .mockReturnValueOnce(true)   // listFilesRecursive 內部
       .mockReturnValueOnce(false)  // detectStatus → targetPath 不存在 → missing
@@ -216,11 +215,11 @@ describe('CoreInjector — 範本偵測與注入', () => {
     expect(templatePaths.some(p => p === 'safe-file.md')).toBe(true)
   })
 
-  it('.agents/ 和 logs/ 目錄不存在時應自動建立', async () => {
+  it('.agents/ 目錄不存在時應自動建立', async () => {
     vi.mocked(fs.existsSync).mockImplementation((p: unknown) => {
       const pathStr = String(p)
-      // .agents 和 logs 目錄不存在
-      if (pathStr.endsWith('.agents') || pathStr.endsWith('logs')) return false
+      // .agents 目錄不存在
+      if (pathStr.endsWith('.agents')) return false
       // 範本目錄也不存在（提早退出）
       if (pathStr.includes('templates')) return false
       return true
@@ -229,11 +228,10 @@ describe('CoreInjector — 範本偵測與注入', () => {
     const injector = new CoreInjector(createTestConfig())
     await injector.inject()
 
-    // 應建立 .agents 和 logs 目錄
+    // 應建立 .agents 目錄
     const mkdirCalls = vi.mocked(fs.mkdirSync).mock.calls
     const createdPaths = mkdirCalls.map(c => String(c[0]))
     expect(createdPaths.some(p => p.includes('.agents'))).toBe(true)
-    expect(createdPaths.some(p => p.includes('logs'))).toBe(true)
   })
 
   it('目標子目錄不存在時應自動建立', async () => {

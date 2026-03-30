@@ -2,7 +2,7 @@
 
 > **主動式 AI 記憶防禦引擎** — 自動偵測記憶卡過期、植入攔截警報，確保 AI 不讀取失效的上下文。
 
-[![version](https://img.shields.io/badge/version-0.6.0-blue)](./CHANGELOG.md)
+[![version](https://img.shields.io/badge/version-0.6.5-blue)](./CHANGELOG.md)
 [![tests](https://img.shields.io/badge/tests-140%20passed-brightgreen)](#-執行測試)
 [![license](https://img.shields.io/badge/license-MIT-green)](#)
 
@@ -53,7 +53,7 @@ npm run build
 npm run package
 
 # 使用 Antigravity IDE CLI 安裝（注意：不可用 code 指令）
-antigravity --install-extension cartridge-system-0.6.0.vsix --force
+antigravity --install-extension cartridge-system-0.6.5.vsix --force
 ```
 
 ### 方法二：開發模式
@@ -209,22 +209,21 @@ cartridge_system/
 │   ├── types.ts           # 共用型別定義
 │   └── tests/             # vitest 單元測試（8 檔 140 案例）
 ├── .agents/
-│   ├── memory/            # 記憶卡匣（v0.6.0 獨立目錄）
+│   ├── memory/            # 記憶卡匣（v0.6.0 起獨立目錄）
 │   │   ├── _system/              # 系統記憶
 │   │   ├── core-types/           # 共用型別與設定
 │   │   ├── index-manager/        # 索引管理器
 │   │   ├── extension/            # 外掛入口 ★ 父卡
-│   │   │   ├── mem-injector/     # └ 注入器
-│   │   │   ├── mem-watcher/      # └ 監聽引擎
-│   │   │   ├── mem-analyzer/     # └ 過期分析器
-│   │   │   └── mem-writer/       # └ 寫入器
+│   │   │   ├── injector/         # └ 注入器
+│   │   │   ├── watcher/          # └ 監聽引擎
+│   │   │   ├── analyzer/         # └ 過期分析器
+│   │   │   └── writer/           # └ 寫入器
 │   │   └── mcp-tools/            # MCP 工具介面
 │   ├── skills/            # 操作技能（框架提供）
-│   ├── workflows/         # Antigravity 工作流程
-│   └── logs/              # 審計日誌與教訓日誌
+│   └── workflows/         # Antigravity 工作流程
 ├── dist/                  # 編譯輸出（tsup 打包）
 ├── CHANGELOG.md           # 更新紀錄
-└── package.json           # v0.6.0
+└── package.json           # v0.6.5
 ```
 
 ### 技術堆疊

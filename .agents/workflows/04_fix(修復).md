@@ -9,8 +9,8 @@ memory_awareness: full
 > **Required Skills**: Load `memory-ops` and `security-sre` skills before proceeding.
 
 ## 0. Memory Recall (記憶載入)
-- Check the IDE-injected skill list for `mem-*` skills relevant to the target modules.
-- Load relevant `mem-*` SKILL.md files — match against `## Known Issues` (the fix may relate to a previously documented issue) and check `## Relations` for cascading impact.
+- Check the IDE-injected skill list for memory cards relevant to the target modules.
+- Load relevant memory card SKILL.md files — match against `## Known Issues` (the fix may relate to a previously documented issue) and check `## Relations` for cascading impact.
 
 ## 1. Current State Constraint
 - **Strict Pre-condition**: Use loaded memory skills' `## Tracked Files` (joined with project root) to navigate directly to relevant files. You may also query the failing process via terminal. DO NOT guess the architecture or file paths blindly.
@@ -47,4 +47,4 @@ memory_awareness: full
 ## [SECURITY & COMPLIANCE MANDATE]
 > Inherits: `.agents/workflows/_security_footer.md` (Browser Gate)
 - **Role**: `Worker Agent`. You operate under the Sandbox & Gate protocol.
-- **Memory Update**: After executing the fix, update all affected `mem-*` SKILL.md files.
+- **Memory Update**: After executing the fix, update all affected memory card SKILL.md files.

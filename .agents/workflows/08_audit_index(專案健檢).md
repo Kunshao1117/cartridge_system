@@ -26,11 +26,11 @@ memory_awareness: full
 
 ## 3. Progressive Memory Skill Mapping
 - **Absolute Rule**: Do NOT scan or map directories matching `.git`, `node_modules`, `venv`, `__pycache__`, `dist`, `build`, `.next`, or any binary/image files.
-- **Phase A (Structure Scan)**: Scan the project directory tree from `project_root`. List all existing `mem-*` skills. For each, `view_file` its `SKILL.md` — do NOT skip reading the actual content.
-- **Phase B (Gap Detection)**: Identify source files/modules NOT covered by any existing `mem-*` skill's `## Tracked Files`.
+- **Phase A (Structure Scan)**: Scan the project directory tree from `project_root`. List all existing memory cards in `.agents/memory/`. For each, `view_file` its `SKILL.md` — do NOT skip reading the actual content.
+- **Phase B (Gap Detection)**: Identify source files/modules NOT covered by any existing memory card's `## Tracked Files`.
   - For each uncovered module: check if it belongs to an existing functional domain card (using `scopePath` containment). If yes, create as a nested child card. If no, create at root level. Follow the Nesting Decision Tree in `memory-ops` skill § 5.
   - Populate with auto-detected tracked files, key decisions, bilingual `description` (English + Chinese keywords), and relations.
-- **Phase C (Staleness & Schema Check)**: For each existing `mem-*` skill, `view_file` the `SKILL.md` and validate:
+- **Phase C (Staleness & Schema Check)**: For each existing memory card, `view_file` the `SKILL.md` and validate:
   1. **Schema Compliance**: All required sections per `memory-ops` skill are present (frontmatter with `last_updated`, `status`, `staleness` + body with `Tracked Files`, `Key Decisions`, `Known Issues`, `Module Lessons`, `Relations`).
   2. **Field Type Check**: `status` is one of `stable`, `in_progress`, `deprecated`. `staleness` is a number.
   3. **Tracked File Verification**: Each `## Tracked Files` entry exists on disk.
@@ -39,20 +39,20 @@ memory_awareness: full
   - If `staleness` > 10, trigger an automatic regeneration of the skill content.
   - If ALL tracked files are gone → move the entire skill folder to `_archived/`.
   - If SOME tracked files changed → update the skill and reset `staleness` to 0.
-- **Phase D (System Memory Refresh)**: `view_file` the project's dependency files (`package.json`, `requirements.txt`, `go.mod`, or equivalent if they exist). Compare against `mem-_system/SKILL.md` tech stack sections. Flag any discrepancies and update if needed.
-- **Phase E (Cross-Reference Integrity)**: For each skill's `## Relations`, verify each referenced `mem-*` skill exists. Flag any orphaned references pointing to non-existent or archived skills.
+- **Phase D (System Memory Refresh)**: `view_file` the project's dependency files (`package.json`, `requirements.txt`, `go.mod`, or equivalent if they exist). Compare against `.agents/memory/_system/SKILL.md` tech stack sections. Flag any discrepancies and update if needed.
+- **Phase E (Cross-Reference Integrity)**: For each card's `## Relations`, verify each referenced memory card exists. Flag any orphaned references pointing to non-existent or archived cards.
 - **Phase F (Workflow-Skill Binding)**: For each workflow file in `.agents/workflows/`, read its YAML frontmatter `required_skills` and `memory_awareness` fields. Verify each listed skill has a corresponding folder in `.agents/skills/`. Verify `memory_awareness` is one of `none`, `read`, `full`. Flag any broken bindings or missing fields.
 
 ## 3.5 Source Code Deep Audit（原始碼深度審計）
 
-> **Execution Condition**: This section ONLY executes when `mem-*` skills contain non-empty `## Tracked Files`. If the project is a pure framework/ruleset (e.g., Antigravity itself), output: 「本專案無應用程式原始碼，跳過深度審計。」 and skip to §4.
+> **Execution Condition**: This section ONLY executes when memory cards contain non-empty `## Tracked Files`. If the project is a pure framework/ruleset (e.g., Antigravity itself), output: 「本專案無應用程式原始碼，跳過深度審計。」 and skip to §4.
 
 ### Step 1: CLI Tool Scan (CLI 工具掃描 — 委派)
 
 Follow the `code-audit` skill §1 procedures:
 
-1. Read `mem-_system/SKILL.md` to determine the tech stack.
-2. Read all active `mem-*` skills' `## Tracked Files` to compile the full file paths list.
+1. Read `.agents/memory/_system/SKILL.md` to determine the tech stack.
+2. Read all active memory cards' `## Tracked Files` to compile the full file paths list.
 3. Construct the CLI task prompt:
    - Load `delegation-strategy` skill's `references/cli-prompt-skeleton.md` as骨架
    - Load `code-audit` skill's `references/scan-task-prompt.md` 填入掃描任務區塊
@@ -75,16 +75,16 @@ Follow the `code-audit` skill §1 procedures:
 
 ### Step 3: AI Cross-Boundary Analysis (AI 跨邊界架構分析)
 
-These analyses CANNOT be done by tools — they require understanding of architectural context and cross-referencing with `mem-*` module memory:
+These analyses CANNOT be done by tools — they require understanding of architectural context and cross-referencing with module memory:
 
 #### B. Module Relationship Audit（模組關聯性驗證）
 - Read each source file's import/require/from statements.
 - Build an actual dependency graph.
-- Cross-compare with `mem-*` skill `## Relations` — flag inconsistencies.
+- Cross-compare with memory card `## Relations` — flag inconsistencies.
 - Detect circular dependencies.
 
 #### C. API Integration Check（API 串接完整性）
-- From `mem-_system/SKILL.md`, extract all known API routes/endpoints.
+- From `.agents/memory/_system/SKILL.md`, extract all known API routes/endpoints.
 - Scan frontend source files for all fetch/axios/API invocations.
 - Match each frontend call to a backend route — flag unmatched calls (broken endpoint).
 - Flag backend routes that are never called from any frontend (Dead API).
@@ -95,7 +95,7 @@ These analyses CANNOT be done by tools — they require understanding of archite
 - Flag remaining files as orphan candidates.
 
 #### F. Key Function Survival Check（關鍵函式存活驗證）
-- For each `mem-*` skill's `## Key Decisions` that reference specific functions, use `grep_search` against the corresponding tracked files.
+- For each memory card's `## Key Decisions` that reference specific functions, use `grep_search` against the corresponding tracked files.
 - Confirm each function/class still exists and its name is unchanged.
 - If mismatched → flag skill as needing update.
 
@@ -103,12 +103,12 @@ These analyses CANNOT be done by tools — they require understanding of archite
 - **Model vs API Response**: Compare database model/schema field definitions with API response structures. Flag mismatches.
 - **Migration Integrity**: If migration files exist, verify they correspond to current model definitions.
 
-> **Batch Strategy**: If the project has more than 5 `mem-*` module skills, follow the `code-audit` skill §4 batch procedures.
+> **Batch Strategy**: If the project has more than 5 module memory cards, follow the `code-audit` skill §4 batch procedures.
 
 ## 4. Migration Protocol (Legacy Fallback)
-When initializing memory skills for an old project:
-- Detect `project_root`. If legacy `.agents/cartridges/` directory exists, create corresponding `mem-*` skills from their contents.
-- Ensure old legacy cartridge directories are archived to `.agents/skills/_archived/`.
+When initializing memory cards for an old project:
+- Detect `project_root`. If legacy `.agents/cartridges/` directory exists, create corresponding memory cards from their contents.
+- Ensure old legacy cartridge directories are archived to `.agents/memory/_archived/`.
 
 ## 5. Traditional Chinese Output Mandate (Strictly zh-TW)
 You MUST halt and output a Traffic Light Health Report and Memory Status EXACTLY matching this Traditional Chinese structure:

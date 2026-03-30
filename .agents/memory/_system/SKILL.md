@@ -2,7 +2,7 @@
 name: _system
 description: |
   專案記憶：系統技術堆疊與部署設定。 Use when: 確認技術選型、環境設定、部署組態時載入。
-last_updated: '2026-03-31T05:01:46+08:00'
+last_updated: '2026-03-31T06:40:03+08:00'
 status: stable
 staleness: 0
 ---
@@ -49,7 +49,7 @@ staleness: 0
 - `vitest` ^3.0.0
 
 ## Config Files
-- `package.json` — VS Code Extension 元數據（含 activationEvents / contributes），當前版本 **0.6.0**
+- `package.json` — VS Code Extension 元數據（含 activationEvents / contributes），當前版本 **0.6.5**
 - `tsconfig.json` — CommonJS + node 模組解析
 - `tsup.config.ts` — entry: extension.ts / format: cjs / external: vscode / noExternal: chokidar, gray-matter / **onSuccess: 複製範本目錄**
 - `eslint.config.js` — ESLint v9 Flat Config（CJS 格式，@typescript-eslint）

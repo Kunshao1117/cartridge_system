@@ -25,7 +25,7 @@ memory_awareness: read
 
 // turbo
 ### 情境 B：測試失敗 (Failed)
-- **Automatic Failure Logging**: If the test fails or produces unexpected UI behavior, you MUST document the failure symptom into the affected module's `mem-*` skill `## Known Issues` before doing anything else.
+- **Automatic Failure Logging**: If the test fails or produces unexpected UI behavior, you MUST document the failure symptom into the affected module's memory card `## Known Issues` before doing anything else.
 - **Autonomous Fixing Loop**: You MUST NOT wait for the Director to ask for a fix. You MUST autonomously invoke the `/04_fix` workflow to investigate and resolve the issue. Output: `[系統通報] 偵測到測試失敗，錯誤已寫入模組記憶。正在自動串聯 /04_fix 進行修復。`
 
 ## [SECURITY & COMPLIANCE MANDATE]

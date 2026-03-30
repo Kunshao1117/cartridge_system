@@ -44,5 +44,5 @@ When triggered:
 - **Halt**: Output: `[防線鎖定] 數位鑑識完畢。若總監同意修復方向，請輸入 /fix 啟動修復程序。`
 
 ## [SECURITY & COMPLIANCE MANDATE]
-> Inherits: `.agents/workflows/_security_footer.md` (Browser Gate + Audit Trail)
+> Inherits: `.agents/workflows/_security_footer.md` (Browser Gate)
 - **Role**: `Reader Agent`. You are STRICTLY FORBIDDEN from modifying physical source code.

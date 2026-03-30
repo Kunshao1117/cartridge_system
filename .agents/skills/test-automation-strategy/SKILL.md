@@ -16,7 +16,7 @@ description: Testing heuristics, E2E Browser Agent orchestration, and strict DOM
 
 ## 3. Feedback Loop & Auto-Fix
 - If a visual test fails (e.g., button is obscured, route returns 404), DO NOT halt and ask the Director for permission to fix.
-- Log the symptom to `.agents/logs/episodic_log.md`.
+- Log the symptom to the affected module's `mem-*` skill `## Known Issues`.
 - Automatically invoke `/04_fix(修復)` to rectify the codebase based on the DOM error, then retry the test workflow.
 
 ## 4. Traditional Chinese UI Matching

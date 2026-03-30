@@ -86,8 +86,8 @@ export class CoreInjector {
       const templateAbsPath = path.join(this.templatesDir, relPath)
       const targetAbsPath = path.join(agentsDir, relPath)
 
-      // 安全防護：絕不覆蓋 mem-* 記憶卡匣
-      if (relPath.includes('mem-')) {
+      // 安全防護：絕不覆蓋記憶卡匣（相容新舊路徑）
+      if (relPath.includes('mem-') || relPath.startsWith('memory\\') || relPath.startsWith('memory/')) {
         continue
       }
 

@@ -1,5 +1,5 @@
 ---
-name: mem-writer
+name: writer
 description: |
   專案記憶：記憶卡寫入器模組。 Use when: 處理警報植入、警報移除、記憶卡過期警示注入時載入。
 last_updated: '2026-03-30T03:13:02+08:00'
@@ -31,7 +31,7 @@ staleness: 0
 - D04: vitest 對 `node:fs` 的 vi.mock factory 存在 ESM interop 邊緣問題，新增於 mock factory 中的 `readFileSync` vi.fn() 在某些測試順序下會回傳意料之外的值。避免在已用 vi.mock('node:fs') 的測試檔中新增使用 readFileSync 的新方法。
 
 ## Relations
-- mem-extension（父卡：由外掛主流程編排）
-- mem-analyzer（兄弟卡：提供 getStalenessLevel() 判斷警報等級）
-- mem-watcher（兄弟卡：上游事件驅動者，偵測到 staleness 重設時呼叫 checkAndCleanWarning）
-- mem-mcp-tools（根層模組：共用 timestamp.ts 時間戳模組）
+- extension（父卡：由外掛主流程編排）
+- analyzer（兄弟卡：提供 getStalenessLevel() 判斷警報等級）
+- watcher（兄弟卡：上游事件驅動者，偵測到 staleness 重設時呼叫 checkAndCleanWarning）
+- mcp-tools（根層模組：共用 timestamp.ts 時間戳模組）

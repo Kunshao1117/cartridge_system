@@ -46,6 +46,7 @@ export function createConfig(
   return {
     projectRoot: path.resolve(projectRoot),
     skillsDir: overrides?.skillsDir ?? '.agents/skills',
+    memoryDir: overrides?.memoryDir ?? '.agents/memory',
     excludeDirs: overrides?.excludeDirs ?? DEFAULT_EXCLUDES,
     ignoreFiles: overrides?.ignoreFiles ?? DEFAULT_IGNORE_FILES,
     thresholds: {
@@ -60,8 +61,15 @@ export function createConfig(
 }
 
 /**
- * 取得記憶卡匣技能目錄的絕對路徑
+ * 取得操作技能目錄的絕對路徑
  */
 export function getSkillsAbsPath(config: CartridgeConfig): string {
   return path.resolve(config.projectRoot, config.skillsDir)
+}
+
+/**
+ * 取得記憶卡匣目錄的絕對路徑（v4.0 遷移後的新路徑）
+ */
+export function getMemoryAbsPath(config: CartridgeConfig): string {
+  return path.resolve(config.projectRoot, config.memoryDir)
 }

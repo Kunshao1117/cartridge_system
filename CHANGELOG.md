@@ -1,5 +1,23 @@
 # 更新紀錄
 
+## [0.6.0] — 2026-03-31
+
+### ✨ 新增
+
+- **獨立記憶卡目錄** — 記憶卡從 `.agents/skills/mem-*` 遷移至獨立的 `.agents/memory/` 目錄，與操作技能完全分離。記憶卡名稱不再需要 `mem-` 前綴（例如 `_system`、`extension`），AI 呼叫 MCP 工具時可直接使用原始名稱
+- **雙路徑掃描引擎** — 索引管理器同時掃描 `memory/`（新路徑）和 `skills/mem-*`（舊路徑），實現零停機漸進遷移。尚未遷移的專案仍可正常運作
+- **五層路徑解析策略** — MCP 路徑解析器從三層升級為五層：索引查找 → memory/ 平面回退 → skills/ 平面回退 → memory/ 遞迴搜尋 → skills/ 遞迴搜尋
+
+### 🔧 改善
+
+- **設定模組擴展** — 新增 `memoryDir` 設定欄位（預設 `.agents/memory`）與 `getMemoryAbsPath()` 輔助函式，與既有的 `skillsDir` / `getSkillsAbsPath()` 平行運作
+- **監聽引擎相容** — 記憶卡自身變動偵測同時覆蓋 `.agents/memory/` 和 `.agents/skills/mem-` 兩種路徑
+- **注入器安全防護** — 基底卡匣注入器的覆寫保護擴展至 `memory/` 目錄
+
+### ⚠️ 破壞性變更
+
+- **記憶卡路徑變更** — 記憶卡的預設存放位置從 `.agents/skills/mem-*/SKILL.md` 改為 `.agents/memory/*/SKILL.md`。已部署的舊版外掛需重新安裝更新版才能識別新路徑下的記憶卡
+
 ## [0.5.4] — 2026-03-30
 
 ### 🧪 測試覆蓋

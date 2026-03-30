@@ -34,8 +34,7 @@ memory_awareness: full
 - Upon GO, you MUST call `task_boundary` to switch to `EXECUTION` mode and execute the fix to the physical file system.
 - **Mandatory Distillation**: Immediately after writing the fix:
   1. Append the lesson to the affected memory skill's `## Known Issues` or `## Module Lessons`.
-  2. If the lesson is cross-cutting (not module-specific), also append to `.agents/logs/episodic_log.md`.
-  3. Update the memory skill's frontmatter (`last_updated`, `staleness: 0`).
+  2. Update the memory skill's frontmatter (`last_updated`, `staleness: 0`).
 
 // turbo
 ## 5. Automated Re-Verification Loop
@@ -46,6 +45,6 @@ memory_awareness: full
 - Execute all checks defined in the shared Completion Gate.
 
 ## [SECURITY & COMPLIANCE MANDATE]
-> Inherits: `.agents/workflows/_security_footer.md` (Browser Gate + Audit Trail)
+> Inherits: `.agents/workflows/_security_footer.md` (Browser Gate)
 - **Role**: `Worker Agent`. You operate under the Sandbox & Gate protocol.
 - **Memory Update**: After executing the fix, update all affected `mem-*` SKILL.md files.

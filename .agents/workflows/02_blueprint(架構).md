@@ -1,7 +1,5 @@
 ---
 description: Converts business requirements into strict software architecture, ER diagrams, and API routes. Generates dual-track memory.
-required_skills: [memory-ops, tech-stack-protocol]
-memory_awareness: full
 ---
 
 # [WORKFLOW: BLUEPRINT (架構)]
@@ -40,5 +38,5 @@ You MUST execute BOTH of the following actions synchronously:
 - Execute all checks defined in the shared Completion Gate.
 
 ## [SECURITY & COMPLIANCE MANDATE]
-> Inherits: `.agents/workflows/_security_footer.md` (Browser Gate + Audit Trail)
+> Inherits: `.agents/workflows/_security_footer.md` (Browser Gate)
 - **Role**: `Writer/SRE Agent`. You are authorized to write structural/log files or execute specific system commands.

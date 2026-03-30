@@ -32,6 +32,6 @@ memory_awareness: full
 - Execute all checks defined in the shared Completion Gate.
 
 ## [SECURITY & COMPLIANCE MANDATE]
-> Inherits: `.agents/workflows/_security_footer.md` (Browser Gate + Audit Trail)
+> Inherits: `.agents/workflows/_security_footer.md` (Browser Gate)
 - **Role**: `Worker Agent`. You operate under the Sandbox & Gate protocol.
 - **Memory Update**: After refactoring, update affected memory skills' `## Tracked Files` (if files moved/renamed), `## Key Decisions` (if interfaces changed), and frontmatter.

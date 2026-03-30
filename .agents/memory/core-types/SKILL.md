@@ -1,8 +1,8 @@
 ---
-name: mem-core-types
+name: core-types
 description: |
   專案記憶：共用型別與設定模組。 Use when: 處理系統共用型別定義、設定工廠函式、預設參數時載入。
-last_updated: '2026-03-30T03:13:00+08:00'
+last_updated: '2026-03-31T04:54:45+08:00'
 status: stable
 staleness: 0
 scopePath: src/
@@ -19,11 +19,11 @@ scopePath: src/
 ## Key Decisions
 - D01: CartridgeEntry 資料結構包含 depth（必填）和 parent（系統推導，string | null），支援巢狀目錄層級
 - D02: StalenessLevel 四級制（healthy / mild / significant / critical）
-- D03: CartridgeConfig 包含 projectRoot、skillsDir、excludeDirs、ignoreFiles、thresholds、scoring 六大設定區塊
+- D03: CartridgeConfig 包含 projectRoot、skillsDir、memoryDir、excludeDirs、ignoreFiles、thresholds、scoring 七大設定區塊
 - D04: createConfig() 工廠函式支援 Partial<CartridgeConfig> 覆蓋，預設值集中管理
-- D05: getSkillsAbsPath() 從 config 動態組合技能目錄絕對路徑
+- D05: getSkillsAbsPath() 從 config 動態組合操作技能目錄絕對路徑
 - D06: ignoreFiles 清單用於排除系統產物（如 cartridge_index.json）不觸發過期計算
-
+- D07: v4.0 路徑遷移 — 新增 memoryDir 欄位（預設 .agents/memory），搭配 getMemoryAbsPath() 輔助函式。skillsDir 保留給操作技能
 ## Known Issues
 - 無
 ## Module Lessons
@@ -31,9 +31,9 @@ scopePath: src/
 - D02: config.ts 的 DEFAULT_EXCLUDES 清單需與 watcher 的實際排除邏輯保持一致
 
 ## Relations
-- mem-analyzer（引用 CartridgeConfig、StalenessLevel、FileEventType）
-- mem-index-manager（引用 CartridgeConfig、CartridgeEntry、CartridgeIndex、getSkillsAbsPath）
-- mem-watcher（引用 CartridgeConfig、FileEventType）
-- mem-writer（引用 CartridgeConfig、StalenessLevel）
-- mem-injector（引用 CartridgeConfig、InjectionReportItem、InjectionStatus）
-- mem-extension（引用 createConfig）
+- analyzer（引用 CartridgeConfig、StalenessLevel、FileEventType）
+- index-manager（引用 CartridgeConfig、CartridgeEntry、CartridgeIndex、getSkillsAbsPath）
+- watcher（引用 CartridgeConfig、FileEventType）
+- writer（引用 CartridgeConfig、StalenessLevel）
+- injector（引用 CartridgeConfig、InjectionReportItem、InjectionStatus）
+- extension（引用 createConfig）

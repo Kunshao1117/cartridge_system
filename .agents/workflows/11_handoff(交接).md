@@ -11,7 +11,6 @@ memory_awareness: full
 ## 1. Memory Skill State Aggregation
 - 調用 MCP 工具 `cartridge-system__memory_list` 取得專案內所有記憶模組清單。
 - 若需深入了解特定記憶，調用 `cartridge-system__memory_read` 取得完整內容。
-- Read `.agents/logs/episodic_log.md` for any cross-cutting lessons added during this session.
 
 ## 2. Session Delta Extraction
 - Identify what was accomplished in the CURRENT conversation:
@@ -73,5 +72,5 @@ Generate a Markdown Artifact named `handoff_prompt.md` in **Traditional Chinese 
 - Execute all checks defined in the shared Completion Gate.
 
 ## [SECURITY & COMPLIANCE MANDATE]
-> Inherits: `.agents/workflows/_security_footer.md` (Browser Gate + Audit Trail)
+> Inherits: `.agents/workflows/_security_footer.md` (Browser Gate)
 - **Role**: `Reader/Memory Agent`. You may read all project files and update `mem-*` skills, but you are FORBIDDEN from modifying physical source code.

@@ -1,8 +1,8 @@
 ---
-name: mem-_system
+name: _system
 description: |
   專案記憶：系統技術堆疊與部署設定。 Use when: 確認技術選型、環境設定、部署組態時載入。
-last_updated: '2026-03-30T03:45:36+08:00'
+last_updated: '2026-03-31T05:01:46+08:00'
 status: stable
 staleness: 0
 ---
@@ -49,15 +49,12 @@ staleness: 0
 - `vitest` ^3.0.0
 
 ## Config Files
-- `package.json` — VS Code Extension 元數據（含 activationEvents / contributes），當前版本 **0.5.4**
+- `package.json` — VS Code Extension 元數據（含 activationEvents / contributes），當前版本 **0.6.0**
 - `tsconfig.json` — CommonJS + node 模組解析
 - `tsup.config.ts` — entry: extension.ts / format: cjs / external: vscode / noExternal: chokidar, gray-matter / **onSuccess: 複製範本目錄**
 - `eslint.config.js` — ESLint v9 Flat Config（CJS 格式，@typescript-eslint）
-- `.vscodeignore` — 打包排除清單
-- `cartridge_index.json` — 執行期產生## Deploy
-- 開發模式：VS Code F5 啟動 Extension Development Host
-- 打包：`npm run package`（`npx vsce package`）
-
+- `.vscodeignore` — 打包排除清單（含 .agents/ 排除）
+- `cartridge_index.json` — 執行期產生
 ## Key Decisions
 ### D11
 D11: tsup `onSuccess` hook 負責在建置完成後自動複製 `src/templates/` 至 `dist/templates/`，確保注入器的靜態範本隨外掛打包

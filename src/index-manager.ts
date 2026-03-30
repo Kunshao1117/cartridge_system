@@ -7,7 +7,7 @@ import fs from 'node:fs'
 import path from 'node:path'
 import matter from 'gray-matter'
 import type { CartridgeConfig, CartridgeEntry, CartridgeIndex } from './types.js'
-import { getSkillsAbsPath } from './config.js'
+import { getSkillsAbsPath, getMemoryAbsPath } from './config.js'
 
 const INDEX_FILENAME = 'cartridge_index.json'
 
@@ -64,11 +64,22 @@ export class CartridgeIndexManager {
    * 掃描所有記憶卡匣並建立索引（支援巢狀目錄，最大 4 層）
    */
   async scan(): Promise<CartridgeIndex> {
+    const memoryDir = getMemoryAbsPath(this.config)
     const skillsDir = getSkillsAbsPath(this.config)
     const newCartridges: Record<string, CartridgeEntry> = {}
     const newFileMap: Record<string, string[]> = {}
 
-    if (!fs.existsSync(skillsDir)) {
+    // v4.0 主路徑：掃描 .agents/memory/（無 mem- 前綴限制）
+    if (fs.existsSync(memoryDir)) {
+      this.scanRecursive(memoryDir, 1, null, newCartridges, newFileMap, false)
+    }
+
+    // 向後相容：掃描 .agents/skills/ 下的 mem-* 目錄（漸進遷移）
+    if (fs.existsSync(skillsDir)) {
+      this.scanRecursive(skillsDir, 1, null, newCartridges, newFileMap, true)
+    }
+
+    if (Object.keys(newCartridges).length === 0 && !fs.existsSync(memoryDir) && !fs.existsSync(skillsDir)) {
       this.index = {
         version: 1,
         lastScanned: new Date().toISOString(),
@@ -77,9 +88,6 @@ export class CartridgeIndexManager {
       }
       return this.index
     }
-
-    // 遞迴掃描巢狀目錄
-    this.scanRecursive(skillsDir, 1, null, newCartridges, newFileMap)
 
     this.index = {
       version: 1,
@@ -92,7 +100,8 @@ export class CartridgeIndexManager {
   }
 
   /**
-   * 遞迴掃描 mem-* 目錄，從目錄結構推導 depth 和 parent
+   * 遞迴掃描記憶卡目錄，從目錄結構推導 depth 和 parent
+   * @param requireMemPrefix - true: 只掃描 mem-* 前綴目錄（向後相容 skills/）；false: 掃描所有含 SKILL.md 的目錄
    */
   private scanRecursive(
     dir: string,
@@ -100,6 +109,7 @@ export class CartridgeIndexManager {
     parentId: string | null,
     cartridges: Record<string, CartridgeEntry>,
     fileMap: Record<string, string[]>,
+    requireMemPrefix: boolean,
   ): void {
     if (depth > MAX_SCAN_DEPTH) return
 
@@ -111,7 +121,10 @@ export class CartridgeIndexManager {
     }
 
     for (const entry of entries) {
-      if (!entry.isDirectory() || !entry.name.startsWith('mem-')) continue
+      if (!entry.isDirectory()) continue
+      // 向後相容模式：只掃描 mem-* 前綴；新模式：掃描所有目錄（排除系統目錄）
+      if (requireMemPrefix && !entry.name.startsWith('mem-')) continue
+      if (!requireMemPrefix && entry.name.startsWith('.')) continue
 
       const skillPath = path.join(dir, entry.name, 'SKILL.md')
       if (!fs.existsSync(skillPath)) continue
@@ -144,13 +157,14 @@ export class CartridgeIndexManager {
         }
       }
 
-      // 遞迴掃描子目錄
+      // 遞迴掃描子目錄（子卡不需要 mem- 前綴）
       this.scanRecursive(
         path.join(dir, entry.name),
         depth + 1,
         cartridgeId,
         cartridges,
         fileMap,
+        false,
       )
     }
   }

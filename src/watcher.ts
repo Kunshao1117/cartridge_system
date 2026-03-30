@@ -161,7 +161,7 @@ export class CartridgeWatcher {
 
     // 檢查是否為記憶卡匣本身的變動（AI 重設 staleness）
     if (
-      relPath.includes('.agents/skills/mem-') &&
+      (relPath.includes('.agents/memory/') || relPath.includes('.agents/skills/mem-')) &&
       relPath.endsWith('SKILL.md')
     ) {
       await this.handleSkillFileChange(relPath)

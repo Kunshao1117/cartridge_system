@@ -1,8 +1,8 @@
 ---
-name: mem-index-manager
+name: index-manager
 description: |
   專案記憶：記憶索引管理器模組。 Use when: 處理卡匣索引、檔案反向映射、持久化讀寫時載入。
-last_updated: '2026-03-30T04:00:42+08:00'
+last_updated: '2026-03-31T04:54:49+08:00'
 status: stable
 staleness: 0
 ---
@@ -25,7 +25,7 @@ staleness: 0
 - D08: scan() 改為遞迴掃描（scanRecursive），最大 4 層深度，從目錄結構自動推導 depth 和 parent（取代 frontmatter 宣告）
 - D09: 新增 MAX_SCAN_DEPTH 常數（4），始終從第 1 層開始递增 depth
 - D10: 新增 resolveModulePath() 輔助方法，從索引解析模組名稱為絕對檔案路徑
-
+- D11: v4.0 路徑遷移 — scan() 先掃 .agents/memory/（無  前綴限制），再掃 .agents/skills/（保留  前綴過濾）實現向後相容。scanRecursive() 新增 requireMemPrefix 參數控制過濾策略
 ## Known Issues
 - 無
 
@@ -36,7 +36,7 @@ staleness: 0
 ## Module Lessons
 ### D05
 D05: 測試 detectMissedChanges() 時需 mock node:fs 的 statSync 來控制 mtimeMs 回傳值。使用 vi.mock('node:fs', async (importOriginal) => {...}) 模式可保留模組其餘原始行為，只覆蓋需要控制的方法。## Relations
-- mem-watcher（mem-extension 子卡：提供監聽檔案清單）
-- mem-analyzer（mem-extension 子卡：接收過期指數更新）
-- mem-mcp-tools（根層模組：第二階段對外暴露查詢能力）
+- watcher（extension 子卡：提供監聽檔案清單）
+- analyzer（extension 子卡：接收過期指數更新）
+- mcp-tools（根層模組：第二階段對外暴露查詢能力）
 - D08: `detectMissedChanges()` 新增至索引管理器，在 scan 之後自動比對追蹤檔案的 mtime 與記憶卡的 lastUpdated。跳過目錄型追蹤路徑（尾部 `/`）。staleness 重算使用與 `StalenessAnalyzer.calculateStaleness()` 相同的計分權重。

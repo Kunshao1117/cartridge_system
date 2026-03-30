@@ -1,6 +1,6 @@
 ---
 description: Full-spectrum project health audit — workspace security, memory skill integrity, source code logic, API integration, performance, and maintainability.
-required_skills: [memory-ops, tech-stack-protocol, security-sre, code-quality, delegation-strategy, code-audit]
+required_skills: [memory-ops, tech-stack-protocol, delegation-strategy, code-audit]
 memory_awareness: full
 ---
 
@@ -18,10 +18,10 @@ memory_awareness: full
   - `project_root` = the source code root (contains `package.json` / `src/`). May be `workspace_root` itself or a subdirectory.
   - `agents_dir` = `workspace_root/.agents`
 - Detect the project source code root directory within the workspace. Store as `project_root`.
-- If no `mem-*` skills exist in `.agents/skills/`:
+- If no memory cards exist in `.agents/memory/`:
   - Prompt the Director to run `/02_blueprint` to initialize the memory skill system.
   - Report: "記憶技能系統尚未初始化。"
-- If `mem-_system/SKILL.md` does NOT exist but other `mem-*` skills do:
+- If `_system/SKILL.md` does NOT exist in `.agents/memory/` but other memory cards do:
   - Execute Migration Protocol to create the system memory skill.
 
 ## 3. Progressive Memory Skill Mapping
@@ -105,21 +105,15 @@ These analyses CANNOT be done by tools — they require understanding of archite
 
 > **Batch Strategy**: If the project has more than 5 `mem-*` module skills, follow the `code-audit` skill §4 batch procedures.
 
-## 4. Log Rotation & Memory Cleanup (日誌封存)
-- **Audit Trail Archive**: Read `.agents/logs/audit_trail.jsonL`. If line count exceeds 100:
-  - Generate a backup file in the same directory: `audit_trail_archive_v<UnixTimestamp>.jsonL`.
-  - Move all but the newest 20 rows into the backup. Safely overwrite `audit_trail.jsonL` with the 20 fresh rows.
-- **Episodic Log Archive**: Read `.agents/logs/episodic_log.md`. If line count exceeds 300, migrate older block sections to `episodic_archive_v<UnixTimestamp>.md`, keeping only the most recent architectural decisions and live warnings in the primary file.
-
-## 5. Migration Protocol (Legacy Fallback)
+## 4. Migration Protocol (Legacy Fallback)
 When initializing memory skills for an old project:
-- Detect `project_root`. If legacy `.agents/cartridges/` directory exists, migrate their lessons into `.agents/logs/episodic_log.md` and create corresponding `mem-*` skills.
+- Detect `project_root`. If legacy `.agents/cartridges/` directory exists, create corresponding `mem-*` skills from their contents.
 - Ensure old legacy cartridge directories are archived to `.agents/skills/_archived/`.
 
-## 6. Traditional Chinese Output Mandate (Strictly zh-TW)
+## 5. Traditional Chinese Output Mandate (Strictly zh-TW)
 You MUST halt and output a Traffic Light Health Report and Memory Status EXACTLY matching this Traditional Chinese structure:
 
-【健檢與測繪完畢】: 模組記憶系統與日誌維護已對齊 (System Updated).
+【健檢與測繪完畢】: 模組記憶系統已對齊 (System Updated).
 【資安狀況 (Traffic Light)】:
  - 🔴 紅燈 (Critical): <如果有，列出>
  - 🟡 黃燈 (Warning): <如果有，列出>
@@ -127,7 +121,6 @@ You MUST halt and output a Traffic Light Health Report and Memory Status EXACTLY
 【記憶狀態】:
  - 📦 新增: <本次新建的模組記憶>
  - ♻️ 更新: <本次更新或去腐敗的模組記憶>
- - 🗃️ 封存: <本次封存的歷史日誌檔案>
 【工具掃描摘要】:（取自 CLI 掃描報告）
  - 🧹 ESLint: 錯誤 {N} / 警告 {M} / 最常違反: {top 3 rules}
  - 🛡️ 依賴安全 (npm/yarn audit): 🔴嚴重 {N} 🟠高危 {N} 🟡中等 {N} 🟢低 {N} / 最嚴重: {top vulnerability}
@@ -147,5 +140,5 @@ You MUST halt and output a Traffic Light Health Report and Memory Status EXACTLY
 - Execute all checks defined in the shared Completion Gate.
 
 ## [SECURITY & COMPLIANCE MANDATE]
-> Inherits: `.agents/workflows/_security_footer.md` (Browser Gate + Audit Trail)
-- **Role**: `Reader/Memory Agent`. You are STRICTLY FORBIDDEN from modifying physical source code. You ARE authorized to create, modify, and archive files within `.agents/skills/mem-*/` and `.agents/logs/`.
+> Inherits: `.agents/workflows/_security_footer.md` (Browser Gate)
+- **Role**: `Reader/Memory Agent`. You are STRICTLY FORBIDDEN from modifying physical source code. You ARE authorized to create, modify, and archive files within `.agents/memory/` and `.agents/logs/`.

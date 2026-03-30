@@ -1,8 +1,8 @@
 ---
-name: mem-mcp-tools
+name: mcp-tools
 description: |
   專案記憶：MCP 工具介面模組（第二階段）。 Use when: 處理MCP伺服器註冊、工具路由、AI工具呼叫介面時載入。
-last_updated: '2026-03-30T03:20:06+08:00'
+last_updated: '2026-03-31T04:54:49+08:00'
 status: stable
 staleness: 0
 ---
@@ -60,3 +60,4 @@ staleness: 0
 - D18: resolveSkillPath 會在 handler 進入商業邏輯前調用 fs.readFile 讀取索引檔，測試必須新增 fs.access mock 且理解 readFile 的呼叫順序變化（第一次不再是 SKILL.md 而是 cartridge_index.json）。
 - D22: memory_list 改為優先從索引檔讀取全部卡匣（含巢狀子卡），不再依賴目錄掃描。索引檔透過 `Object.keys(cartridges)` 取得模組清單，確保 depth=2+ 的子卡也被包含在回傳結果中。目錄掃描降級為索引不存在時的回退方案。
 - D19: `memory_list` 若依賴 `readdir` 掃描 `.agents/skills/` 的直接子目錄，巢狀在父卡底下的子卡會被完全遺漏。正確做法是從 `cartridge_index.json` 讀取全量卡匣清單，因為索引管理器在掃描時已執行遞迴搜尋。
+- D24: v4.0 路徑遷移 — resolveSkillPath() 擴展為 5 層策略：索引查找 → memory/ 平面回退 → skills/ 平面回退 → memory/ 遞迴搜尋 → skills/ 遞迴搜尋。handleMemoryList() 回退掃描先掃 memory/ 再掃 skills/*。handleMemoryUpdate() 新建路徑改為 .agents/memory/。findSkillRecursive() 新增 requireMemPrefix 參數。

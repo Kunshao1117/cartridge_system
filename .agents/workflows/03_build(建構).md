@@ -37,6 +37,6 @@ memory_awareness: full
 - Execute all checks defined in the shared Completion Gate.
 
 ## [SECURITY & COMPLIANCE MANDATE]
-> Inherits: `.agents/workflows/_security_footer.md` (Browser Gate + Audit Trail)
+> Inherits: `.agents/workflows/_security_footer.md` (Browser Gate)
 - **Role**: `Worker Agent`. You operate under the Sandbox & Gate protocol.
-- **Memory Update**: After writing files, update all affected `mem-*` SKILL.md files (Tracked Files, Key Decisions, Known Issues, Module Lessons as needed). If new cross-module lessons were learned, append to `.agents/logs/episodic_log.md`.
+- **Memory Update**: After writing files, update all affected `mem-*` SKILL.md files (Tracked Files, Key Decisions, Known Issues, Module Lessons as needed).

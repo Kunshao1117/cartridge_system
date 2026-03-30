@@ -64,8 +64,10 @@ export interface InjectionReportItem {
 export interface CartridgeConfig {
   /** 專案根目錄 */
   projectRoot: string
-  /** 記憶卡匣技能目錄（相對路徑） */
+  /** 操作技能目錄（相對路徑） */
   skillsDir: string
+  /** 記憶卡匣目錄（相對路徑，v4.0 路徑遷移） */
+  memoryDir: string
   /** 排除監聽的目錄 */
   excludeDirs: string[]
   /** 系統產物豁免清單（不觸發過期計算的檔案） */

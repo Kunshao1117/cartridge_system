@@ -80,7 +80,7 @@ export function updateFrontmatterFields(
 
 /**
  * 共用路徑解析函式：將模組名稱解析為 SKILL.md 絕對路徑
- * 三層策略確保向後相容：索引查找 → 平面回退 → 遞迴搜尋
+ * 三層策略確保向後相容：索引查找 → 平面回退（memory → skills）→ 遞迴搜尋
  */
 export async function resolveSkillPath(projectRoot: string, moduleName: string): Promise<string | null> {
   // 策略 1：從索引查找（最快）
@@ -98,26 +98,40 @@ export async function resolveSkillPath(projectRoot: string, moduleName: string):
     }
   } catch { /* 索引不存在 */ }
 
-  // 策略 2：平面路徑回退（向後相容）
+  // 策略 2a：新路徑平面回退（v4.0 memory/ 目錄）
+  const memoryPath = path.join(projectRoot, '.agents', 'memory', moduleName, 'SKILL.md')
+  try {
+    await fs.access(memoryPath)
+    return memoryPath
+  } catch { /* 不存在 */ }
+
+  // 策略 2b：舊路徑平面回退（向後相容 skills/ 目錄）
   const flatPath = path.join(projectRoot, '.agents', 'skills', moduleName, 'SKILL.md')
   try {
     await fs.access(flatPath)
     return flatPath
   } catch { /* 不存在 */ }
 
-  // 策略 3：遞迴搜尋（最慢，最後手段）
-  return findSkillRecursive(path.join(projectRoot, '.agents', 'skills'), moduleName, 1)
+  // 策略 3a：遞迴搜尋 memory/ 目錄（無 mem- 前綴限制）
+  const fromMemory = await findSkillRecursive(path.join(projectRoot, '.agents', 'memory'), moduleName, 1, false)
+  if (fromMemory) return fromMemory
+
+  // 策略 3b：遞迴搜尋 skills/ 目錄（向後相容，保留 mem- 過濾）
+  return findSkillRecursive(path.join(projectRoot, '.agents', 'skills'), moduleName, 1, true)
 }
 
 /**
  * 遞迴搜尋巢狀目錄中的 SKILL.md
+ * @param requireMemPrefix - true: 只掃描 mem-* 目錄；false: 掃描所有目錄
  */
-async function findSkillRecursive(dir: string, moduleName: string, depth: number): Promise<string | null> {
+async function findSkillRecursive(dir: string, moduleName: string, depth: number, requireMemPrefix: boolean): Promise<string | null> {
   if (depth > 4) return null
   try {
     const entries = await fs.readdir(dir, { withFileTypes: true })
     for (const entry of entries) {
-      if (!entry.isDirectory() || !entry.name.startsWith('mem-')) continue
+      if (!entry.isDirectory()) continue
+      if (requireMemPrefix && !entry.name.startsWith('mem-')) continue
+      if (!requireMemPrefix && entry.name.startsWith('.')) continue
       if (entry.name === moduleName) {
         const candidate = path.join(dir, entry.name, 'SKILL.md')
         try {
@@ -126,7 +140,7 @@ async function findSkillRecursive(dir: string, moduleName: string, depth: number
         } catch { continue }
       }
       // 遞迴搜尋子目錄
-      const found = await findSkillRecursive(path.join(dir, entry.name), moduleName, depth + 1)
+      const found = await findSkillRecursive(path.join(dir, entry.name), moduleName, depth + 1, false)
       if (found) return found
     }
   } catch { /* 目錄不存在 */ }
@@ -375,7 +389,7 @@ export async function handleMemoryList(args: unknown): Promise<McpToolResult> {
     return { content: [{ type: 'text', text: `Path Validation Error: ${msg}` }], isError: true }
   }
 
-  const agentsDir = path.join(parsed.data.projectRoot, '.agents', 'skills')
+  const agentsDir = path.join(parsed.data.projectRoot, '.agents', 'memory')
   try {
     // 優先從索引檔讀取全部卡匣（含巢狀子卡）
     const indexPath = path.join(parsed.data.projectRoot, 'cartridge_index.json')
@@ -407,11 +421,24 @@ export async function handleMemoryList(args: unknown): Promise<McpToolResult> {
         content: [{ type: 'text', text: JSON.stringify(enriched, null, 2) }],
       }
     } catch {
-      // 索引不存在 — 回退到目錄掃描（只能看到根層）
-      const files = await fs.readdir(agentsDir, { withFileTypes: true })
-      const modules = files
-        .filter((d) => d.isDirectory() && d.name.startsWith('mem-'))
-        .map((d) => d.name)
+      // 索引不存在 — 回退到目錄掃描（先掃 memory/，再掃 skills/mem-*）
+      const modules: string[] = []
+      try {
+        const files = await fs.readdir(agentsDir, { withFileTypes: true })
+        modules.push(...files
+          .filter((d) => d.isDirectory() && !d.name.startsWith('.'))
+          .map((d) => d.name))
+      } catch { /* memory/ 不存在 */ }
+      // 向後相容：掃描 skills/mem-*
+      try {
+        const skillsDir = path.join(parsed.data.projectRoot, '.agents', 'skills')
+        const skillFiles = await fs.readdir(skillsDir, { withFileTypes: true })
+        for (const d of skillFiles) {
+          if (d.isDirectory() && d.name.startsWith('mem-') && !modules.includes(d.name)) {
+            modules.push(d.name)
+          }
+        }
+      } catch { /* skills/ 不存在 */ }
       return {
         content: [{ type: 'text', text: `Available memories:\n${modules.join('\n')}` }],
       }
@@ -633,8 +660,8 @@ export async function handleMemoryUpdate(
       const parentDir = parentPath ? path.dirname(parentPath) : path.join(parsed.data.projectRoot, '.agents', 'skills', parsed.data.parentModule)
       filePath = path.join(parentDir, parsed.data.moduleName, 'SKILL.md')
     } else {
-      // 根層建立（向後相容）
-      filePath = path.join(parsed.data.projectRoot, '.agents', 'skills', parsed.data.moduleName, 'SKILL.md')
+      // 根層建立（v4.0：建在 memory/ 目錄下）
+      filePath = path.join(parsed.data.projectRoot, '.agents', 'memory', parsed.data.moduleName, 'SKILL.md')
     }
 
     // [D13/D14/D15] 依 mode 切換寫入策略

@@ -14,6 +14,7 @@ memory_awareness: full
 ## 2. Integrated Snapshot & Record Generation
 - Analyze Uncommitted Diffs: Parse `git status` and `git diff`.
 - **Memory Snapshot Mandate**: Verify all affected `mem-*` skills have been updated by the preceding workflow. If not, update them now based on the uncommitted diffs. Ensure each skill's `status` and `## Tracked Files` reflect the commit point.
+- **Framework Version Check (框架版本檢查)**: If this session modified any files under `.agents/rules/`, `.agents/workflows/`, or `.agents/skills/` (excluding `mem-*`), remind the Director to update the framework's `VERSION` and `RELEASE_NOTES.md` before committing.
 - **Record Mandate**: Extract the business value of the changes. Overwrite `CHANGELOG.md` natively in **Traditional Chinese (繁體中文)** summarizing what was improved natively.
 
 ## 3. Staleness Detection (過時偵測)
@@ -51,5 +52,5 @@ You MUST halt and output EXACTLY matching this Traditional Chinese structural te
 - Execute all checks defined in the shared Completion Gate.
 
 ## [SECURITY & COMPLIANCE MANDATE]
-> Inherits: `.agents/workflows/_security_footer.md` (Browser Gate + Audit Trail)
+> Inherits: `.agents/workflows/_security_footer.md` (Browser Gate)
 - **Role**: `Writer/SRE Agent`. You are authorized to write structural/log files or execute git commands.

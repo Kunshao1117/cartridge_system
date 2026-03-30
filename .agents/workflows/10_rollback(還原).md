@@ -33,5 +33,5 @@ You MUST halt and output an Artifact or Response EXACTLY matching this Tradition
 - Execute all checks defined in the shared Completion Gate.
 
 ## [SECURITY & COMPLIANCE MANDATE]
-> Inherits: `.agents/workflows/_security_footer.md` (Browser Gate + Audit Trail)
+> Inherits: `.agents/workflows/_security_footer.md` (Browser Gate)
 - **Role**: `SRE Agent`. Authorized to perform destructive Git actions ONLY post-gate.

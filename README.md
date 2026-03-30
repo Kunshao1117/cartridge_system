@@ -2,8 +2,8 @@
 
 > **主動式 AI 記憶防禦引擎** — 自動偵測記憶卡過期、植入攔截警報，確保 AI 不讀取失效的上下文。
 
-[![version](https://img.shields.io/badge/version-0.5.3-blue)](./CHANGELOG.md)
-[![tests](https://img.shields.io/badge/tests-121%20passed-brightgreen)](#-執行測試)
+[![version](https://img.shields.io/badge/version-0.6.0-blue)](./CHANGELOG.md)
+[![tests](https://img.shields.io/badge/tests-140%20passed-brightgreen)](#-執行測試)
 [![license](https://img.shields.io/badge/license-MIT-green)](#)
 
 ---
@@ -14,7 +14,7 @@ Cartridge System 是一個為 [Antigravity 框架](https://github.com/Kunshao111
 
 它解決了一個根本問題：**AI 在跨會話工作時，往往不知道自己的「記憶」是否已過時。**
 
-當你修改了專案原始碼，但忘記更新對應的記憶技能（`mem-*` 檔案）時，Cartridge System 會：
+當你修改了專案原始碼，但忘記更新對應的記憶技能時，Cartridge System 會：
 
 1. **即時偵測** — 透過 chokidar 監聽所有被記憶技能列管的原始碼異動
 2. **計算過期指數** — 使用衰退演算法計算每張記憶卡的「失效程度」
@@ -38,6 +38,7 @@ Cartridge System 是一個為 [Antigravity 框架](https://github.com/Kunshao111
 | 🛡️ **路徑安全防禦** | 雙層路徑驗證（Zod 格式守衛 + 語意守衛），阻擋路徑穿越攻擊 |
 | 🌲 **巢狀目錄掃描** | 支援最大 4 層深度的記憶卡樹狀結構，目錄結構即層級 |
 | 🔗 **巢狀建立支援** | MCP 工具支援 `parentModule` 參數，直接建立巢狀子卡 |
+| 📂 **獨立記憶目錄** | v0.6.0 起記憶卡存放於 `.agents/memory/`，與操作技能完全分離 |
 
 ---
 
@@ -52,7 +53,7 @@ npm run build
 npm run package
 
 # 使用 Antigravity IDE CLI 安裝（注意：不可用 code 指令）
-antigravity --install-extension cartridge-system-0.5.3.vsix --force
+antigravity --install-extension cartridge-system-0.6.0.vsix --force
 ```
 
 ### 方法二：開發模式
@@ -104,54 +105,52 @@ Cartridge System 提供 MCP（Model Context Protocol）工具伺服器，供 AI 
 所有工具均透過必填的 `projectRoot` 參數指定目標專案，無需為每個專案啟動獨立的 MCP 伺服器：
 
 ```javascript
-// 範例：讀取 bartender_map 專案的系統記憶
+// v0.6.0 起不再需要 mem- 前綴
 memory_read({
-  moduleName: 'mem-_system',
+  moduleName: '_system',
   projectRoot: 'D:\\bartender_map'
 })
 
-// 範例：附加一條教訓到記憶卡
+// 附加教訓到記憶卡
 memory_update({
-  moduleName: 'mem-dashboard-ui',
+  moduleName: 'dashboard-ui',
   content: '## Module Lessons\n- D19: 新教訓內容',
   mode: 'append',
   projectRoot: 'D:\\bartender_map'
 })
 
-// 範例：精確更新特定區段（patch 模式，不需先讀取完整檔案）
+// 精確更新特定區段（patch 模式）
 memory_update({
-  moduleName: 'mem-dashboard-ui',
+  moduleName: 'dashboard-ui',
   content: '## Known Issues\n- 更新後的已知問題清單\n',
   mode: 'patch',
   projectRoot: 'D:\\bartender_map'
 })
 
-// 範例：操作前預覽（dryRun 模式，不寫入磁碟）
+// 操作前預覽（dryRun 模式）
 memory_update({
-  moduleName: 'mem-dashboard-ui',
+  moduleName: 'dashboard-ui',
   content: '## Tech Stack\n### Backend\n- Next.js 15\n',
   mode: 'patch',
   dryRun: true,
   projectRoot: 'D:\\bartender_map'
 })
-// 回傳結構化 JSON 報告：替換/新增/保留/移除的區段清單與行數差異
 
-// 範例：查詢過期記憶卡的修復診斷
+// 查詢過期修復診斷
 memory_status({
-  moduleName: 'mem-dashboard-ui',
+  moduleName: 'dashboard-ui',
   projectRoot: 'D:\\bartender_map'
 })
-// 回傳：過期指數、異動檔案清單（含絕對路徑）、修復行動指引
 
-// 範例：建立巢狀子卡（放在 mem-api 目錄下）
+// 建立巢狀子卡
 memory_update({
-  moduleName: 'mem-api-auth',
-  content: '---\nname: mem-api-auth\n---\n# API Auth Module',
+  moduleName: 'api-auth',
+  content: '---\nname: api-auth\n---\n# API Auth Module',
   mode: 'replace',
-  parentModule: 'mem-api',
+  parentModule: 'api',
   projectRoot: 'D:\\bartender_map'
 })
-// 檔案會建立在 .agents/skills/mem-api/mem-api-auth/SKILL.md
+// 檔案會建立在 .agents/memory/api/api-auth/SKILL.md
 ```
 
 ---
@@ -170,14 +169,14 @@ memory_update({
 ## 🧪 執行測試
 
 ```bash
-# 執行完整測試套件（121 個案例）
+# 執行完整測試套件（140 個案例）
 npm test
 
 # 監聽模式（開發時使用）
 npm run test:watch
 ```
 
-測試涵蓋 6 個測試檔案：
+測試涵蓋 8 個測試檔案：
 
 | 測試模組 | 案例數 | 涵蓋範圍 |
 |----------|--------|----------|
@@ -187,6 +186,8 @@ npm run test:watch
 | 警報寫入器 | 9 | 冪等植入、條件式清除、狀態回復 |
 | 路徑安全驗證 | 8 | 絕對/相對路徑、穿越攻擊拒絕 |
 | 時間戳格式 | 3 | ISO 8601 格式、台灣時區後綴 |
+| 離線變動偵測 | 10 | 啟動校驗、目錄跳過、去重、異常處理 |
+| 規則注入器 | 9 | 偵測注入、雜湊比對、記憶卡護欄 |
 
 ---
 
@@ -206,23 +207,24 @@ cartridge_system/
 │   ├── path-guard.ts      # 路徑安全驗證（雙層防禦）
 │   ├── timestamp.ts       # 時間戳生成（Intl API）
 │   ├── types.ts           # 共用型別定義
-│   └── tests/             # vitest 單元測試（6 檔 121 案例）
+│   └── tests/             # vitest 單元測試（8 檔 140 案例）
 ├── .agents/
-│   ├── skills/            # 記憶技能（巢狀樹狀結構）
-│   │   ├── mem-_system/           # 系統記憶
-│   │   ├── mem-core-types/        # 共用型別與設定
-│   │   ├── mem-index-manager/     # 索引管理器
-│   │   ├── mem-extension/         # 外掛入口 ★ 父卡
-│   │   │   ├── mem-injector/      # └ 注入器
-│   │   │   ├── mem-watcher/       # └ 監聽引擎
-│   │   │   ├── mem-analyzer/      # └ 過期分析器
-│   │   │   └── mem-writer/        # └ 寫入器
-│   │   └── mem-mcp-tools/         # MCP 工具介面
+│   ├── memory/            # 記憶卡匣（v0.6.0 獨立目錄）
+│   │   ├── _system/              # 系統記憶
+│   │   ├── core-types/           # 共用型別與設定
+│   │   ├── index-manager/        # 索引管理器
+│   │   ├── extension/            # 外掛入口 ★ 父卡
+│   │   │   ├── mem-injector/     # └ 注入器
+│   │   │   ├── mem-watcher/      # └ 監聽引擎
+│   │   │   ├── mem-analyzer/     # └ 過期分析器
+│   │   │   └── mem-writer/       # └ 寫入器
+│   │   └── mcp-tools/            # MCP 工具介面
+│   ├── skills/            # 操作技能（框架提供）
 │   ├── workflows/         # Antigravity 工作流程
 │   └── logs/              # 審計日誌與教訓日誌
 ├── dist/                  # 編譯輸出（tsup 打包）
 ├── CHANGELOG.md           # 更新紀錄
-└── package.json           # v0.5.3
+└── package.json           # v0.6.0
 ```
 
 ### 技術堆疊

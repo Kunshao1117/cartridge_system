@@ -1,5 +1,5 @@
 ---
-name: mem-extension
+name: extension
 description: |
   專案記憶：VS Code 外掛入口與狀態列模組。 Use when: 處理外掛啟動生命週期、指令註冊、狀態列 UI 更新時載入。
 last_updated: '2026-03-30T03:09:15+08:00'
@@ -33,12 +33,12 @@ scopePath: src/
 - D02: Antigravity IDE 使用獨立 CLI（`antigravity`），安裝時須用 `antigravity --install-extension`，不可用 `code`
 - D07: VS Code 的 `showWarningMessage` 不支援多行格式，所有 `\n` 會被壓成一行。結構化多行報告必須改用 `OutputChannel` 呈現
 ## Relations
-- mem-core-types（引用共用型別與設定工廠函式）
-- mem-index-manager（呼叫掃描以建立初始索引）
-- mem-mcp-tools（雙入口架構，共用檔案系統互動）
+- core-types（引用共用型別與設定工廠函式）
+- index-manager（呼叫掃描以建立初始索引）
+- mcp-tools（雙入口架構，共用檔案系統互動）
 ### 子模組
-- mem-injector（啟動時呼叫注入器確保記憶卡匣存在）
-- mem-watcher（啟動後委託監聽引擎管理檔案監聽）
-- mem-analyzer（過期分析器，接收監聽事件計算衰退指數）
-- mem-writer（記憶卡寫入器，植入/移除過期警報）
+- injector（啟動時呼叫注入器確保記憶卡匣存在）
+- watcher（啟動後委託監聽引擎管理檔案監聽）
+- analyzer（過期分析器，接收監聽事件計算衰退指數）
+- writer（記憶卡寫入器，植入/移除過期警報）
 - D08: 外掛啟動時需呼叫 `detectMissedChanges()` 偵測停機期間的檔案變動。此方法作用於 scan() 之後、persist() 之前。它比對追蹤檔案的 mtime 與記憶卡的 `lastUpdated`，補記遺漏的 pendingChange 並重算 staleness。

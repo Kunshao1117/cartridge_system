@@ -62,7 +62,7 @@ describe('handleMemoryList', () => {
     const calledPath = vi.mocked(fs.readdir).mock.calls[0][0] as string
     expect(calledPath).toContain('other-project')
     expect(calledPath).toContain('.agents')
-    expect(calledPath).toContain('skills')
+    expect(calledPath).toContain('memory')
   })
 
   it('未傳入 projectRoot 時應回傳 Validation Error', async () => {
@@ -72,13 +72,13 @@ describe('handleMemoryList', () => {
     expect(result.content[0].text).toContain('Validation Error')
   })
 
-  it('目錄不存在時應回傳錯誤', async () => {
+  it('兩個目錄皆不存在時應回傳空列表', async () => {
     vi.mocked(fs.readdir).mockRejectedValue(new Error('ENOENT: no such file or directory'))
 
     const result = await handleMemoryList({ projectRoot: PROJECT_ROOT })
 
-    expect(result.isError).toBe(true)
-    expect(result.content[0].text).toContain('Error:')
+    expect(result.isError).toBeUndefined()
+    expect(result.content[0].text).toContain('Available memories')
   })
 
   it('相對路徑應回傳 Validation Error（路徑安全防禦）', async () => {

@@ -15,6 +15,7 @@ import {
   parseSubSections,
   mergeSections,
   normalizeTitle,
+  normalizeInlineHeadings,
 } from '../mcp-handlers.js'
 
 // 模擬 fs/promises，隔離所有磁碟操作
@@ -922,3 +923,87 @@ describe('handleMemoryUpdate — parentModule 巢狀建立', () => {
   })
 })
 
+// ---------------------------------------------------------------------------
+// normalizeInlineHeadings — 行內標題正規化
+// ---------------------------------------------------------------------------
+describe('normalizeInlineHeadings', () => {
+  it('行內 ## 黏連應自動拆分', () => {
+    const input = '- None## Relations\n| parent | childOf |\n'
+    const result = normalizeInlineHeadings(input)
+
+    expect(result.text).toBe('- None\n## Relations\n| parent | childOf |\n')
+    expect(result.fixes).toHaveLength(1)
+    expect(result.fixes[0]).toContain('行內標題修復')
+  })
+
+  it('行首 ## 不應被影響', () => {
+    const input = '## Normal Heading\ncontent\n'
+    const result = normalizeInlineHeadings(input)
+
+    expect(result.text).toBe(input)
+    expect(result.fixes).toHaveLength(0)
+  })
+
+  it('程式碼區塊內的 ## 不應被處理', () => {
+    const input = '```\nsome text## Heading\n```\n'
+    const result = normalizeInlineHeadings(input)
+
+    expect(result.text).toBe(input)
+    expect(result.fixes).toHaveLength(0)
+  })
+
+  it('行內 ### 黏連也應被拆分', () => {
+    const input = 'content### SubSection\nmore\n'
+    const result = normalizeInlineHeadings(input)
+
+    expect(result.text).toBe('content\n### SubSection\nmore\n')
+    expect(result.fixes).toHaveLength(1)
+  })
+})
+
+// ---------------------------------------------------------------------------
+// parseSections — 行內黏連場景
+// ---------------------------------------------------------------------------
+describe('parseSections — 行內黏連場景', () => {
+  it('黏連的 ## Relations 應被正確識別為獨立區段', () => {
+    const body = '## Known Issues\n- None## Relations\n| parent | childOf |\n'
+    const result = parseSections(body)
+
+    expect(result.sections).toHaveLength(2)
+    expect(result.sections[0].title).toBe('## Known Issues')
+    expect(result.sections[1].title).toBe('## Relations')
+    expect(result.sections[1].content).toContain('| parent | childOf |')
+  })
+})
+
+// ---------------------------------------------------------------------------
+// handleMemoryUpdate — patch 模式黏連場景整合測試
+// ---------------------------------------------------------------------------
+describe('handleMemoryUpdate — patch 模式黏連場景', () => {
+  it('原始檔含黏連區段時，patch 應正確替換而非新增重複', async () => {
+    const existing = `---\nname: mem-test\nlast_updated: "old"\nstaleness: 5\n---\n\n## Known Issues\n- None## Relations\n| parent | childOf | dashboard-ui |\n`
+    vi.mocked(fs.readFile).mockResolvedValue(existing as unknown as Awaited<ReturnType<typeof fs.readFile>>)
+
+    let writtenContent = ''
+    vi.mocked(fs.writeFile).mockImplementation(async (_path, data) => {
+      writtenContent = data as string
+    })
+
+    const patch = `## Relations\n| parent | childOf | dashboard-api |\n`
+    const result = await handleMemoryUpdate({ moduleName: 'mem-test', content: patch, mode: 'patch', projectRoot: PROJECT_ROOT })
+
+    // 驗證不應有重複的 ## Relations
+    const relationsCount = (writtenContent.match(/## Relations/g) || []).length
+    expect(relationsCount).toBe(1)
+
+    // 驗證 patch 內容已替換
+    expect(writtenContent).toContain('dashboard-api')
+    expect(writtenContent).not.toContain('dashboard-ui')
+
+    // 驗證報告中有 autoFixes 紀錄
+    const report = JSON.parse(result.content[0].text)
+    expect(report.autoFixes).toHaveLength(1)
+    expect(report.autoFixes[0]).toContain('行內標題修復')
+    expect(report.replaced).toContain('## Relations')
+  })
+})

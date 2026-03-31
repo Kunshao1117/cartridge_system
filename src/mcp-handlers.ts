@@ -186,11 +186,45 @@ export function normalizeTitle(title: string): string {
 }
 
 /**
+ * 行內標題正規化：偵測行內的 ## / ### 標題並在前方插入換行符
+ * - 程式碼區塊感知：追蹤 ``` 狀態，不處理區塊內容
+ * - 回傳修復後的文字與修復紀錄
+ */
+export function normalizeInlineHeadings(text: string): { text: string; fixes: string[] } {
+  const lines = text.split('\n')
+  const result: string[] = []
+  const fixes: string[] = []
+  let inCodeBlock = false
+
+  for (const line of lines) {
+    if (line.startsWith('```')) {
+      inCodeBlock = !inCodeBlock
+    }
+
+    if (!inCodeBlock && line.length > 0) {
+      // 偵測行內的 ## 或 ### 標題（不在行首）
+      const match = line.match(/^(.+?)(#{2,3} )/)
+      if (match && !line.startsWith('## ') && !line.startsWith('### ')) {
+        result.push(match[1])
+        result.push(match[2] + line.substring(match[0].length))
+        fixes.push(`行內標題修復：「${match[2].trim()}」從行內分離（原始行：「${line.substring(0, 60)}」）`)
+        continue
+      }
+    }
+    result.push(line)
+  }
+
+  return { text: result.join('\n'), fixes }
+}
+
+/**
  * 將 ### 區段內容解析為子區段陣列
  * - 追蹤 ``` 狀態以忽略程式碼區塊內的 ###
+ * - 行內標題正規化：偵測行內的 ### 並自動拆分
  */
 export function parseSubSections(content: string): { leading: string; subSections: SubSection[] } {
-  const lines = content.split('\n')
+  const { text: normalized } = normalizeInlineHeadings(content)
+  const lines = normalized.split('\n')
   let inCodeBlock = false
   let charPos = 0
   const headingPositions: number[] = []
@@ -232,7 +266,8 @@ export function parseSubSections(content: string): { leading: string; subSection
  * - 每個 ## 區段自動解析內部的 ### 子區段
  */
 export function parseSections(body: string): ParsedDocument {
-  const normalized = body.replace(/\r\n/g, '\n')
+  const crlfNormalized = body.replace(/\r\n/g, '\n')
+  const { text: normalized } = normalizeInlineHeadings(crlfNormalized)
   const lines = normalized.split('\n')
   let inCodeBlock = false
   let charPos = 0
@@ -614,6 +649,7 @@ export interface PatchReport {
   linesBefore: number
   linesAfter: number
   warnings: string[]
+  autoFixes: string[]
 }
 
 /** 大幅刪減保護閾值（行數減少百分比） */
@@ -681,7 +717,11 @@ export async function handleMemoryUpdate(
       }
 
       const existingDoc = matter(existingContent)
-      const existingParsed = parseSections(existingDoc.content)
+      // [D25] 行內標題修復：在解析前正規化，偵測黏連的 ## / ### 標題
+      const { text: normalizedExisting, fixes: existingFixes } = normalizeInlineHeadings(
+        existingDoc.content.replace(/\r\n/g, '\n')
+      )
+      const existingParsed = parseSections(normalizedExisting)
       const patchParsed = parseSections(parsed.data.content)
 
       if (patchParsed.sections.length === 0) {
@@ -719,6 +759,7 @@ export async function handleMemoryUpdate(
         linesBefore,
         linesAfter,
         warnings: [...mergeResult.warnings],
+        autoFixes: existingFixes,
       }
 
       // 大幅刪減保護閘門

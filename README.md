@@ -2,8 +2,8 @@
 
 > **主動式 AI 記憶防禦引擎** — 自動偵測記憶卡過期、植入攔截警報，確保 AI 不讀取失效的上下文。
 
-[![version](https://img.shields.io/badge/version-0.6.5-blue)](./CHANGELOG.md)
-[![tests](https://img.shields.io/badge/tests-140%20passed-brightgreen)](#-執行測試)
+[![version](https://img.shields.io/badge/version-0.7.0-blue)](./CHANGELOG.md)
+[![tests](https://img.shields.io/badge/tests-146%20passed-brightgreen)](#-執行測試)
 [![license](https://img.shields.io/badge/license-MIT-green)](#)
 
 ---
@@ -53,7 +53,7 @@ npm run build
 npm run package
 
 # 使用 Antigravity IDE CLI 安裝（注意：不可用 code 指令）
-antigravity --install-extension cartridge-system-0.6.5.vsix --force
+antigravity --install-extension cartridge-system-0.7.0.vsix --force
 ```
 
 ### 方法二：開發模式
@@ -169,7 +169,7 @@ memory_update({
 ## 🧪 執行測試
 
 ```bash
-# 執行完整測試套件（140 個案例）
+# 執行完整測試套件（146 個案例）
 npm test
 
 # 監聽模式（開發時使用）
@@ -181,7 +181,7 @@ npm run test:watch
 | 測試模組 | 案例數 | 涵蓋範圍 |
 |----------|--------|----------|
 | 索引管理器 | 22 | 掃描、findOwner、getChildren、遞迴掃描驗證、resolveModulePath |
-| MCP 工具介面 | 68 | 正常流程、路徑穿越防禦、時間戳驗證、replace/append/patch 三模式、段落解析與合併、子區段級合併、dryRun 閘門、大幅刪減保護、過期狀態診斷、巢狀路徑解析、parentModule 巢狀建立 |
+| MCP 工具介面 | 74 | 正常流程、路徑穿越防禦、時間戳驗證、replace/append/patch 三模式、段落解析與合併、子區段級合併、dryRun 閘門、大幅刪減保護、過期狀態診斷、巢狀路徑解析、parentModule 巢狀建立、行內標題黏連修復 |
 | 過期分析器 | 11 | 過期等級四分支、三種事件計分、閾值觸發 |
 | 警報寫入器 | 9 | 冪等植入、條件式清除、狀態回復 |
 | 路徑安全驗證 | 8 | 絕對/相對路徑、穿越攻擊拒絕 |
@@ -207,7 +207,7 @@ cartridge_system/
 │   ├── path-guard.ts      # 路徑安全驗證（雙層防禦）
 │   ├── timestamp.ts       # 時間戳生成（Intl API）
 │   ├── types.ts           # 共用型別定義
-│   └── tests/             # vitest 單元測試（8 檔 140 案例）
+│   └── tests/             # vitest 單元測試（8 檔 146 案例）
 ├── .agents/
 │   ├── memory/            # 記憶卡匣（v0.6.0 起獨立目錄）
 │   │   ├── _system/              # 系統記憶
@@ -223,7 +223,7 @@ cartridge_system/
 │   └── workflows/         # Antigravity 工作流程
 ├── dist/                  # 編譯輸出（tsup 打包）
 ├── CHANGELOG.md           # 更新紀錄
-└── package.json           # v0.6.5
+└── package.json           # v0.7.0
 ```
 
 ### 技術堆疊

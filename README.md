@@ -2,7 +2,7 @@
 
 > **主動式 AI 記憶防禦引擎** — 自動偵測記憶卡過期、植入攔截警報，確保 AI 不讀取失效的上下文。
 
-[![version](https://img.shields.io/badge/version-0.8.0-blue)](./CHANGELOG.md)
+[![version](https://img.shields.io/badge/version-0.8.1-blue)](./CHANGELOG.md)
 [![tests](https://img.shields.io/badge/tests-154%20passed-brightgreen)](#-執行測試)
 [![license](https://img.shields.io/badge/license-MIT-green)](#)
 
@@ -53,7 +53,7 @@ npm run build
 npm run package
 
 # 使用 Antigravity IDE CLI 安裝（注意：不可用 code 指令）
-antigravity --install-extension cartridge-system-0.8.0.vsix --force
+antigravity --install-extension cartridge-system-0.8.1.vsix --force
 ```
 
 ### 方法二：開發模式
@@ -208,7 +208,7 @@ cartridge_system/
 │   └── workflows/         # Antigravity 工作流程
 ├── dist/                  # 編譯輸出（tsup 打包）
 ├── CHANGELOG.md           # 更新紀錄
-└── package.json           # v0.8.0
+└── package.json           # v0.8.1
 ```
 
 ### 技術堆疊

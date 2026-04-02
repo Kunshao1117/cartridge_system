@@ -2,7 +2,7 @@
 name: extension
 description: |
   專案記憶：VS Code 外掛入口與狀態列模組。 Use when: 處理外掛啟動生命週期、指令註冊、狀態列 UI 更新時載入。
-last_updated: '2026-03-30T03:09:15+08:00'
+last_updated: '2026-04-02T17:30:48+08:00'
 status: stable
 staleness: 0
 scopePath: src/
@@ -42,3 +42,6 @@ scopePath: src/
 - analyzer（過期分析器，接收監聽事件計算衰退指數）
 - writer（記憶卡寫入器，植入/移除過期警報）
 - D08: 外掛啟動時需呼叫 `detectMissedChanges()` 偵測停機期間的檔案變動。此方法作用於 scan() 之後、persist() 之前。它比對追蹤檔案的 mtime 與記憶卡的 `lastUpdated`，補記遺漏的 pendingChange 並重算 staleness。
+
+## Applicable Skills
+- code-quality

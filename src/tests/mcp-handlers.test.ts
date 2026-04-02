@@ -12,11 +12,6 @@ import {
   handleMemoryCommit,
   stalenessToLevel,
   updateFrontmatterFields,
-  parseSections,
-  parseSubSections,
-  mergeSections,
-  normalizeTitle,
-  normalizeInlineHeadings,
 } from '../mcp-handlers.js'
 
 // 模擬 fs/promises，隔離所有磁碟操作
@@ -156,10 +151,10 @@ describe('handleMemoryRead', () => {
 })
 
 // ---------------------------------------------------------------------------
-// handleMemoryUpdate — 更新記憶卡匣
+// handleMemoryUpdate — 更新記憶卡匣（整張替換）
 // ---------------------------------------------------------------------------
 describe('handleMemoryUpdate', () => {
-  it('應正確寫入並回傳成功訊息（replace 模式）', async () => {
+  it('應正確寫入並回傳成功訊息', async () => {
     vi.mocked(fs.writeFile).mockResolvedValue(undefined)
 
     const content = `---\nlast_updated: "2026-01-01T00:00:00+08:00"\nstaleness: 5\n---\n# Content`
@@ -194,7 +189,6 @@ describe('handleMemoryUpdate', () => {
       writtenContent = data as string
     })
 
-    // replace 模式（預設）：直接用 content 替換
     const content = `---\nlast_updated: "2026-01-01T00:00:00+08:00"\nstaleness: 99\n---\n# Content`
     await handleMemoryUpdate({ moduleName: 'mem-_system', content, projectRoot: PROJECT_ROOT })
 
@@ -229,56 +223,6 @@ describe('handleMemoryUpdate', () => {
 
     expect(result.isError).toBe(true)
     expect(result.content[0].text).toContain('Validation Error')
-  })
-
-  // [D13] mode 參數測試
-  it('[D13] append 模式應先讀現有 SKILL.md 再附加 content', async () => {
-    const existingContent = `---\nname: mem-test\nlast_updated: "old"\nstaleness: 5\n---\n\n## Tracked Files\n- src/foo.ts`
-    vi.mocked(fs.readFile).mockResolvedValue(existingContent as unknown as Awaited<ReturnType<typeof fs.readFile>>)
-
-    let writtenContent = ''
-    vi.mocked(fs.writeFile).mockImplementation(async (_path, data) => {
-      writtenContent = data as string
-    })
-
-    const patch = `## Known Issues\n- D12: 測試新增的問題`
-    await handleMemoryUpdate({ moduleName: 'mem-test', content: patch, mode: 'append', projectRoot: PROJECT_ROOT })
-
-    expect(writtenContent).toContain('## Tracked Files')    // 原始內容保留
-    expect(writtenContent).toContain('## Known Issues')      // 新增內容存在
-    expect(writtenContent).toContain('D12: 測試新增的問題') // 差分片段存在
-    expect(writtenContent).not.toContain('staleness: 5')     // frontmatter 已歸零
-  })
-
-  it('[D13] append 模式檔案不存在（首次建立）時應以 content 為起點寫入', async () => {
-    vi.mocked(fs.readFile).mockRejectedValue(new Error('ENOENT: no such file'))
-
-    let writtenContent = ''
-    vi.mocked(fs.writeFile).mockImplementation(async (_path, data) => {
-      writtenContent = data as string
-    })
-
-    const initialContent = `---\nname: mem-new\nlast_updated: ""\nstaleness: 0\n---\n# New Module`
-    const result = await handleMemoryUpdate({ moduleName: 'mem-new', content: initialContent, mode: 'append', projectRoot: PROJECT_ROOT })
-
-    expect(result.isError).toBeUndefined()
-    expect(writtenContent).toContain('# New Module')
-  })
-
-  it('[D13] append 模式讀取成功但寫入失敗時應回傳錯誤', async () => {
-    const existingContent = `---\nlast_updated: "old"\nstaleness: 0\n---\n# Content`
-    vi.mocked(fs.readFile).mockResolvedValue(existingContent as unknown as Awaited<ReturnType<typeof fs.readFile>>)
-    vi.mocked(fs.writeFile).mockRejectedValue(new Error('EACCES: permission denied'))
-
-    const result = await handleMemoryUpdate({
-      moduleName: 'mem-_system',
-      content: '額外附加段落',
-      mode: 'append',
-      projectRoot: PROJECT_ROOT,
-    })
-
-    expect(result.isError).toBe(true)
-    expect(result.content[0].text).toContain('Error:')
   })
 
   it('時間戳應包含 +08:00 後綴', async () => {
@@ -331,381 +275,6 @@ describe('updateFrontmatterFields — frontmatter 結構化更新', () => {
     expect(result).toContain('name: mem-test')
     expect(result).toContain('status: stale')
     expect(result).toContain('staleness: 0')
-  })
-})
-
-// ---------------------------------------------------------------------------
-// normalizeTitle — 區段標題正規化
-// ---------------------------------------------------------------------------
-describe('normalizeTitle', () => {
-  it('應壓縮空格並轉為小寫', () => {
-    expect(normalizeTitle('##  Known  Issues')).toBe('## known issues')
-  })
-
-  it('應去除尾部空白', () => {
-    expect(normalizeTitle('## Tracked Files   ')).toBe('## tracked files')
-  })
-})
-
-// ---------------------------------------------------------------------------
-// parseSections — Markdown 區段分割
-// ---------------------------------------------------------------------------
-describe('parseSections', () => {
-  it('標準記憶技能結構應正確分割', () => {
-    const body = `# Title\n\n> Desc\n\n## Tracked Files\n- f1\n\n## Key Decisions\n- D01\n\n## Known Issues\n- None\n`
-    const result = parseSections(body)
-
-    expect(result.preamble).toBe('# Title\n\n> Desc\n\n')
-    expect(result.sections).toHaveLength(3)
-    expect(result.sections[0].title).toBe('## Tracked Files')
-    expect(result.sections[0].content).toContain('- f1')
-    expect(result.sections[1].title).toBe('## Key Decisions')
-    expect(result.sections[2].title).toBe('## Known Issues')
-  })
-
-  it('空內容應回傳空 preamble 和空陣列', () => {
-    const result = parseSections('')
-    expect(result.preamble).toBe('')
-    expect(result.sections).toHaveLength(0)
-  })
-
-  it('只有 preamble 無 ## 區段應正確處理', () => {
-    const body = '# Just a title\nSome text\n'
-    const result = parseSections(body)
-    expect(result.preamble).toBe('# Just a title\nSome text\n')
-    expect(result.sections).toHaveLength(0)
-  })
-
-  it('程式碼區塊內的 ## 不應被切分', () => {
-    const body = '## Real Section\ncontent\n```\n## Not A Section\n```\n## Another Real\nmore\n'
-    const result = parseSections(body)
-
-    expect(result.sections).toHaveLength(2)
-    expect(result.sections[0].title).toBe('## Real Section')
-    expect(result.sections[0].content).toContain('## Not A Section')
-    expect(result.sections[1].title).toBe('## Another Real')
-  })
-
-  it('### 子標題不應被切分', () => {
-    const body = '## Section\n### Sub\ncontent\n'
-    const result = parseSections(body)
-
-    expect(result.sections).toHaveLength(1)
-    expect(result.sections[0].content).toContain('### Sub')
-  })
-
-  it('CRLF 行尾應與 LF 產出相同結果', () => {
-    const lf = '## A\ncontent\n## B\nmore\n'
-    const crlf = '## A\r\ncontent\r\n## B\r\nmore\r\n'
-    const lfResult = parseSections(lf)
-    const crlfResult = parseSections(crlf)
-
-    expect(crlfResult.sections).toHaveLength(lfResult.sections.length)
-    expect(crlfResult.sections[0].title).toBe(lfResult.sections[0].title)
-    expect(crlfResult.sections[1].title).toBe(lfResult.sections[1].title)
-  })
-})
-
-// ---------------------------------------------------------------------------
-// mergeSections — 區段合併
-// ---------------------------------------------------------------------------
-describe('mergeSections', () => {
-  const makeSection = (title: string, content: string) => ({
-    title,
-    normalizedTitle: normalizeTitle(title),
-    content,
-    subSections: [],
-  })
-
-  it('同名區段應就地替換', () => {
-    const original = [makeSection('## A', 'old\n'), makeSection('## B', 'keep\n')]
-    const patch = [makeSection('## A', 'new\n')]
-    const result = mergeSections(original, patch)
-
-    expect(result.sections[0].content).toBe('new\n')
-    expect(result.sections[1].content).toBe('keep\n')
-    expect(result.replaced).toEqual(['## A'])
-    expect(result.added).toEqual([])
-  })
-
-  it('新區段應附加到末尾', () => {
-    const original = [makeSection('## A', 'a\n')]
-    const patch = [makeSection('## B', 'b\n')]
-    const result = mergeSections(original, patch)
-
-    expect(result.sections).toHaveLength(2)
-    expect(result.sections[1].title).toBe('## B')
-    expect(result.added).toEqual(['## B'])
-  })
-
-  it('混合操作（替換 + 附加）應統計正確', () => {
-    const original = [makeSection('## A', 'old\n'), makeSection('## B', 'keep\n')]
-    const patch = [makeSection('## A', 'new\n'), makeSection('## C', 'added\n')]
-    const result = mergeSections(original, patch)
-
-    expect(result.sections).toHaveLength(3)
-    expect(result.replaced).toEqual(['## A'])
-    expect(result.added).toEqual(['## C'])
-  })
-
-  it('標題格式微差異應正規化後正確匹配', () => {
-    const original = [makeSection('## Known Issues', 'old\n')]
-    const patch = [makeSection('##  known  issues', 'new\n')]
-    const result = mergeSections(original, patch)
-
-    expect(result.replaced).toEqual(['## Known Issues'])
-    expect(result.sections[0].title).toBe('## Known Issues') // 保持原檔標題
-    expect(result.sections[0].content).toBe('new\n')
-  })
-
-  it('空內容區段應清空原有內容', () => {
-    const original = [makeSection('## Issues', '- bug1\n- bug2\n')]
-    const patch = [makeSection('## Issues', '')]
-    const result = mergeSections(original, patch)
-
-    expect(result.sections[0].content).toBe('')
-    expect(result.replaced).toEqual(['## Issues'])
-  })
-})
-
-// ---------------------------------------------------------------------------
-// handleMemoryUpdate — patch 模式整合測試
-// ---------------------------------------------------------------------------
-describe('handleMemoryUpdate — patch 模式', () => {
-  it('應正確替換目標區段並保留其他區段', async () => {
-    const existing = `---\nname: mem-test\nlast_updated: "old"\nstaleness: 5\n---\n\n# Title\n\n## Tracked Files\n- f1\n\n## Key Decisions\n- D01: old\n\n## Known Issues\n- None\n`
-    vi.mocked(fs.readFile).mockResolvedValue(existing as unknown as Awaited<ReturnType<typeof fs.readFile>>)
-
-    let writtenContent = ''
-    vi.mocked(fs.writeFile).mockImplementation(async (_path, data) => {
-      writtenContent = data as string
-    })
-
-    const patch = `## Key Decisions\n- D01: old\n- D02: new\n`
-    const result = await handleMemoryUpdate({ moduleName: 'mem-test', content: patch, mode: 'patch', projectRoot: PROJECT_ROOT })
-
-    expect(writtenContent).toContain('## Tracked Files')    // 未提及的區段保留
-    expect(writtenContent).toContain('- f1')                  // 原始內容保留
-    expect(writtenContent).toContain('- D02: new')            // 新內容存在
-    expect(writtenContent).toContain('## Known Issues')       // 未提及的區段保留
-    expect(writtenContent).not.toContain('staleness: 5')      // frontmatter 已更新
-    expect(writtenContent).toContain('+08:00')                // 台灣時區
-
-    // 驗證結構化 JSON 回傳
-    const report = JSON.parse(result.content[0].text)
-    expect(report.status).toBe('success')
-    expect(report.replaced).toContain('## Key Decisions')
-    expect(report.preserved).toContain('## Tracked Files')
-    expect(report.preserved).toContain('## Known Issues')
-  })
-
-  it('新區段應附加到檔案末尾', async () => {
-    const existing = `---\nname: mem-test\nlast_updated: "old"\nstaleness: 0\n---\n\n## Tracked Files\n- f1\n`
-    vi.mocked(fs.readFile).mockResolvedValue(existing as unknown as Awaited<ReturnType<typeof fs.readFile>>)
-
-    let writtenContent = ''
-    vi.mocked(fs.writeFile).mockImplementation(async (_path, data) => {
-      writtenContent = data as string
-    })
-
-    const patch = `## New Section\n- item\n`
-    const result = await handleMemoryUpdate({ moduleName: 'mem-test', content: patch, mode: 'patch', projectRoot: PROJECT_ROOT })
-
-    expect(result.isError).toBeUndefined()
-    const report = JSON.parse(result.content[0].text)
-    expect(report.replaced).toEqual([])
-    expect(report.added).toContain('## New Section')
-    expect(writtenContent).toContain('## Tracked Files')  // 原有保留
-    expect(writtenContent).toContain('## New Section')    // 新區段附加
-  })
-
-  it('patch 內容無 ## 區段應回傳驗證錯誤', async () => {
-    const existing = `---\nname: mem-test\nlast_updated: "old"\nstaleness: 0\n---\n\n## A\ncontent\n`
-    vi.mocked(fs.readFile).mockResolvedValue(existing as unknown as Awaited<ReturnType<typeof fs.readFile>>)
-
-    const result = await handleMemoryUpdate({ moduleName: 'mem-test', content: '純文字無標題', mode: 'patch', projectRoot: PROJECT_ROOT })
-
-    expect(result.isError).toBe(true)
-    expect(result.content[0].text).toContain('Patch Error')
-  })
-
-  it('目標檔案不存在時應回傳錯誤', async () => {
-    vi.mocked(fs.readFile).mockRejectedValue(new Error('ENOENT'))
-
-    const result = await handleMemoryUpdate({ moduleName: 'mem-nonexistent', content: '## A\ncontent\n', mode: 'patch', projectRoot: PROJECT_ROOT })
-
-    expect(result.isError).toBe(true)
-    expect(result.content[0].text).toContain('Patch Error')
-    expect(result.content[0].text).toContain('基底檔案')
-  })
-})
-
-// ---------------------------------------------------------------------------
-// parseSubSections — 子區段解析
-// ---------------------------------------------------------------------------
-describe('parseSubSections', () => {
-  it('應正確解析 ### 子區段', () => {
-    const content = '### Backend\n- Next.js\n\n### Frontend\n- React\n'
-    const result = parseSubSections(content)
-
-    expect(result.leading).toBe('')
-    expect(result.subSections).toHaveLength(2)
-    expect(result.subSections[0].title).toBe('### Backend')
-    expect(result.subSections[0].content).toContain('Next.js')
-    expect(result.subSections[1].title).toBe('### Frontend')
-  })
-
-  it('無 ### 時應回傳空陣列和完整 leading', () => {
-    const content = '- item1\n- item2\n'
-    const result = parseSubSections(content)
-
-    expect(result.leading).toBe(content)
-    expect(result.subSections).toHaveLength(0)
-  })
-
-  it('程式碼區塊內的 ### 不應被切分', () => {
-    const content = '```\n### Not A SubSection\n```\n### Real Sub\ncontent\n'
-    const result = parseSubSections(content)
-
-    expect(result.subSections).toHaveLength(1)
-    expect(result.subSections[0].title).toBe('### Real Sub')
-  })
-
-  it('leading 文字應被正確保留', () => {
-    const content = 'Some intro text\n\n### Sub1\ncontent\n'
-    const result = parseSubSections(content)
-
-    expect(result.leading).toBe('Some intro text\n\n')
-    expect(result.subSections).toHaveLength(1)
-  })
-})
-
-// ---------------------------------------------------------------------------
-// mergeSections — 子區段級合併
-// ---------------------------------------------------------------------------
-describe('mergeSections — 子區段級合併', () => {
-  const makeSection = (title: string, content: string) => {
-    const { subSections } = parseSubSections(content)
-    return {
-      title,
-      normalizedTitle: normalizeTitle(title),
-      content,
-      subSections,
-    }
-  }
-
-  it('只提供部分 ### 時應保留未提及的 ### 子區段', () => {
-    const original = [
-      makeSection('## Tech Stack', '### Backend\n- Next.js\n\n### Dashboard UI\n- Vite\n\n### Infrastructure\n- Cloudflare\n'),
-    ]
-    const patch = [
-      makeSection('## Tech Stack', '### Backend\n- Next.js 15\n'),
-    ]
-    const result = mergeSections(original, patch)
-
-    // Backend 應被替換
-    expect(result.replaced).toEqual(['## Tech Stack > ### Backend'])
-    // Dashboard UI 和 Infrastructure 應被保留
-    expect(result.sections[0].content).toContain('### Dashboard UI')
-    expect(result.sections[0].content).toContain('### Infrastructure')
-    expect(result.sections[0].content).toContain('Next.js 15')
-    expect(result.sections[0].content).not.toContain('- Next.js\n')
-    // 不應有任何移除記錄
-    expect(result.removed).toEqual([])
-  })
-
-  it('新的 ### 子區段應附加到同個 ## 區段末尾', () => {
-    const original = [
-      makeSection('## Tech Stack', '### Backend\n- Next.js\n'),
-    ]
-    const patch = [
-      makeSection('## Tech Stack', '### New Sub\n- new content\n'),
-    ]
-    const result = mergeSections(original, patch)
-
-    expect(result.added).toEqual(['## Tech Stack > ### New Sub'])
-    expect(result.sections[0].content).toContain('### Backend')
-    expect(result.sections[0].content).toContain('### New Sub')
-  })
-
-  it('無 ### 的 patch 替換含 ### 的原始區段時應產生警告', () => {
-    const original = [
-      makeSection('## Tech Stack', '### Backend\n- old\n\n### Frontend\n- old\n'),
-    ]
-    const patch = [
-      makeSection('## Tech Stack', '- plain text replacement\n'),
-    ]
-    const result = mergeSections(original, patch)
-
-    expect(result.replaced).toEqual(['## Tech Stack'])
-    expect(result.removed).toHaveLength(2)
-    expect(result.warnings).toHaveLength(1)
-    expect(result.warnings[0]).toContain('2 個子區段')
-  })
-})
-
-// ---------------------------------------------------------------------------
-// handleMemoryUpdate — dryRun 閘門機制
-// ---------------------------------------------------------------------------
-describe('handleMemoryUpdate — dryRun 閘門', () => {
-  it('dryRun: true 應不寫入磁碟', async () => {
-    const existing = `---\nname: mem-test\nlast_updated: "old"\nstaleness: 0\n---\n\n## A\nold content\n`
-    vi.mocked(fs.readFile).mockResolvedValue(existing as unknown as Awaited<ReturnType<typeof fs.readFile>>)
-
-    const result = await handleMemoryUpdate({
-      moduleName: 'mem-test',
-      content: '## A\nnew content\n',
-      mode: 'patch',
-      dryRun: true,
-      projectRoot: PROJECT_ROOT,
-    })
-
-    expect(result.isError).toBeUndefined()
-    expect(vi.mocked(fs.writeFile)).not.toHaveBeenCalled()
-  })
-
-  it('dryRun: true 應回傳完整預覽報告', async () => {
-    const existing = `---\nname: mem-test\nlast_updated: "old"\nstaleness: 0\n---\n\n## Tracked Files\n- f1\n\n## Key Decisions\n- D01\n`
-    vi.mocked(fs.readFile).mockResolvedValue(existing as unknown as Awaited<ReturnType<typeof fs.readFile>>)
-
-    const result = await handleMemoryUpdate({
-      moduleName: 'mem-test',
-      content: '## Key Decisions\n- D01\n- D02\n',
-      mode: 'patch',
-      dryRun: true,
-      projectRoot: PROJECT_ROOT,
-    })
-
-    const report = JSON.parse(result.content[0].text)
-    expect(report.status).toBe('dry_run')
-    expect(report.replaced).toContain('## Key Decisions')
-    expect(report.preserved).toContain('## Tracked Files')
-    expect(report.linesBefore).toBeGreaterThan(0)
-    expect(report.linesAfter).toBeGreaterThan(0)
-  })
-
-  it('大幅刪減應產生警告', async () => {
-    // 建立一個較長的檔案
-    const longContent = '- line\n'.repeat(20)
-    const existing = `---\nname: mem-test\nlast_updated: "old"\nstaleness: 0\n---\n\n## A\n${longContent}\n## B\n${longContent}`
-    vi.mocked(fs.readFile).mockResolvedValue(existing as unknown as Awaited<ReturnType<typeof fs.readFile>>)
-
-    let writtenContent = ''
-    vi.mocked(fs.writeFile).mockImplementation(async (_path, data) => {
-      writtenContent = data as string
-    })
-
-    const result = await handleMemoryUpdate({
-      moduleName: 'mem-test',
-      content: '## A\n- short\n## B\n- short\n',
-      mode: 'patch',
-      projectRoot: PROJECT_ROOT,
-    })
-
-    const report = JSON.parse(result.content[0].text)
-    expect(report.warnings.some((w: string) => w.includes('大幅刪減'))).toBe(true)
-    // 仍然寫入（只警告不阻擋）
-    expect(writtenContent).toContain('- short')
   })
 })
 
@@ -855,7 +424,7 @@ describe('handleMemoryUpdate — pendingChanges 清除', () => {
 
     vi.mocked(fs.writeFile).mockImplementation(async (filePath, data) => {
       const fp = filePath as string
-      if (fp.includes('cartridge_index')) {
+      if (fp.includes('index.json') && fp.includes('.cartridge')) {
         writtenIndex = data as string
       }
     })
@@ -925,91 +494,6 @@ describe('handleMemoryUpdate — parentModule 巢狀建立', () => {
 })
 
 // ---------------------------------------------------------------------------
-// normalizeInlineHeadings — 行內標題正規化
-// ---------------------------------------------------------------------------
-describe('normalizeInlineHeadings', () => {
-  it('行內 ## 黏連應自動拆分', () => {
-    const input = '- None## Relations\n| parent | childOf |\n'
-    const result = normalizeInlineHeadings(input)
-
-    expect(result.text).toBe('- None\n## Relations\n| parent | childOf |\n')
-    expect(result.fixes).toHaveLength(1)
-    expect(result.fixes[0]).toContain('行內標題修復')
-  })
-
-  it('行首 ## 不應被影響', () => {
-    const input = '## Normal Heading\ncontent\n'
-    const result = normalizeInlineHeadings(input)
-
-    expect(result.text).toBe(input)
-    expect(result.fixes).toHaveLength(0)
-  })
-
-  it('程式碼區塊內的 ## 不應被處理', () => {
-    const input = '```\nsome text## Heading\n```\n'
-    const result = normalizeInlineHeadings(input)
-
-    expect(result.text).toBe(input)
-    expect(result.fixes).toHaveLength(0)
-  })
-
-  it('行內 ### 黏連也應被拆分', () => {
-    const input = 'content### SubSection\nmore\n'
-    const result = normalizeInlineHeadings(input)
-
-    expect(result.text).toBe('content\n### SubSection\nmore\n')
-    expect(result.fixes).toHaveLength(1)
-  })
-})
-
-// ---------------------------------------------------------------------------
-// parseSections — 行內黏連場景
-// ---------------------------------------------------------------------------
-describe('parseSections — 行內黏連場景', () => {
-  it('黏連的 ## Relations 應被正確識別為獨立區段', () => {
-    const body = '## Known Issues\n- None## Relations\n| parent | childOf |\n'
-    const result = parseSections(body)
-
-    expect(result.sections).toHaveLength(2)
-    expect(result.sections[0].title).toBe('## Known Issues')
-    expect(result.sections[1].title).toBe('## Relations')
-    expect(result.sections[1].content).toContain('| parent | childOf |')
-  })
-})
-
-// ---------------------------------------------------------------------------
-// handleMemoryUpdate — patch 模式黏連場景整合測試
-// ---------------------------------------------------------------------------
-describe('handleMemoryUpdate — patch 模式黏連場景', () => {
-  it('原始檔含黏連區段時，patch 應正確替換而非新增重複', async () => {
-    const existing = `---\nname: mem-test\nlast_updated: "old"\nstaleness: 5\n---\n\n## Known Issues\n- None## Relations\n| parent | childOf | dashboard-ui |\n`
-    vi.mocked(fs.readFile).mockResolvedValue(existing as unknown as Awaited<ReturnType<typeof fs.readFile>>)
-
-    let writtenContent = ''
-    vi.mocked(fs.writeFile).mockImplementation(async (_path, data) => {
-      writtenContent = data as string
-    })
-
-    const patch = `## Relations\n| parent | childOf | dashboard-api |\n`
-    const result = await handleMemoryUpdate({ moduleName: 'mem-test', content: patch, mode: 'patch', projectRoot: PROJECT_ROOT })
-
-    // 驗證不應有重複的 ## Relations
-    const relationsCount = (writtenContent.match(/## Relations/g) || []).length
-    expect(relationsCount).toBe(1)
-
-    // 驗證 patch 內容已替換
-    expect(writtenContent).toContain('dashboard-api')
-    expect(writtenContent).not.toContain('dashboard-ui')
-
-    // 驗證報告中有 autoFixes 紀錄
-    const report = JSON.parse(result.content[0].text)
-    expect(report.autoFixes).toHaveLength(1)
-    expect(report.autoFixes[0]).toContain('行內標題修復')
-    expect(report.replaced).toContain('## Relations')
-  })
-})
-
-// ---------------------------------------------------------------------------
 // handleMemoryCommit — 後設資料同步
 // ---------------------------------------------------------------------------
 describe('handleMemoryCommit', () => {
@@ -1056,14 +540,14 @@ describe('handleMemoryCommit', () => {
 
     vi.mocked(fs.readFile).mockImplementation(async (filePath) => {
       const fp = filePath as string
-      if (fp.includes('cartridge_index')) return JSON.stringify(indexData) as unknown as Awaited<ReturnType<typeof fs.readFile>>
+      if (fp.includes('index.json') && fp.includes('.cartridge')) return JSON.stringify(indexData) as unknown as Awaited<ReturnType<typeof fs.readFile>>
       return existing as unknown as Awaited<ReturnType<typeof fs.readFile>>
     })
 
     let writtenIndex = ''
     vi.mocked(fs.writeFile).mockImplementation(async (filePath, data) => {
       const fp = filePath as string
-      if (fp.includes('cartridge_index')) {
+      if (fp.includes('index.json') && fp.includes('.cartridge')) {
         writtenIndex = data as string
       }
     })
@@ -1114,7 +598,7 @@ describe('handleMemoryCommit', () => {
 
     vi.mocked(fs.readFile).mockImplementation(async (filePath) => {
       const fp = filePath as string
-      if (fp.includes('cartridge_index')) throw new Error('ENOENT')
+      if (fp.includes('index.json') && fp.includes('.cartridge')) throw new Error('ENOENT')
       return existing as unknown as Awaited<ReturnType<typeof fs.readFile>>
     })
     vi.mocked(fs.writeFile).mockResolvedValue(undefined)

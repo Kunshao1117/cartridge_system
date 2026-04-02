@@ -2,8 +2,8 @@
 
 > **主動式 AI 記憶防禦引擎** — 自動偵測記憶卡過期、植入攔截警報，確保 AI 不讀取失效的上下文。
 
-[![version](https://img.shields.io/badge/version-0.8.1-blue)](./CHANGELOG.md)
-[![tests](https://img.shields.io/badge/tests-154%20passed-brightgreen)](#-執行測試)
+[![version](https://img.shields.io/badge/version-0.9.0-blue)](./CHANGELOG.md)
+[![tests](https://img.shields.io/badge/tests-120%20passed-brightgreen)](#-執行測試)
 [![license](https://img.shields.io/badge/license-MIT-green)](#)
 
 ---
@@ -53,7 +53,7 @@ npm run build
 npm run package
 
 # 使用 Antigravity IDE CLI 安裝（注意：不可用 code 指令）
-antigravity --install-extension cartridge-system-0.8.1.vsix --force
+antigravity --install-extension cartridge-system-0.9.0.vsix --force
 ```
 
 ### 方法二：開發模式
@@ -97,7 +97,7 @@ Cartridge System 提供 MCP（Model Context Protocol）工具伺服器，供 AI 
 |----------|------|
 | `memory_list` | 列出指定專案中所有記憶卡匣（含過期指數、健康等級、深度層級、待處理異動數量） |
 | `memory_read` | 讀取特定記憶技能的完整 SKILL.md 內容（自動解析巢狀路徑） |
-| `memory_update` | ⚠️ 舊版介面（建議改用 `memory_commit`）。更新記憶技能內容，支援 `replace`（整張替換）、`append`（已棄用）、`patch`（已棄用）三種模式 |
+| `memory_update` | ⚠️ 舊版介面（建議改用 `memory_commit`）。用完整內容整張替換指定模組的記憶技能內容 |
 | `memory_commit` | **推薦** — AI 用原生工具寫入 SKILL.md 後呼叫。自動完成：時間戳注入（+08:00）、staleness 歸零、索引同步（清除 pendingChanges、重新解析 trackedFiles、重建 fileMap）、結構驗證 |
 | `memory_status` | 查詢指定記憶卡的過期修復診斷：過期指數、異動檔案清單（含絕對路徑）及修復行動指引 |
 
@@ -127,11 +127,10 @@ memory_status({
   projectRoot: 'D:\\bartender_map'
 })
 
-// 建立巢狀子卡（舊版 memory_update 仍可用於此場景）
+// 建立巢狀子卡
 memory_update({
   moduleName: 'api-auth',
   content: '---\nname: api-auth\n---\n# API Auth Module',
-  mode: 'replace',
   parentModule: 'api',
   projectRoot: 'D:\\bartender_map'
 })
@@ -154,7 +153,7 @@ memory_update({
 ## 🧪 執行測試
 
 ```bash
-# 執行完整測試套件（154 個案例）
+# 執行完整測試套件（120 個案例）
 npm test
 
 # 監聽模式（開發時使用）
@@ -166,13 +165,13 @@ npm run test:watch
 | 測試模組 | 案例數 | 涵蓋範圍 |
 |----------|--------|----------|
 | 索引管理器 | 22 | 掃描、findOwner、getChildren、遞迴掃描驗證、resolveModulePath |
-| MCP 工具介面 | 82 | 正常流程、路徑穿越防禦、時間戳驗證、replace/append/patch 三模式、段落解析與合併、子區段級合併、dryRun 閘門、大幅刪減保護、過期狀態診斷、巢狀路徑解析、parentModule 巢狀建立、行內標題黏連修復、memory_commit 後設資料同步 |
+| MCP 工具介面 | 46 | 正常流程、路徑穿越防禦、時間戳驗證、整張替換、過期狀態診斷、巢狀路徑解析、parentModule 巢狀建立、pendingChanges 清除、memory_commit 後設資料同步 |
 | 過期分析器 | 11 | 過期等級四分支、三種事件計分、閾值觸發 |
 | 警報寫入器 | 9 | 冪等植入、條件式清除、狀態回復 |
 | 路徑安全驗證 | 8 | 絕對/相對路徑、穿越攻擊拒絕 |
 | 時間戳格式 | 3 | ISO 8601 格式、台灣時區後綴 |
 | 離線變動偵測 | 10 | 啟動校驗、目錄跳過、去重、異常處理 |
-| 規則注入器 | 9 | 偵測注入、雜湊比對、記憶卡護欄 |
+| 規則注入器 | 11 | 偵測注入、雜湊比對、記憶卡護欄、**三方比對四象限決策、衝突策略** |
 
 ---
 
@@ -192,7 +191,7 @@ cartridge_system/
 │   ├── path-guard.ts      # 路徑安全驗證（雙層防禦）
 │   ├── timestamp.ts       # 時間戳生成（Intl API）
 │   ├── types.ts           # 共用型別定義
-│   └── tests/             # vitest 單元測試（8 檔 154 案例）
+│   └── tests/             # vitest 單元測試（8 檔 120 案例）
 ├── .agents/
 │   ├── memory/            # 記憶卡匣（v0.6.0 起獨立目錄）
 │   │   ├── _system/              # 系統記憶
@@ -208,7 +207,7 @@ cartridge_system/
 │   └── workflows/         # Antigravity 工作流程
 ├── dist/                  # 編譯輸出（tsup 打包）
 ├── CHANGELOG.md           # 更新紀錄
-└── package.json           # v0.8.1
+└── package.json           # v0.9.0
 ```
 
 ### 技術堆疊

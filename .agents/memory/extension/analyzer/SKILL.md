@@ -2,7 +2,7 @@
 name: analyzer
 description: |
   專案記憶：過期分析器模組。 Use when: 處理過期指數計算、衰退演算法、異動事件處理時載入。
-last_updated: '2026-03-30T03:13:01+08:00'
+last_updated: '2026-04-02T17:30:49+08:00'
 status: stable
 staleness: 0
 ---
@@ -32,3 +32,6 @@ staleness: 0
 - watcher（兄弟卡：上游事件來源）
 - writer（兄弟卡：下游警報寫入）
 - index-manager（根層共用服務：讀取反向映射表、寫入過期指數）
+
+## Applicable Skills
+- test-patterns

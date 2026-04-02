@@ -3,5 +3,5 @@ dist/
 *.vsix
 .vscode-test/
 .DS_Store
-cartridge_index.json
+.cartridge/
 .vscode

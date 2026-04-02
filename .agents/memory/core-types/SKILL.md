@@ -2,7 +2,7 @@
 name: core-types
 description: |
   專案記憶：共用型別與設定模組。 Use when: 處理系統共用型別定義、設定工廠函式、預設參數時載入。
-last_updated: '2026-03-31T04:54:45+08:00'
+last_updated: '2026-04-02T17:30:47+08:00'
 status: stable
 staleness: 0
 scopePath: src/
@@ -37,3 +37,6 @@ scopePath: src/
 - writer（引用 CartridgeConfig、StalenessLevel）
 - injector（引用 CartridgeConfig、InjectionReportItem、InjectionStatus）
 - extension（引用 createConfig）
+
+## Applicable Skills
+- code-quality

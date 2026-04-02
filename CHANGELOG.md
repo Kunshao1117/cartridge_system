@@ -1,5 +1,24 @@
 # 更新紀錄
 
+## [0.9.0] — 2026-04-02
+
+### 🔥 破壞性變更
+
+- **棄用模式正式移除** — `memory_update` 工具完全移除 `patch` 與 `append` 模式的程式碼，僅保留整張替換功能。`mode` 和 `dryRun` 參數已被移除，工具介面精簡為 `moduleName`、`content`、`parentModule`、`projectRoot`
+- **索引檔路徑遷移** — 索引檔從 `cartridge_index.json`（專案根目錄）遷移至 `.cartridge/index.json`，舊路徑不再被讀取
+
+### ✨ 新增
+
+- **運行時狀態目錄** — 新增 `.cartridge/` 專用目錄統一存放系統運行時產生的狀態檔案（索引 + 注入器狀態），取代散落在根目錄的做法
+- **注入器三方比對機制** — 基底卡匣注入器從簡單二態雜湊比對升級為四象限覆蓋決策，透過 `.cartridge/injector.json` 記錄上次部署的範本雜湊作為基準，精準區分「範本更新」與「使用者修改」，不再無條件覆蓋使用者的客製化內容
+- **衝突策略設定** — 注入器支援三種衝突處理策略：`ask`（預設，詢問操作者）、`alwaysUpdate`（強制用範本覆蓋）、`alwaysKeepMine`（保留使用者修改）
+
+### 🧹 清理
+
+- **商業邏輯精簡** — 移除近 390 行 Markdown 區段解析與合併程式碼（`parseSections`、`mergeSections`、`parseSubSections` 等 6 個函式及 5 個型別定義），降低維護成本
+- **測試精簡與擴展** — 移除 34 個與棄用模式相關的測試，新增 6 個注入器三方比對測試，全套測試從 154 個調整為 **120 個**（8 個測試檔案）
+- **設定模組擴展** — `CartridgeConfig` 新增 `cartridgeDir` 欄位，新增 `getCartridgeDirAbsPath()` 輔助函式
+
 ## [0.8.1] — 2026-04-02
 
 ### 🔧 修復

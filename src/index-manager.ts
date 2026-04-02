@@ -8,8 +8,9 @@ import path from 'node:path'
 import matter from 'gray-matter'
 import type { CartridgeConfig, CartridgeEntry, CartridgeIndex } from './types.js'
 import { getSkillsAbsPath, getMemoryAbsPath } from './config.js'
+import { getTaiwanISO } from './timestamp.js'
 
-const INDEX_FILENAME = 'cartridge_index.json'
+const INDEX_FILENAME = '.cartridge/index.json'
 
 /** 巢狀目錄最大掃描深度 */
 const MAX_SCAN_DEPTH = 4
@@ -82,7 +83,7 @@ export class CartridgeIndexManager {
     if (Object.keys(newCartridges).length === 0 && !fs.existsSync(memoryDir) && !fs.existsSync(skillsDir)) {
       this.index = {
         version: 1,
-        lastScanned: new Date().toISOString(),
+        lastScanned: getTaiwanISO(),
         cartridges: {},
         fileMap: {},
       }
@@ -91,7 +92,7 @@ export class CartridgeIndexManager {
 
     this.index = {
       version: 1,
-      lastScanned: new Date().toISOString(),
+      lastScanned: getTaiwanISO(),
       cartridges: newCartridges,
       fileMap: newFileMap,
     }
@@ -261,7 +262,7 @@ export class CartridgeIndexManager {
     entry.pendingChanges.push({
       filePath,
       eventType,
-      timestamp: new Date().toISOString(),
+      timestamp: getTaiwanISO(),
     })
   }
 
@@ -322,6 +323,11 @@ export class CartridgeIndexManager {
    */
   async persist(): Promise<void> {
     const indexPath = path.resolve(this.config.projectRoot, INDEX_FILENAME)
+    // 確保 .cartridge/ 目錄存在
+    const dir = path.dirname(indexPath)
+    if (!fs.existsSync(dir)) {
+      fs.mkdirSync(dir, { recursive: true })
+    }
     const content = JSON.stringify(this.index, null, 2)
     fs.writeFileSync(indexPath, content, 'utf-8')
   }

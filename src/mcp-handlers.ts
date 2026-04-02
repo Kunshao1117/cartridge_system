@@ -55,8 +55,6 @@ export const memoryStatusSchema = z.object({
 export const memoryUpdateSchema = z.object({
   moduleName: z.string().min(1),
   content: z.string().min(1),
-  mode: z.enum(['replace', 'append', 'patch']).default('replace'),
-  dryRun: z.boolean().default(false),
   parentModule: z.string().optional(),
   projectRoot: projectRootField,
 })
@@ -91,7 +89,7 @@ export function updateFrontmatterFields(
  */
 export async function resolveSkillPath(projectRoot: string, moduleName: string): Promise<string | null> {
   // 策略 1：從索引查找（最快）
-  const indexPath = path.join(projectRoot, 'cartridge_index.json')
+  const indexPath = path.join(projectRoot, '.cartridge', 'index.json')
   try {
     const raw = await fs.readFile(indexPath, 'utf-8')
     const index = JSON.parse(raw)
@@ -154,266 +152,6 @@ async function findSkillRecursive(dir: string, moduleName: string, depth: number
   return null
 }
 
-/** 解析後的 Markdown 子區段結構（### 層級） */
-export interface SubSection {
-  title: string
-  normalizedTitle: string
-  content: string
-}
-
-/** 解析後的 Markdown 區段結構（## 層級） */
-export interface Section {
-  title: string
-  normalizedTitle: string
-  content: string
-  subSections: SubSection[]
-}
-
-/** parseSections 的回傳結構 */
-export interface ParsedDocument {
-  preamble: string
-  sections: Section[]
-}
-
-/** mergeSections 的回傳結構 */
-export interface MergeResult {
-  sections: Section[]
-  replaced: string[]
-  added: string[]
-  removed: string[]
-  warnings: string[]
-}
-
-/**
- * 正規化區段標題，用於比對時忽略格式差異
- * 規則：壓縮空格 + 去尾空白 + 全小寫
- */
-export function normalizeTitle(title: string): string {
-  return title.replace(/\s+/g, ' ').trim().toLowerCase()
-}
-
-/**
- * 行內標題正規化：偵測行內的 ## / ### 標題並在前方插入換行符
- * - 程式碼區塊感知：追蹤 ``` 狀態，不處理區塊內容
- * - 回傳修復後的文字與修復紀錄
- */
-export function normalizeInlineHeadings(text: string): { text: string; fixes: string[] } {
-  const lines = text.split('\n')
-  const result: string[] = []
-  const fixes: string[] = []
-  let inCodeBlock = false
-
-  for (const line of lines) {
-    if (line.startsWith('```')) {
-      inCodeBlock = !inCodeBlock
-    }
-
-    if (!inCodeBlock && line.length > 0) {
-      // 偵測行內的 ## 或 ### 標題（不在行首）
-      const match = line.match(/^(.+?)(#{2,3} )/)
-      if (match && !line.startsWith('## ') && !line.startsWith('### ')) {
-        result.push(match[1])
-        result.push(match[2] + line.substring(match[0].length))
-        fixes.push(`行內標題修復：「${match[2].trim()}」從行內分離（原始行：「${line.substring(0, 60)}」）`)
-        continue
-      }
-    }
-    result.push(line)
-  }
-
-  return { text: result.join('\n'), fixes }
-}
-
-/**
- * 將 ### 區段內容解析為子區段陣列
- * - 追蹤 ``` 狀態以忽略程式碼區塊內的 ###
- * - 行內標題正規化：偵測行內的 ### 並自動拆分
- */
-export function parseSubSections(content: string): { leading: string; subSections: SubSection[] } {
-  const { text: normalized } = normalizeInlineHeadings(content)
-  const lines = normalized.split('\n')
-  let inCodeBlock = false
-  let charPos = 0
-  const headingPositions: number[] = []
-
-  for (const line of lines) {
-    if (line.startsWith('```')) {
-      inCodeBlock = !inCodeBlock
-    }
-    if (!inCodeBlock && line.startsWith('### ')) {
-      headingPositions.push(charPos)
-    }
-    charPos += line.length + 1
-  }
-
-  if (headingPositions.length === 0) {
-    return { leading: content, subSections: [] }
-  }
-
-  const leading = content.substring(0, headingPositions[0])
-  const subSections: SubSection[] = []
-
-  for (let i = 0; i < headingPositions.length; i++) {
-    const start = headingPositions[i]
-    const end = i < headingPositions.length - 1 ? headingPositions[i + 1] : content.length
-    const subText = content.substring(start, end)
-    const newlineIdx = subText.indexOf('\n')
-    const title = newlineIdx === -1 ? subText : subText.substring(0, newlineIdx)
-    const subContent = newlineIdx === -1 ? '' : subText.substring(newlineIdx + 1)
-    subSections.push({ title, normalizedTitle: normalizeTitle(title), content: subContent })
-  }
-
-  return { leading, subSections }
-}
-
-/**
- * 將 Markdown body 解析為前言 + ## 區段陣列
- * - 追蹤 ``` 狀態以忽略程式碼區塊內的 ##
- * - CRLF 在分割前統一正規化為 LF
- * - 每個 ## 區段自動解析內部的 ### 子區段
- */
-export function parseSections(body: string): ParsedDocument {
-  const crlfNormalized = body.replace(/\r\n/g, '\n')
-  const { text: normalized } = normalizeInlineHeadings(crlfNormalized)
-  const lines = normalized.split('\n')
-  let inCodeBlock = false
-  let charPos = 0
-  const headingPositions: number[] = []
-
-  for (const line of lines) {
-    if (line.startsWith('```')) {
-      inCodeBlock = !inCodeBlock
-    }
-    if (!inCodeBlock && line.startsWith('## ') && !line.startsWith('### ')) {
-      headingPositions.push(charPos)
-    }
-    charPos += line.length + 1
-  }
-
-  if (headingPositions.length === 0) {
-    return { preamble: normalized, sections: [] }
-  }
-
-  const preamble = normalized.substring(0, headingPositions[0])
-  const sections: Section[] = []
-
-  for (let i = 0; i < headingPositions.length; i++) {
-    const start = headingPositions[i]
-    const end = i < headingPositions.length - 1 ? headingPositions[i + 1] : normalized.length
-    const sectionText = normalized.substring(start, end)
-    const newlineIdx = sectionText.indexOf('\n')
-    const title = newlineIdx === -1 ? sectionText : sectionText.substring(0, newlineIdx)
-    const content = newlineIdx === -1 ? '' : sectionText.substring(newlineIdx + 1)
-    const { subSections } = parseSubSections(content)
-    sections.push({ title, normalizedTitle: normalizeTitle(title), content, subSections })
-  }
-
-  return { preamble, sections }
-}
-
-/**
- * 從 content + subSections 重組完整的區段文字內容
- */
-function rebuildSectionContent(leading: string, subSections: SubSection[]): string {
-  let result = leading
-  for (const sub of subSections) {
-    result += sub.title + '\n' + sub.content
-  }
-  return result
-}
-
-/**
- * 合併原檔區段與 patch 區段（支援兩層合併）
- * - 同名 ## 區段：
- *   - 若 patch 包含 ### 子區段 → 子區段級合併（只替換提及的 ###，保留未提及的 ###）
- *   - 若 patch 不含 ### 子區段 → 整段替換（向下相容原有行為）
- * - 新 ## 區段：附加到末尾
- */
-export function mergeSections(
-  originalSections: Section[],
-  patchSections: Section[],
-): MergeResult {
-  const result = originalSections.map((s) => ({
-    ...s,
-    subSections: s.subSections.map((sub) => ({ ...sub })),
-  }))
-  const titleIndexMap = new Map<string, number>()
-  for (let i = 0; i < result.length; i++) {
-    titleIndexMap.set(result[i].normalizedTitle, i)
-  }
-
-  const replaced: string[] = []
-  const added: string[] = []
-  const removed: string[] = []
-  const warnings: string[] = []
-
-  for (const patch of patchSections) {
-    const existingIdx = titleIndexMap.get(patch.normalizedTitle)
-    if (existingIdx !== undefined) {
-      const original = result[existingIdx]
-
-      // 若 patch 含 ### 子區段且原始區段也含 ### → 子區段級合併
-      if (patch.subSections.length > 0 && original.subSections.length > 0) {
-        const mergedSubs = original.subSections.map((sub) => ({ ...sub }))
-        const subTitleMap = new Map<string, number>()
-        for (let j = 0; j < mergedSubs.length; j++) {
-          subTitleMap.set(mergedSubs[j].normalizedTitle, j)
-        }
-
-        for (const patchSub of patch.subSections) {
-          const subIdx = subTitleMap.get(patchSub.normalizedTitle)
-          if (subIdx !== undefined) {
-            mergedSubs[subIdx] = {
-              title: mergedSubs[subIdx].title,
-              normalizedTitle: mergedSubs[subIdx].normalizedTitle,
-              content: patchSub.content,
-            }
-            replaced.push(`${original.title} > ${mergedSubs[subIdx].title}`)
-          } else {
-            mergedSubs.push(patchSub)
-            added.push(`${original.title} > ${patchSub.title}`)
-          }
-        }
-
-        // 取得 patch 的 leading（### 之前的文字）
-        const { leading: patchLeading } = parseSubSections(patch.content)
-        const { leading: originalLeading } = parseSubSections(original.content)
-        const finalLeading = patchLeading.trim() ? patchLeading : originalLeading
-
-        result[existingIdx] = {
-          title: original.title,
-          normalizedTitle: original.normalizedTitle,
-          content: rebuildSectionContent(finalLeading, mergedSubs),
-          subSections: mergedSubs,
-        }
-      } else {
-        // 若 patch 不含 ### 或原始不含 ### → 整段替換（向下相容）
-        // 偵測是否有原始 ### 子區段被移除
-        if (original.subSections.length > 0 && patch.subSections.length === 0) {
-          for (const sub of original.subSections) {
-            removed.push(`${original.title} > ${sub.title}`)
-          }
-          warnings.push(
-            `${original.title} 下的 ${original.subSections.length} 個子區段被整段替換移除（patch 未包含任何 ### 子區段）`
-          )
-        }
-        result[existingIdx] = {
-          title: original.title,
-          normalizedTitle: original.normalizedTitle,
-          content: patch.content,
-          subSections: patch.subSections,
-        }
-        replaced.push(original.title)
-      }
-    } else {
-      result.push(patch)
-      added.push(patch.title)
-    }
-  }
-
-  return { sections: result, replaced, added, removed, warnings }
-}
-
 /**
  * memory_list — 列出所有 mem-* 記憶卡匣目錄名稱（含過期狀態增強）
  */
@@ -434,7 +172,7 @@ export async function handleMemoryList(args: unknown): Promise<McpToolResult> {
   const agentsDir = path.join(parsed.data.projectRoot, '.agents', 'memory')
   try {
     // 優先從索引檔讀取全部卡匣（含巢狀子卡）
-    const indexPath = path.join(parsed.data.projectRoot, 'cartridge_index.json')
+    const indexPath = path.join(parsed.data.projectRoot, '.cartridge', 'index.json')
     try {
       const indexRaw = await fs.readFile(indexPath, 'utf-8')
       const index = JSON.parse(indexRaw)
@@ -520,7 +258,7 @@ export async function handleMemoryRead(
     // 嘗試從索引取得父子關係提示
     let parentHint = ''
     try {
-      const indexPath = path.join(parsed.data.projectRoot, 'cartridge_index.json')
+      const indexPath = path.join(parsed.data.projectRoot, '.cartridge', 'index.json')
       const indexRaw = await fs.readFile(indexPath, 'utf-8')
       const index = JSON.parse(indexRaw)
       const entry = index.cartridges?.[parsed.data.moduleName]
@@ -564,7 +302,7 @@ export async function handleMemoryStatus(
   }
 
   const { moduleName, projectRoot } = parsed.data
-  const indexPath = path.join(projectRoot, 'cartridge_index.json')
+  const indexPath = path.join(projectRoot, '.cartridge', 'index.json')
 
   // 嘗試從索引檔讀取完整資訊
   try {
@@ -645,34 +383,11 @@ export async function handleMemoryStatus(
   }
 }
 
-/** patch 模式結構化回傳結果 */
-export interface PatchReport {
-  status: 'success' | 'dry_run'
-  module: string
-  replaced: string[]
-  added: string[]
-  removed: string[]
-  preserved: string[]
-  linesBefore: number
-  linesAfter: number
-  warnings: string[]
-  autoFixes: string[]
-}
-
-/** 大幅刪減保護閾值（行數減少百分比） */
-const SHRINKAGE_THRESHOLD = 0.3
-
 /**
  * memory_update — 更新指定記憶卡匣的 SKILL.md，自動更新時間戳記與 staleness
  *
- * [D13] 雙模式寫入：
- *   - replace（預設）：用 content 整張替換 SKILL.md，適用於 AI 讀取完整內容修改後寫回
- *   - append：先讀現有 SKILL.md，再將 content 附加至末尾，適用於 AI 只新增少量段落
- * [D15] patch 模式閘門機制：
- *   - 支援 ### 子區段級合併（最小匹配原則）
- *   - dryRun 操作前預覽
- *   - 結構化 JSON 回傳
- *   - 大幅刪減保護
+ * 整張替換：用 content 替換完整 SKILL.md
+ * ⚠️ 建議使用 write_to_file → memory_commit 的新流程
  */
 export async function handleMemoryUpdate(
   args: unknown,
@@ -707,125 +422,8 @@ export async function handleMemoryUpdate(
       filePath = path.join(parsed.data.projectRoot, '.agents', 'memory', parsed.data.moduleName, 'SKILL.md')
     }
 
-    // [D13/D14/D15] 依 mode 切換寫入策略
-    let base: string
-    let responseText = `Successfully updated ${parsed.data.moduleName} (mode: ${parsed.data.mode})`
-
-    if (parsed.data.mode === 'patch') {
-      // [D14/D15] 區段級替換：讀取 → 解析 → 合併 → 閘門 → 寫回
-      let existingContent: string
-      try {
-        existingContent = await fs.readFile(filePath, 'utf-8')
-      } catch {
-        return {
-          content: [{ type: 'text', text: 'Patch Error: 目標檔案不存在，patch 模式需要基底檔案。請先用 replace 模式建立。' }],
-          isError: true,
-        }
-      }
-
-      const existingDoc = matter(existingContent)
-      // [D25] 行內標題修復：在解析前正規化，偵測黏連的 ## / ### 標題
-      const { text: normalizedExisting, fixes: existingFixes } = normalizeInlineHeadings(
-        existingDoc.content.replace(/\r\n/g, '\n')
-      )
-      const existingParsed = parseSections(normalizedExisting)
-      const patchParsed = parseSections(parsed.data.content)
-
-      if (patchParsed.sections.length === 0) {
-        return {
-          content: [{ type: 'text', text: 'Patch Error: 內容未包含任何 ## 區段。請用 ## 標題包裝更新內容。' }],
-          isError: true,
-        }
-      }
-
-      const mergeResult = mergeSections(existingParsed.sections, patchParsed.sections)
-
-      let newBody = existingParsed.preamble
-      for (const section of mergeResult.sections) {
-        newBody += section.title + '\n' + section.content
-      }
-
-      // 計算行數差異
-      const linesBefore = existingDoc.content.split('\n').length
-      const linesAfter = newBody.split('\n').length
-
-      // 識別保留的區段（未被 patch 提及的 ## 區段）
-      const patchTitles = new Set(patchParsed.sections.map((s) => s.normalizedTitle))
-      const preserved = existingParsed.sections
-        .filter((s) => !patchTitles.has(s.normalizedTitle))
-        .map((s) => s.title)
-
-      // 組建結構化報告
-      const report: PatchReport = {
-        status: parsed.data.dryRun ? 'dry_run' : 'success',
-        module: parsed.data.moduleName,
-        replaced: mergeResult.replaced,
-        added: mergeResult.added,
-        removed: mergeResult.removed,
-        preserved,
-        linesBefore,
-        linesAfter,
-        warnings: [...mergeResult.warnings],
-        autoFixes: existingFixes,
-      }
-
-      // 大幅刪減保護閘門
-      if (linesBefore > 0 && (linesBefore - linesAfter) / linesBefore > SHRINKAGE_THRESHOLD) {
-        report.warnings.push(
-          `⚠️ 大幅刪減警告：行數從 ${linesBefore} 減少到 ${linesAfter}（減少 ${Math.round((1 - linesAfter / linesBefore) * 100)}%，超過 ${SHRINKAGE_THRESHOLD * 100}% 閾值）`
-        )
-      }
-
-      // 新增檔案遺漏偵測：pendingChanges 有 add 事件但 patch 未包含 Tracked Files
-      const hasTrackedFilesInPatch = patchTitles.has(normalizeTitle('## Tracked Files'))
-      if (!hasTrackedFilesInPatch) {
-        try {
-          const indexCheckPath = path.join(parsed.data.projectRoot, 'cartridge_index.json')
-          const indexCheckRaw = await fs.readFile(indexCheckPath, 'utf-8')
-          const idx = JSON.parse(indexCheckRaw)
-          const idxEntry = idx.cartridges?.[parsed.data.moduleName]
-          if (idxEntry?.pendingChanges?.length > 0) {
-            const addedFiles = idxEntry.pendingChanges.filter(
-              (c: { eventType: string }) => c.eventType === 'add'
-            )
-            if (addedFiles.length > 0) {
-              const fileList = addedFiles
-                .map((c: { filePath: string }) => c.filePath)
-                .join(', ')
-              report.warnings.push(
-                `ℹ️ 建議檢查：pendingChanges 中有 ${addedFiles.length} 個新增檔案（${fileList}），但本次 patch 未包含 ## Tracked Files 區段。請確認是否需要更新追蹤檔案清單。`
-              )
-            }
-          }
-        } catch {
-          // 索引不存在 — 靜默略過
-        }
-      }
-
-      // dryRun 模式：不寫入磁碟，只回傳預覽報告
-      if (parsed.data.dryRun) {
-        return {
-          content: [{ type: 'text', text: JSON.stringify(report, null, 2) }],
-        }
-      }
-
-      base = matter.stringify(newBody, existingDoc.data)
-      responseText = JSON.stringify(report, null, 2)
-    } else if (parsed.data.mode === 'append') {
-      // 附加模式：先讀取現有 SKILL.md，再附加 content 至末尾
-      let existingContent = ''
-      try {
-        existingContent = await fs.readFile(filePath, 'utf-8')
-      } catch {
-        // ENOENT：首次建立，允許空白起點
-      }
-      base = existingContent.trimEnd() + '\n' + parsed.data.content.trimStart()
-    } else {
-      // 取代模式（預設）：直接用 content 替換整張 SKILL.md
-      base = parsed.data.content
-    }
-
-    const finalContent = updateFrontmatterFields(base, {
+    // 整張替換寫入
+    const finalContent = updateFrontmatterFields(parsed.data.content, {
       last_updated: isoLocal,
       staleness: 0,
     })
@@ -834,7 +432,7 @@ export async function handleMemoryUpdate(
 
     // 清除索引檔中對應模組的 pendingChanges（graceful，失敗不影響更新結果）
     try {
-      const indexPath = path.join(parsed.data.projectRoot, 'cartridge_index.json')
+      const indexPath = path.join(parsed.data.projectRoot, '.cartridge', 'index.json')
       const indexRaw = await fs.readFile(indexPath, 'utf-8')
       const index = JSON.parse(indexRaw)
       if (index.cartridges?.[parsed.data.moduleName]) {
@@ -847,7 +445,7 @@ export async function handleMemoryUpdate(
     }
 
     return {
-      content: [{ type: 'text', text: responseText }],
+      content: [{ type: 'text', text: `Successfully updated ${parsed.data.moduleName}` }],
     }
   } catch (e: unknown) {
     const msg = e instanceof Error ? e.message : String(e)
@@ -923,7 +521,7 @@ export async function handleMemoryCommit(
     // 5. 索引同步（graceful，失敗不影響主流程）
     let trackedFilesCount = 0
     try {
-      const indexPath = path.join(projectRoot, 'cartridge_index.json')
+      const indexPath = path.join(projectRoot, '.cartridge', 'index.json')
       const indexRaw = await fs.readFile(indexPath, 'utf-8')
       const index = JSON.parse(indexRaw)
       if (index.cartridges?.[moduleName]) {
@@ -973,4 +571,3 @@ export async function handleMemoryCommit(
     return { content: [{ type: 'text', text: `Error: ${msg}` }], isError: true }
   }
 }
-

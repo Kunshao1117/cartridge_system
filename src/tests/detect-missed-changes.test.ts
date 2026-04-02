@@ -9,9 +9,11 @@ import { CartridgeIndexManager } from '../index-manager.js'
 import { createConfig } from '../config.js'
 import type { CartridgeConfig, CartridgeIndex } from '../types.js'
 
+import type NodeFs from 'node:fs'
+
 // 模擬 node:fs，只攔截 statSync，其餘保持原始行為
 vi.mock('node:fs', async (importOriginal) => {
-  const actual = await importOriginal<typeof import('node:fs')>()
+  const actual = await importOriginal<typeof NodeFs>()
   return {
     ...actual,
     default: {

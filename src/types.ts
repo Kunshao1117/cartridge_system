@@ -48,7 +48,7 @@ export interface CartridgeIndex {
 }
 
 /** 注入器偵測結果 */
-export type InjectionStatus = 'missing' | 'outdated' | 'match'
+export type InjectionStatus = 'missing' | 'outdated' | 'match' | 'skipped' | 'conflict'
 
 /** 注入器差異報告項目 */
 export interface InjectionReportItem {
@@ -68,6 +68,8 @@ export interface CartridgeConfig {
   skillsDir: string
   /** 記憶卡匣目錄（相對路徑，v4.0 路徑遷移） */
   memoryDir: string
+  /** 插件運行時狀態目錄（相對路徑） */
+  cartridgeDir: string
   /** 排除監聽的目錄 */
   excludeDirs: string[]
   /** 系統產物豁免清單（不觸發過期計算的檔案） */
@@ -86,4 +88,16 @@ export interface CartridgeConfig {
     fileAdded: number
     dailyDecay: number
   }
+}
+
+/** 注入器衝突處理策略 */
+export type ConflictPolicy = 'ask' | 'alwaysUpdate' | 'alwaysKeepMine'
+
+/** 注入器狀態檔結構（.cartridge/injector.json） */
+export interface InjectorState {
+  version: number
+  settings: {
+    conflictPolicy: ConflictPolicy
+  }
+  deployedHashes: Record<string, string>
 }

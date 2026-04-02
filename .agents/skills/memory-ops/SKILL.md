@@ -4,6 +4,12 @@ description: >
   Complete operating guide for reading, updating, and creating memory cards.
   MCP Server: cartridge-system
   Use when: 建立、讀取或更新專案記憶卡時載入。本技能取代手動的 Markdown 編輯，強制執行合規自動化。
+metadata:
+  author: antigravity
+  version: "2.0"
+  origin: framework
+  memory_awareness: full
+  tool_scope: ["filesystem:write", "mcp:cartridge-system"]
 ---
 
 # Memory Skill Operations (記憶技能操作指引)
@@ -11,6 +17,7 @@ description: >
 ## 1. Core Mandate (支配規則)
 
 All memory card **writes and updates** MUST follow the **two-step flow**:
+
 1. Use native tools (`write_to_file` / `replace_file_content`) to write the full SKILL.md content
 2. Call `cartridge-system__memory_commit` to sync metadata (timezone, staleness, index)
 
@@ -25,10 +32,13 @@ All memory card **writes and updates** MUST follow the **two-step flow**:
 
 ## 2. Reading Memory (載入記憶)
 
-- IDE auto-injects memory card names/descriptions at session start
-- Load on-demand via `memory_read` when task involves tracked files
-- **Overview** — For handoff (`/11_handoff`) or full project overview, call `memory_list` to get all module names and health status
-- **Single module** — For pre-task context loading, call `memory_read` with target module name (e.g., `_system`)
+```
+Need to load memory?
+├── Full project overview or handoff (/11_handoff)
+│   └── Call memory_list → returns all module names + health status
+└── Single module context (pre-task loading)
+    └── Call memory_read(moduleName) → returns full SKILL.md content
+```
 
 ## 3. Repairing Stale Memory (過期修復)
 
@@ -52,7 +62,7 @@ Stale memory card detected?
     ⇒ staleness auto-resets to 0 + pendingChanges auto-cleared + index synced
 ```
 
-> **Core principle**: The purpose of staleness repair is "sync memory with source code", NOT "suppress the alert". Staleness reset is merely a side effect of completing the sync.
+> **FORBIDDEN**: Calling `memory_commit` without first completing Steps 1–5 to sync content. Staleness reset is a SIDE EFFECT of sync, not the goal.
 
 ## 4. Updating Memory (更新記憶)
 
@@ -85,11 +95,13 @@ Need to update memory?
 - ⚠️ `memory_update(mode: append)`: **Deprecated** — No structural validation, causes duplicate sections.
 
 ### Post-Commit Obligations (歸卡後義務)
+
 1. Under `## Module Lessons`, append reusable knowledge discovered (format: `Dxx: description`)
 
 ### Enforcement (強制閘門)
 
 The following enforcement mechanisms ensure compliance:
+
 1. **Completion Gate** — BLOCKS workflow completion if modified files are not reflected in memory cards
 2. **Commit Staleness Warning** — `/09_commit_log` HALTS before committing if memory is stale
 
@@ -112,11 +124,16 @@ New source file created?
 
 ## 5. Creating New Memory (建立新記憶)
 
-When `/02_blueprint` or `/08_audit` identifies a new module:
-1. Create folder `.agents/memory/{module}/`
-2. Create `SKILL.md` with frontmatter + standard sections
-3. Description MUST include Chinese keywords for Director instruction matching
-4. Set `scopePath` frontmatter field when applicable
+```
+New module identified by /02_blueprint or /08_audit?
+├── Step 1: Determine nesting level (see Nesting Decision Tree below)
+├── Step 2: Create folder at resolved path → `.agents/memory/{module}/`
+├── Step 3: Create SKILL.md using template → see references/memory-template.md
+│   ⇒ frontmatter: name, description (MUST include Chinese keywords), scopePath
+│   ⇒ body: Tracked Files, Key Decisions, Known Issues, Module Lessons, Relations, Applicable Skills
+└── Step 4: Call memory_commit(moduleName, projectRoot)
+    ⇒ Registers card in index + validates structure
+```
 
 ### Nesting Decision Tree (層級判斷決策樹)
 
@@ -134,16 +151,14 @@ Create new memory card?
     └── Are there 3+ modules under the same domain that can be independently tracked?
 ```
 
-> See `references/memory-template.md` for the complete template.
+## 5.5 Tree Structure (樹狀結構規則)
 
-## 5.5 Tree Structure (樹狀結構指南)
+### Rules (規則)
 
-Memory cards support parent-child hierarchy via **directory structure**:
-
-- Layer 1-2 cards live in `.agents/memory/` direct subdirectories (IDE auto-injects names)
-- Layer 3-4 cards live inside **parent card's subdirectory** (IDE cannot see; AI loads on-demand after reading parent)
+- Layer 1–2: `.agents/memory/{module}/SKILL.md` — IDE auto-discovers
+- Layer 3–4: `.agents/memory/{parent}/{child}/SKILL.md` — AI loads on-demand via `## Relations`
 - Maximum depth: **4 layers**
-- **`scopePath`** (optional): directory prefix this card is responsible for, used for file attribution
+- `scopePath` (optional): directory prefix for file attribution matching
 
 ### Directory Example (目錄範例)
 
@@ -163,17 +178,18 @@ Memory cards support parent-child hierarchy via **directory structure**:
 
 ### Loading Nested Cards (子卡載入流程)
 
-1. IDE only injects layer 1-2 names and descriptions
-2. AI discovers child cards from `## Relations` section after reading parent
-3. Load deep memory on-demand via `memory_read(childName)`
-4. `resolveSkillPath` handles nested path resolution automatically — AI does not need to know physical directory locations
+```
+Need to access a nested card (layer 3–4)?
+├── Step 1: Read parent card → check ## Relations for child card names
+├── Step 2: Call memory_read(childName)
+│   ⇒ resolveSkillPath handles path resolution automatically
+└── No manual path construction needed
+```
 
-### Granularity Principle (粒度判斷原則)
+### Granularity Rule (粒度規則)
 
-> One memory card = one independent change unit. If modifying A typically does not require modifying B, then A and B should be in separate cards.
-
-- Each memory card tracks no more than **8 files**
-- When exceeded, `memory_list` will proactively suggest splitting
+- Maximum **8 tracked files** per card
+- Exceeded → `memory_list` flags automatically → execute § 5.6
 
 ## 5.6 Splitting Memory Cards (拆分操作步驟)
 
@@ -188,7 +204,7 @@ Need to split a memory card?
 ├── Step 3: Execute after Director approves
 │   ├── Promote the original card to parent (retain shared decisions + scopePath)
 │   ├── Create child card subdirectories under parent (each with scopePath + specific decisions)
-│   └── memory_update to update parent content (trim to shared portions only)
+│   └── write_to_file to update parent SKILL.md (trim to shared portions only)
 ├── Step 4: Plugin auto scan + refresh
 │   ⇒ Index and file watchers update automatically
 ├── Step 5: Call memory_commit for EACH new child card
@@ -199,5 +215,6 @@ Need to split a memory card?
 
 ## 6. System Memory (系統記憶)
 
-`_system/SKILL.md` (in `.agents/memory/`) stores tech stack, host platform, and deployment config.
-Same update rules apply.
+- Path: `.agents/memory/_system/SKILL.md`
+- Content: tech stack, host platform, deployment config
+- Update rules: same as § 4 (write → commit)

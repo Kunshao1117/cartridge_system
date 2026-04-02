@@ -2,7 +2,7 @@
 name: watcher
 description: |
   專案記憶：檔案監聯引擎模組。 Use when: 處理檔案監聽、chokidar設定、監聽生命週期管理時載入。
-last_updated: '2026-03-31T05:12:44+08:00'
+last_updated: '2026-04-02T17:30:51+08:00'
 status: stable
 staleness: 0
 ---
@@ -35,3 +35,6 @@ staleness: 0
 - extension（父卡：外掛啟動後委託監聽）
 - analyzer（兄弟卡：接收異動事件的下游消費者）
 - index-manager（根層共用服務：提供需監聽的檔案清單）
+
+## Applicable Skills
+- test-patterns

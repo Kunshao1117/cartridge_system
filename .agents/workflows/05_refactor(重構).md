@@ -6,7 +6,7 @@ memory_awareness: full
 
 # [WORKFLOW: REFACTOR (重構)]
 
-> **Required Skills**: Load `memory-ops` and `code-quality` skills before proceeding.
+> **Required Skills**: 見 YAML `required_skills` 欄位。
 
 ## 0. Memory Recall (記憶載入)
 - Check the IDE-injected skill list for memory cards relevant to the target modules.
@@ -33,5 +33,5 @@ memory_awareness: full
 
 ## [SECURITY & COMPLIANCE MANDATE]
 > Inherits: `.agents/workflows/_security_footer.md` (Browser Gate)
-- **Role**: `Worker Agent`. You operate under the Sandbox & Gate protocol.
+- **Role**: `Worker` | 權限依安全閘門矩陣。
 - **Memory Update**: After refactoring, update affected memory cards' `## Tracked Files` (if files moved/renamed), `## Key Decisions` (if interfaces changed), and frontmatter.

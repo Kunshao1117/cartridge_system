@@ -24,7 +24,7 @@ const DEFAULT_THRESHOLDS = {
 
 /** 系統產物豁免清單（外掛自身產出的檔案，不觸發過期計算） */
 const DEFAULT_IGNORE_FILES = [
-  'cartridge_index.json',
+  '.cartridge/index.json',
 ]
 
 const DEFAULT_SCORING = {
@@ -47,6 +47,7 @@ export function createConfig(
     projectRoot: path.resolve(projectRoot),
     skillsDir: overrides?.skillsDir ?? '.agents/skills',
     memoryDir: overrides?.memoryDir ?? '.agents/memory',
+    cartridgeDir: overrides?.cartridgeDir ?? '.cartridge',
     excludeDirs: overrides?.excludeDirs ?? DEFAULT_EXCLUDES,
     ignoreFiles: overrides?.ignoreFiles ?? DEFAULT_IGNORE_FILES,
     thresholds: {
@@ -72,4 +73,11 @@ export function getSkillsAbsPath(config: CartridgeConfig): string {
  */
 export function getMemoryAbsPath(config: CartridgeConfig): string {
   return path.resolve(config.projectRoot, config.memoryDir)
+}
+
+/**
+ * 取得插件運行時狀態目錄的絕對路徑
+ */
+export function getCartridgeDirAbsPath(config: CartridgeConfig): string {
+  return path.resolve(config.projectRoot, config.cartridgeDir)
 }

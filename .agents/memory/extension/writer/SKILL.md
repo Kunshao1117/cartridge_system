@@ -2,7 +2,7 @@
 name: writer
 description: |
   專案記憶：記憶卡寫入器模組。 Use when: 處理警報植入、警報移除、記憶卡過期警示注入時載入。
-last_updated: '2026-03-30T03:13:02+08:00'
+last_updated: '2026-04-02T17:30:51+08:00'
 status: stable
 staleness: 0
 ---
@@ -35,3 +35,6 @@ staleness: 0
 - analyzer（兄弟卡：提供 getStalenessLevel() 判斷警報等級）
 - watcher（兄弟卡：上游事件驅動者，偵測到 staleness 重設時呼叫 checkAndCleanWarning）
 - mcp-tools（根層模組：共用 timestamp.ts 時間戳模組）
+
+## Applicable Skills
+- test-patterns

@@ -1,6 +1,6 @@
 ---
 description: Converts business requirements into strict software architecture, ER diagrams, and API routes. Generates dual-track memory.
-required_skills: [memory-ops, tech-stack-protocol]
+required_skills: [memory-ops, tech-stack-protocol, cross-lingual-guard]
 memory_awareness: full
 ---
 

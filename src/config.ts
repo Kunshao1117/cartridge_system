@@ -14,6 +14,7 @@ const DEFAULT_EXCLUDES = [
   '.next',
   '.turbo',
   'coverage',
+  '.cartridge',
 ]
 
 /** 預設過期指數設定 */

@@ -96,6 +96,33 @@ export async function activate(
 
   const projectRoot = workspaceFolders[0].uri.fsPath
 
+  // === 自動排除設定 ===
+  try {
+    const wsConfig = vscode.workspace.getConfiguration()
+    // files.exclude 影響檔案總管顯示
+    const filesExclude = wsConfig.get<Record<string, boolean>>('files.exclude') || {}
+    // search.exclude 影響全域搜尋
+    const searchExclude = wsConfig.get<Record<string, boolean>>('search.exclude') || {}
+    let settingsUpdated = false
+
+    if (filesExclude['**/.cartridge'] !== true) {
+      filesExclude['**/.cartridge'] = true
+      settingsUpdated = true
+    }
+    if (searchExclude['**/.cartridge'] !== true) {
+      searchExclude['**/.cartridge'] = true
+      settingsUpdated = true
+    }
+
+    if (settingsUpdated) {
+      await wsConfig.update('files.exclude', filesExclude, vscode.ConfigurationTarget.Workspace)
+      await wsConfig.update('search.exclude', searchExclude, vscode.ConfigurationTarget.Workspace)
+      console.log('[記憶卡匣] 已將 .cartridge 自動加入工作區排除清單')
+    }
+  } catch (err) {
+    console.error('[記憶卡匣] 自動排除設定失敗：', err)
+  }
+
   // === 初始化流程（允許失敗但不影響指令） ===
   try {
     const config = createConfig(projectRoot)

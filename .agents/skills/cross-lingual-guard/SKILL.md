@@ -99,7 +99,7 @@ Check for:
 ```
 Self-assess confidence in interpretation:
 ├── HIGH → Proceed silently
-├── MEDIUM → Proceed, weave understanding summary into response naturally
+├── MEDIUM → Proceed, prefix response with one-line intent summary: 「執行方向：___」
 └── LOW → Echo-back before acting:
           Output: 「我理解您的意思是：___。是否正確？」
 ```

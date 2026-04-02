@@ -1,6 +1,6 @@
 ---
 description: Consolidates memory snapshotting, changelog recording, and interactive Git commit/push actions.
-required_skills: [memory-ops]
+required_skills: [memory-ops, cross-lingual-guard]
 memory_awareness: full
 ---
 

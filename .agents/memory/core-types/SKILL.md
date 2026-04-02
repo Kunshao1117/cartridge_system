@@ -2,12 +2,11 @@
 name: core-types
 description: |
   專案記憶：共用型別與設定模組。 Use when: 處理系統共用型別定義、設定工廠函式、預設參數時載入。
-last_updated: '2026-04-02T17:30:47+08:00'
-status: stable
+last_updated: '2026-04-02T20:03:10+08:00'
+status: stale
 staleness: 0
 scopePath: src/
 ---
-
 # Core Types & Config — 共用型別與設定記憶
 
 > 本模組包含整個系統的共用型別定義和設定工廠函式，被幾乎所有其他模組引用。
@@ -28,7 +27,7 @@ scopePath: src/
 - 無
 ## Module Lessons
 - D01: types.ts 是純型別定義檔（無執行邏輯），修改時需確認所有引用模組的型別相容性
-- D02: config.ts 的 DEFAULT_EXCLUDES 清單需與 watcher 的實際排除邏輯保持一致
+- D02: config.ts 的 DEFAULT_EXCLUDES 清單需與 watcher 的實際排除邏輯保持一致（例如加入 `.cartridge` 避免無謂掃描）。
 
 ## Relations
 - analyzer（引用 CartridgeConfig、StalenessLevel、FileEventType）

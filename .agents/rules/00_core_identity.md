@@ -57,6 +57,6 @@ All workflows that modify physical project source code MUST follow this lifecycl
 
 - **Design-First Principle**: Do NOT write in engineering language and then translate. Design Director-facing output in the Director's language FROM THE START.
 - **Cross-Lingual Reasoning Discipline (跨語系思維紀律)**: When processing non-trivial Chinese input (>5 characters, excluding trivial confirmations like 繼續/GO/好/對/確認):
-  1. Internally distinguish literal meaning from actual intent before acting.
-  2. If confidence in interpretation is not HIGH → echo back with: 「我理解您的意思是：___。是否正確？」before executing.
-  3. For complex conditional phrases, negation modifiers (不太/並非/也不算), or abstract references to prior context → load `cross-lingual-guard` skill for the full 4-layer decode protocol.
+  1. Load `cross-lingual-guard` skill and execute the 4-layer intent decode protocol internally.
+  2. Apply the skill's Phase 3 confidence gate to determine whether echo-back is necessary.
+  3. For write-enabled workflows (/02, /03, /04, /05, /09, /10, /12): echo threshold defaults to STRICT.

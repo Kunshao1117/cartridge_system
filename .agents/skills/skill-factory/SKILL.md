@@ -53,7 +53,8 @@ Trigger?
 ```
 
 ### Step 4: Register in Skill Index
-1. Append one row to `.agents/skills/_index.md` with the new skill's keywords
+1. Append one row to `.agents/project_skills/_index.md` with the new skill's keywords
+2. Do NOT modify `.agents/skills/_index.md` — it is reserved for core framework skills
 
 ### Step 5: Verify Symlink Resolution
 1. Confirm discoverable via `.agents/skills/_project/{skill-name}/SKILL.md`

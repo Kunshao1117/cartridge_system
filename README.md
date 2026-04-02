@@ -39,6 +39,7 @@ Cartridge System 是一個為 [Antigravity 框架](https://github.com/Kunshao111
 | 🌲 **巢狀目錄掃描** | 支援最大 4 層深度的記憶卡樹狀結構，目錄結構即層級 |
 | 🔗 **巢狀建立支援** | MCP 工具支援 `parentModule` 參數，直接建立巢狀子卡 |
 | 📂 **獨立記憶目錄** | v0.6.0 起記憶卡存放於 `.agents/memory/`，與操作技能完全分離 |
+| 🗃️ **系統目錄隱藏** | 外掛啟動時自動將 `.cartridge/` 寫入 VS Code 工作區排除名單 (`files.exclude`)，保持檔案總管整潔 |
 
 ---
 

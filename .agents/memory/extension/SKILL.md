@@ -2,12 +2,11 @@
 name: extension
 description: |
   專案記憶：VS Code 外掛入口與狀態列模組。 Use when: 處理外掛啟動生命週期、指令註冊、狀態列 UI 更新時載入。
-last_updated: '2026-04-02T17:30:48+08:00'
-status: stable
+last_updated: '2026-04-02T20:03:10+08:00'
+status: stale
 staleness: 0
 scopePath: src/
 ---
-
 # Extension & Status Bar — 外掛入口記憶
 
 > 本模組為外掛的主入口和 UI 層，負責編排所有運行時子模組的啟動、監聽和關閉。
@@ -24,6 +23,8 @@ scopePath: src/
 - D05: 狀態列項目使用 `StatusBarAlignment.Left` 靠左顯示，priority 10
 - D06: 健康報告（cartridge.status）以 VS Code OutputChannel 呈現詳細資訊，每張卡匣一行、按嚴重度排序
 - D07: 狀態列採五層等級總分制 — 加總所有記憶卡過期指數，依總分對應顏色：🟢全部同步(0) / 🔵有變動(10+) / 🟡需注意(30+) / 🟠顯著過期(60+) / 🔴嚴重過期(100+)
+- D08: 外掛啟動時需呼叫 `detectMissedChanges()` 偵測停機期間的檔案變動。此方法作用於 scan() 之後、persist() 之前。它比對追蹤檔案的 mtime 與記憶卡的 `lastUpdated`，補記遺漏的 pendingChange 並重算 staleness。
+- D09: 在啟動流程中會自動讀取 VS Code 工作區設定，將 `.cartridge` 動態寫入 `files.exclude` 和 `search.exclude`，以隱藏系統目錄。
 
 ## Known Issues
 - 無

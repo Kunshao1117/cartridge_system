@@ -14,6 +14,8 @@ All memory card **writes and updates** MUST follow the **two-step flow**:
 1. Use native tools (`write_to_file` / `replace_file_content`) to write the full SKILL.md content
 2. Call `cartridge-system__memory_commit` to sync metadata (timezone, staleness, index)
 
+**Commit Obligation (歸卡義務)**: Skipping step 2 is FORBIDDEN. A memory card written without `memory_commit` is considered INCOMPLETE. The Completion Gate will reject the workflow.
+
 > **Legacy**: `memory_update(mode: replace)` is still available as a fallback but NOT recommended.
 > **Deprecated**: `memory_update(mode: patch)` and `memory_update(mode: append)` are deprecated due to high error rates in Markdown merging.
 
@@ -44,8 +46,10 @@ Stale memory card detected?
 │   ⇒ Read existing memory content
 ├── Step 4: Compare source code changes vs existing memory
 │   ⇒ Produce updated memory content (update decisions/known issues/lessons sections)
-└── Step 5: Call memory_update(mode: patch or replace)
-    ⇒ staleness auto-resets to 0 + pendingChanges auto-cleared
+├── Step 5: Use write_to_file to write the updated SKILL.md
+│   ⇒ Full content including updated sections
+└── Step 6: Call memory_commit(moduleName, projectRoot)
+    ⇒ staleness auto-resets to 0 + pendingChanges auto-cleared + index synced
 ```
 
 > **Core principle**: The purpose of staleness repair is "sync memory with source code", NOT "suppress the alert". Staleness reset is merely a side effect of completing the sync.
@@ -54,7 +58,7 @@ Stale memory card detected?
 
 After modifying source files tracked by a memory skill, you **MUST** update the corresponding memory card.
 
-### Recommended Flow (推薦流程)
+### Mandatory Flow (強制流程 — 不可略過)
 
 ```
 Need to update memory?
@@ -80,14 +84,31 @@ Need to update memory?
 - ⚠️ `memory_update(mode: patch)`: **Deprecated** — High error rate due to Markdown section matching sensitivity.
 - ⚠️ `memory_update(mode: append)`: **Deprecated** — No structural validation, causes duplicate sections.
 
-### Post-Update Checklist
-1. **Add lessons** — under `## Module Lessons` if reusable knowledge discovered (format: `Dxx: description`)
+### Post-Commit Obligations (歸卡後義務)
+1. Under `## Module Lessons`, append reusable knowledge discovered (format: `Dxx: description`)
 
-### Passive Safety Net (被動防護網)
+### Enforcement (強制閘門)
 
-If memory updates were missed during the workflow, two safety nets exist:
-1. **Completion Gate** — forces a file-to-memory cross-reference check before reporting completion
-2. **Commit Staleness Warning** — `/09_commit_log` compares `git diff` against tracked files and warns the Director before committing with stale memory
+The following enforcement mechanisms ensure compliance:
+1. **Completion Gate** — BLOCKS workflow completion if modified files are not reflected in memory cards
+2. **Commit Staleness Warning** — `/09_commit_log` HALTS before committing if memory is stale
+
+## 4.5 New File Attribution (新建檔案歸屬義務)
+
+When your workflow creates new source code files, you MUST attribute them to memory cards BEFORE entering the Completion Gate.
+
+```
+New source file created?
+├── Step 1: Call memory_list to get all cards with scopePath
+├── Step 2: Match new file path against scopePath prefixes
+│   ├── Match found → Add file to that card's ## Tracked Files + memory_commit
+│   └── No match → Step 3
+└── Step 3: HALT and propose to Director:
+    ├── Option A: Expand nearest card's scopePath to cover the new file
+    └── Option B: Create new memory card (execute § 5)
+```
+
+**FORBIDDEN**: Leaving new source files untracked. Every production source file MUST belong to exactly one memory card.
 
 ## 5. Creating New Memory (建立新記憶)
 
@@ -168,8 +189,12 @@ Need to split a memory card?
 │   ├── Promote the original card to parent (retain shared decisions + scopePath)
 │   ├── Create child card subdirectories under parent (each with scopePath + specific decisions)
 │   └── memory_update to update parent content (trim to shared portions only)
-└── Step 4: Plugin auto scan + refresh
-    ⇒ Index and file watchers update automatically
+├── Step 4: Plugin auto scan + refresh
+│   ⇒ Index and file watchers update automatically
+├── Step 5: Call memory_commit for EACH new child card
+│   ⇒ Each child card must be individually committed
+└── Step 6: Call memory_commit for the parent card
+    ⇒ Parent card's trimmed content must also be committed
 ```
 
 ## 6. System Memory (系統記憶)

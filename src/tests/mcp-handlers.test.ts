@@ -9,6 +9,7 @@ import {
   handleMemoryRead,
   handleMemoryUpdate,
   handleMemoryStatus,
+  handleMemoryCommit,
   stalenessToLevel,
   updateFrontmatterFields,
   parseSections,
@@ -1005,5 +1006,130 @@ describe('handleMemoryUpdate — patch 模式黏連場景', () => {
     expect(report.autoFixes).toHaveLength(1)
     expect(report.autoFixes[0]).toContain('行內標題修復')
     expect(report.replaced).toContain('## Relations')
+  })
+})
+
+// ---------------------------------------------------------------------------
+// handleMemoryCommit — 後設資料同步
+// ---------------------------------------------------------------------------
+describe('handleMemoryCommit', () => {
+  it('應正確更新 frontmatter 時間戳與 staleness', async () => {
+    const existing = `---\nname: mem-test\ndescription: test\nlast_updated: "old"\nstaleness: 5\n---\n\n## Tracked Files\n- src/foo.ts\n`
+    vi.mocked(fs.readFile).mockResolvedValue(existing as unknown as Awaited<ReturnType<typeof fs.readFile>>)
+
+    let writtenContent = ''
+    vi.mocked(fs.writeFile).mockImplementation(async (_path, data) => {
+      writtenContent = data as string
+    })
+
+    const result = await handleMemoryCommit({ moduleName: 'mem-test', projectRoot: PROJECT_ROOT })
+
+    expect(result.isError).toBeUndefined()
+    expect(writtenContent).toContain('staleness: 0')
+    expect(writtenContent).toContain('+08:00')
+    expect(writtenContent).not.toContain('staleness: 5')
+  })
+
+  it('時間戳應包含台灣時區 +08:00', async () => {
+    const existing = `---\nname: mem-test\ndescription: test\nlast_updated: "old"\nstaleness: 0\n---\n\n## Tracked Files\n- src/foo.ts\n`
+    vi.mocked(fs.readFile).mockResolvedValue(existing as unknown as Awaited<ReturnType<typeof fs.readFile>>)
+
+    let writtenContent = ''
+    vi.mocked(fs.writeFile).mockImplementation(async (_path, data) => {
+      writtenContent = data as string
+    })
+
+    await handleMemoryCommit({ moduleName: 'mem-test', projectRoot: PROJECT_ROOT })
+
+    expect(writtenContent).toContain('+08:00')
+    expect(writtenContent).not.toMatch(/last_updated:.*Z/)
+  })
+
+  it('應清除索引中的 pendingChanges 並重新解析 trackedFiles', async () => {
+    const existing = `---\nname: mem-test\ndescription: test\nlast_updated: "old"\nstaleness: 10\n---\n\n## Tracked Files\n- src/foo.ts\n- src/bar.ts\n`
+    const indexData = {
+      cartridges: {
+        'mem-test': { staleness: 10, pendingChanges: [{ filePath: 'src/foo.ts' }], trackedFiles: ['src/foo.ts'], lastUpdated: 'old' },
+      },
+      fileMap: { 'src/foo.ts': ['mem-test'] },
+    }
+
+    vi.mocked(fs.readFile).mockImplementation(async (filePath) => {
+      const fp = filePath as string
+      if (fp.includes('cartridge_index')) return JSON.stringify(indexData) as unknown as Awaited<ReturnType<typeof fs.readFile>>
+      return existing as unknown as Awaited<ReturnType<typeof fs.readFile>>
+    })
+
+    let writtenIndex = ''
+    vi.mocked(fs.writeFile).mockImplementation(async (filePath, data) => {
+      const fp = filePath as string
+      if (fp.includes('cartridge_index')) {
+        writtenIndex = data as string
+      }
+    })
+
+    const result = await handleMemoryCommit({ moduleName: 'mem-test', projectRoot: PROJECT_ROOT })
+    const report = JSON.parse(result.content[0].text)
+
+    expect(report.status).toBe('success')
+    expect(report.trackedFilesCount).toBe(2)
+
+    const parsed = JSON.parse(writtenIndex)
+    expect(parsed.cartridges['mem-test'].pendingChanges).toEqual([])
+    expect(parsed.cartridges['mem-test'].staleness).toBe(0)
+    expect(parsed.cartridges['mem-test'].trackedFiles).toEqual(['src/foo.ts', 'src/bar.ts'])
+  })
+
+  it('模組不存在時應回傳錯誤', async () => {
+    vi.mocked(fs.readFile).mockRejectedValue(new Error('ENOENT'))
+    vi.mocked(fs.access).mockRejectedValue(new Error('ENOENT'))
+
+    const result = await handleMemoryCommit({ moduleName: 'nonexistent', projectRoot: PROJECT_ROOT })
+
+    expect(result.isError).toBe(true)
+    expect(result.content[0].text).toContain('not found')
+  })
+
+  it('路徑穿越（..）應回傳 Validation Error', async () => {
+    const result = await handleMemoryCommit({ moduleName: 'mem-test', projectRoot: '/foo/../../etc' })
+
+    expect(result.isError).toBe(true)
+    expect(result.content[0].text).toContain('Validation Error')
+  })
+
+  it('缺少必要欄位時應回傳 warnings', async () => {
+    const existing = `---\nname: mem-test\nstaleness: 0\n---\n\n# No Tracked Files section\n`
+    vi.mocked(fs.readFile).mockResolvedValue(existing as unknown as Awaited<ReturnType<typeof fs.readFile>>)
+    vi.mocked(fs.writeFile).mockResolvedValue(undefined)
+
+    const result = await handleMemoryCommit({ moduleName: 'mem-test', projectRoot: PROJECT_ROOT })
+    const report = JSON.parse(result.content[0].text)
+
+    expect(report.warnings).toContain('frontmatter 缺少 description 欄位')
+    expect(report.warnings).toContain('body 缺少 ## Tracked Files 區段')
+  })
+
+  it('索引檔不存在時同步仍應成功', async () => {
+    const existing = `---\nname: mem-test\ndescription: test\nlast_updated: "old"\nstaleness: 5\n---\n\n## Tracked Files\n- src/foo.ts\n`
+
+    vi.mocked(fs.readFile).mockImplementation(async (filePath) => {
+      const fp = filePath as string
+      if (fp.includes('cartridge_index')) throw new Error('ENOENT')
+      return existing as unknown as Awaited<ReturnType<typeof fs.readFile>>
+    })
+    vi.mocked(fs.writeFile).mockResolvedValue(undefined)
+
+    const result = await handleMemoryCommit({ moduleName: 'mem-test', projectRoot: PROJECT_ROOT })
+    const report = JSON.parse(result.content[0].text)
+
+    expect(report.status).toBe('success')
+    expect(result.isError).toBeUndefined()
+  })
+
+  it('未傳入 projectRoot 時應回傳 Validation Error', async () => {
+    const result = await handleMemoryCommit({ moduleName: 'mem-test' })
+
+    expect(result.isError).toBe(true)
+    expect(result.content[0].text).toContain('Validation Error')
   })
 })

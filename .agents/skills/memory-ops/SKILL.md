@@ -10,7 +10,12 @@ description: >
 
 ## 1. Core Mandate (支配規則)
 
-All memory card **writes and updates** are **forbidden** from using `view_file` + `write_to_file` manual operations. You MUST use `cartridge-system` MCP tools to guarantee timezone (`+08:00`) and staleness index accuracy.
+All memory card **writes and updates** MUST follow the **two-step flow**:
+1. Use native tools (`write_to_file` / `replace_file_content`) to write the full SKILL.md content
+2. Call `cartridge-system__memory_commit` to sync metadata (timezone, staleness, index)
+
+> **Legacy**: `memory_update(mode: replace)` is still available as a fallback but NOT recommended.
+> **Deprecated**: `memory_update(mode: patch)` and `memory_update(mode: append)` are deprecated due to high error rates in Markdown merging.
 
 > **Exception**: During audit workflows (`/08_audit`), **reading and verification** via `view_file` is permitted to validate memory card contents.
 
@@ -47,9 +52,9 @@ Stale memory card detected?
 
 ## 4. Updating Memory (更新記憶)
 
-After modifying source files tracked by a memory skill, you **MUST** invoke `cartridge-system__memory_update`.
+After modifying source files tracked by a memory skill, you **MUST** update the corresponding memory card.
 
-### Mode Selection Decision Tree (模式選擇決策樹)
+### Recommended Flow (推薦流程)
 
 ```
 Need to update memory?
@@ -57,23 +62,23 @@ Need to update memory?
 │   └── Yes → Pause update. Execute § 5.6 split procedure first
 │       → Propose split strategy to Director
 │       → After Director approves, execute split, then update the resulting child cards
-├── Modifying existing sections (tracked files, architecture description, key decisions)
-│   ├── Changing multiple sections or frontmatter → memory_read → modify → memory_update(mode: replace)
-│   └── Changing only 1-2 ## or ### sections → memory_update(mode: patch), send only target sections
-│       ├── Provided ### subsections are replaced; unmentioned ### are auto-preserved
-│       └── Use dryRun: true to preview changes before committing
-│
-└── Purely appending new entries (lesson records Dxx, known issues)
-    └── → memory_update(mode: append) directly, no need to read first
+├── Step 1: Call memory_read(moduleName) to get current content
+│   ⇒ Understand existing decisions, tracked files, known issues
+├── Step 2: Use write_to_file / replace_file_content to write updated SKILL.md
+│   ⇒ Include all sections: frontmatter, Tracked Files, Key Decisions, etc.
+│   ⇒ AI native tools provide the highest write stability
+└── Step 3: Call memory_commit(moduleName, projectRoot)
+    ⇒ Auto-injects Taiwan timezone timestamp
+    ⇒ Auto-resets staleness to 0
+    ⇒ Auto-syncs cartridge_index.json (clears pendingChanges, re-parses trackedFiles)
+    ⇒ Returns structural validation report
 ```
 
-- **`replace`** (default): Send complete SKILL.md content for full replacement. Use for structural modifications.
-- **`append`**: Send diff paragraphs to append to existing content. Use for incremental additions.
-- **`patch`**: Send sections with `##` or `###` headings, without frontmatter. System auto-executes two-layer merge:
-  - `##` layer: same-name sections replaced, new sections appended, unmentioned sections preserved
-  - `###` layer: if patch contains subsections, only mentioned `###` are replaced, unmentioned `###` preserved (minimum-match principle)
-  - Supports `dryRun: true` parameter — returns change preview without writing to disk
-  - Returns structured JSON report (with replaced/added/preserved/removed lists, line diff, warnings)
+### Legacy Fallback (舊版備用)
+
+- `memory_update(mode: replace)`: Send complete SKILL.md content for full replacement. Still functional but less stable than the two-step flow.
+- ⚠️ `memory_update(mode: patch)`: **Deprecated** — High error rate due to Markdown section matching sensitivity.
+- ⚠️ `memory_update(mode: append)`: **Deprecated** — No structural validation, causes duplicate sections.
 
 ### Post-Update Checklist
 1. **Add lessons** — under `## Module Lessons` if reusable knowledge discovered (format: `Dxx: description`)

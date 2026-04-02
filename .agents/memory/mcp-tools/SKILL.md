@@ -2,7 +2,7 @@
 name: mcp-tools
 description: |
   專案記憶：MCP 工具介面模組（第二階段）。 Use when: 處理MCP伺服器註冊、工具路由、AI工具呼叫介面時載入。
-last_updated: '2026-03-31T11:54:01+08:00'
+last_updated: '2026-04-02T11:37:00+08:00'
 status: stable
 staleness: 0
 ---
@@ -40,6 +40,7 @@ staleness: 0
 - D21: memory_update 的 replace/append 模式允許 resolveSkillPath 回傳 null（新建情境），回退到平面路徑創建
 - D23: `package.json` 為全專案共用設定檔，由系統記憶卡統一追蹤。MCP 工具模組不再重複追蹤，追蹤數從 8 降至 7。
 - D25: parseSections / parseSubSections 新增行內標題正規化前處理 — 新增 `normalizeInlineHeadings()` 函式，逐行掃描（程式碼區塊感知）偵測行內的 `## ` / `### ` 並在前方自動插入換行符。解決原始檔案因缺少換行導致區段標題黏連、patch 模式產生重複區段的問題。`PatchReport` 新增 `autoFixes` 欄位回報自動修正紀錄。
+- D26: 職責分離重構 — 新增 `memory_commit` 工具，將記憶卡更新拆為兩步驟：(1) AI 用原生工具寫入 SKILL.md 內容（穩定性最高）；(2) 呼叫 memory_commit 完成後設資料同步（時間戳注入、staleness 歸零、cartridge_index.json 索引同步、trackedFiles 重新解析、fileMap 重建、結構驗證）。memory_update 的 patch/append 模式標記為已棄用，replace 模式保留為向後相容備用。memory-ops 技能指引首選流程更新為 write_to_file → memory_commit。
 
 ## Known Issues
 - 無
@@ -62,3 +63,4 @@ staleness: 0
 - D19: `memory_list` 若依賴 `readdir` 掃描 `.agents/skills/` 的直接子目錄，巢狀在父卡底下的子卡會被完全遺漏。正確做法是從 `cartridge_index.json` 讀取全量卡匣清單，因為索引管理器在掃描時已執行遞迴搜尋。
 - D24: v4.0 路徑遷移 — resolveSkillPath() 擴展為 5 層策略：索引查找 → memory/ 平面回退 → skills/ 平面回退 → memory/ 遞迴搜尋 → skills/ 遞迴搜尋。handleMemoryList() 回退掃描先掃 memory/ 再掃 skills/*。handleMemoryUpdate() 新建路徑改為 .agents/memory/。findSkillRecursive() 新增 requireMemPrefix 參數。
 - D25: Markdown 區段標題解析不能只依賴 `startsWith('## ')`。當上游寫入缺少換行符時，`## ` 會被黏在前一行末尾，導致 `split('\n')` 後無法識別。正確做法是在解析前做一次行內標題正規化，將非行首的 `## ` / `### ` 前自動插入換行符。此正規化需追蹤 ``` 狀態以避免影響程式碼區塊內容。
+- D26: handleMemoryCommit 從 index-manager.ts 匯入 parseTrackedFiles() 來重新解析追蹤檔案清單，確保索引與 SKILL.md 內容同步。同時重建 fileMap 反向映射，先清除模組的舊映射再建立新映射。測試需 mock readFile 區分索引檔和 SKILL.md 的回傳值。

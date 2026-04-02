@@ -9,6 +9,7 @@ import * as z from 'zod'
 import matter from 'gray-matter'
 import { validateProjectRoot } from './path-guard.js'
 import { getTaiwanISO } from './timestamp.js'
+import { parseTrackedFiles } from './index-manager.js'
 
 /** 過期等級閾值（預設值，與 Extension 的 CartridgeConfig 解耦） */
 const STALENESS_THRESHOLDS = { significant: 10, critical: 30 }
@@ -57,6 +58,12 @@ export const memoryUpdateSchema = z.object({
   mode: z.enum(['replace', 'append', 'patch']).default('replace'),
   dryRun: z.boolean().default(false),
   parentModule: z.string().optional(),
+  projectRoot: projectRootField,
+})
+
+/** memory_commit 工具參數驗證 Schema */
+export const memoryCommitSchema = z.object({
+  moduleName: z.string().min(1),
   projectRoot: projectRootField,
 })
 
@@ -842,6 +849,125 @@ export async function handleMemoryUpdate(
     return {
       content: [{ type: 'text', text: responseText }],
     }
+  } catch (e: unknown) {
+    const msg = e instanceof Error ? e.message : String(e)
+    return { content: [{ type: 'text', text: `Error: ${msg}` }], isError: true }
+  }
+}
+
+/** 結構驗證結果 */
+export interface CommitReport {
+  status: 'success'
+  module: string
+  trackedFilesCount: number
+  warnings: string[]
+}
+
+/**
+ * memory_commit — 後設資料同步工具
+ * 在 AI 用原生工具寫入 SKILL.md 後呼叫，負責：
+ * 1. 時間戳注入（台灣時區）
+ * 2. staleness 歸零
+ * 3. 索引同步（pendingChanges 清除 + trackedFiles 重新解析）
+ * 4. 結構驗證（frontmatter 欄位 + 必要區段檢查）
+ */
+export async function handleMemoryCommit(
+  args: unknown,
+): Promise<McpToolResult> {
+  const parsed = memoryCommitSchema.safeParse(args)
+  if (!parsed.success) {
+    return {
+      content: [{ type: 'text', text: 'Validation Error: moduleName and projectRoot are required (projectRoot must be absolute path without ..)' }],
+      isError: true,
+    }
+  }
+
+  // 路徑安全二次驗證
+  try {
+    validateProjectRoot(parsed.data.projectRoot)
+  } catch (e: unknown) {
+    const msg = e instanceof Error ? e.message : String(e)
+    return { content: [{ type: 'text', text: `Path Validation Error: ${msg}` }], isError: true }
+  }
+
+  try {
+    const { moduleName, projectRoot } = parsed.data
+    const isoLocal = getTaiwanISO()
+
+    // 1. 路徑解析
+    const filePath = await resolveSkillPath(projectRoot, moduleName)
+    if (!filePath) {
+      return {
+        content: [{ type: 'text', text: `Error: Module "${moduleName}" not found. Please ensure the SKILL.md file exists before calling memory_commit.` }],
+        isError: true,
+      }
+    }
+
+    // 2. 讀取已寫入的 SKILL.md
+    const rawContent = await fs.readFile(filePath, 'utf-8')
+
+    // 3. 結構驗證
+    const warnings: string[] = []
+    const { data: frontmatter, content: body } = matter(rawContent)
+    if (!frontmatter.name) warnings.push('frontmatter 缺少 name 欄位')
+    if (!frontmatter.description) warnings.push('frontmatter 缺少 description 欄位')
+    if (!body.includes('## Tracked Files')) warnings.push('body 缺少 ## Tracked Files 區段')
+
+    // 4. 時間戳注入 + staleness 歸零
+    const updatedContent = updateFrontmatterFields(rawContent, {
+      last_updated: isoLocal,
+      staleness: 0,
+    })
+    await fs.writeFile(filePath, updatedContent, 'utf-8')
+
+    // 5. 索引同步（graceful，失敗不影響主流程）
+    let trackedFilesCount = 0
+    try {
+      const indexPath = path.join(projectRoot, 'cartridge_index.json')
+      const indexRaw = await fs.readFile(indexPath, 'utf-8')
+      const index = JSON.parse(indexRaw)
+      if (index.cartridges?.[moduleName]) {
+        // 清除 pendingChanges + staleness
+        index.cartridges[moduleName].pendingChanges = []
+        index.cartridges[moduleName].staleness = 0
+        index.cartridges[moduleName].lastUpdated = isoLocal
+
+        // 重新解析 trackedFiles
+        const trackedFiles = parseTrackedFiles(body)
+        index.cartridges[moduleName].trackedFiles = trackedFiles
+        trackedFilesCount = trackedFiles.length
+
+        // 重建此模組的 fileMap 條目
+        for (const [file, modules] of Object.entries(index.fileMap ?? {})) {
+          const filtered = (modules as string[]).filter(m => m !== moduleName)
+          if (filtered.length === 0) {
+            delete index.fileMap[file]
+          } else {
+            index.fileMap[file] = filtered
+          }
+        }
+        for (const file of trackedFiles) {
+          if (!index.fileMap[file]) index.fileMap[file] = []
+          if (!(index.fileMap[file] as string[]).includes(moduleName)) {
+            (index.fileMap[file] as string[]).push(moduleName)
+          }
+        }
+
+        await fs.writeFile(indexPath, JSON.stringify(index, null, 2), 'utf-8')
+      }
+    } catch {
+      // 索引檔不存在或讀寫失敗 — 靜默忽略
+    }
+
+    // 6. 回傳結構化報告
+    const report: CommitReport = {
+      status: 'success',
+      module: moduleName,
+      trackedFilesCount,
+      warnings,
+    }
+
+    return { content: [{ type: 'text', text: JSON.stringify(report, null, 2) }] }
   } catch (e: unknown) {
     const msg = e instanceof Error ? e.message : String(e)
     return { content: [{ type: 'text', text: `Error: ${msg}` }], isError: true }

@@ -2,8 +2,8 @@
 
 > **主動式 AI 記憶防禦引擎** — 自動偵測記憶卡過期、植入攔截警報，確保 AI 不讀取失效的上下文。
 
-[![version](https://img.shields.io/badge/version-0.7.0-blue)](./CHANGELOG.md)
-[![tests](https://img.shields.io/badge/tests-146%20passed-brightgreen)](#-執行測試)
+[![version](https://img.shields.io/badge/version-0.8.0-blue)](./CHANGELOG.md)
+[![tests](https://img.shields.io/badge/tests-154%20passed-brightgreen)](#-執行測試)
 [![license](https://img.shields.io/badge/license-MIT-green)](#)
 
 ---
@@ -53,7 +53,7 @@ npm run build
 npm run package
 
 # 使用 Antigravity IDE CLI 安裝（注意：不可用 code 指令）
-antigravity --install-extension cartridge-system-0.7.0.vsix --force
+antigravity --install-extension cartridge-system-0.8.0.vsix --force
 ```
 
 ### 方法二：開發模式
@@ -97,7 +97,8 @@ Cartridge System 提供 MCP（Model Context Protocol）工具伺服器，供 AI 
 |----------|------|
 | `memory_list` | 列出指定專案中所有記憶卡匣（含過期指數、健康等級、深度層級、待處理異動數量） |
 | `memory_read` | 讀取特定記憶技能的完整 SKILL.md 內容（自動解析巢狀路徑） |
-| `memory_update` | 更新記憶技能內容，支援 `replace`（整張替換）、`append`（附加到末尾）、`patch`（`##`/`###` 兩層區段級替換，支援 `dryRun` 預覽）三種模式。支援 `parentModule` 參數建立巢狀子卡。成功後自動清除待處理異動紀錄 |
+| `memory_update` | ⚠️ 舊版介面（建議改用 `memory_commit`）。更新記憶技能內容，支援 `replace`（整張替換）、`append`（已棄用）、`patch`（已棄用）三種模式 |
+| `memory_commit` | **推薦** — AI 用原生工具寫入 SKILL.md 後呼叫。自動完成：時間戳注入（+08:00）、staleness 歸零、索引同步（清除 pendingChanges、重新解析 trackedFiles、重建 fileMap）、結構驗證 |
 | `memory_status` | 查詢指定記憶卡的過期修復診斷：過期指數、異動檔案清單（含絕對路徑）及修復行動指引 |
 
 ### 跨專案支援
@@ -111,30 +112,14 @@ memory_read({
   projectRoot: 'D:\\bartender_map'
 })
 
-// 附加教訓到記憶卡
-memory_update({
+// ✅ 推薦流程：先用原生工具寫入 SKILL.md，再呼叫 memory_commit 同步
+// Step 1: AI 使用 write_to_file 寫入完整 SKILL.md 內容
+// Step 2: 呼叫 memory_commit 完成後設資料同步
+memory_commit({
   moduleName: 'dashboard-ui',
-  content: '## Module Lessons\n- D19: 新教訓內容',
-  mode: 'append',
   projectRoot: 'D:\\bartender_map'
 })
-
-// 精確更新特定區段（patch 模式）
-memory_update({
-  moduleName: 'dashboard-ui',
-  content: '## Known Issues\n- 更新後的已知問題清單\n',
-  mode: 'patch',
-  projectRoot: 'D:\\bartender_map'
-})
-
-// 操作前預覽（dryRun 模式）
-memory_update({
-  moduleName: 'dashboard-ui',
-  content: '## Tech Stack\n### Backend\n- Next.js 15\n',
-  mode: 'patch',
-  dryRun: true,
-  projectRoot: 'D:\\bartender_map'
-})
+// → 自動更新時間戳、歸零 staleness、同步索引、驗證結構
 
 // 查詢過期修復診斷
 memory_status({
@@ -142,7 +127,7 @@ memory_status({
   projectRoot: 'D:\\bartender_map'
 })
 
-// 建立巢狀子卡
+// 建立巢狀子卡（舊版 memory_update 仍可用於此場景）
 memory_update({
   moduleName: 'api-auth',
   content: '---\nname: api-auth\n---\n# API Auth Module',
@@ -169,7 +154,7 @@ memory_update({
 ## 🧪 執行測試
 
 ```bash
-# 執行完整測試套件（146 個案例）
+# 執行完整測試套件（154 個案例）
 npm test
 
 # 監聽模式（開發時使用）
@@ -181,7 +166,7 @@ npm run test:watch
 | 測試模組 | 案例數 | 涵蓋範圍 |
 |----------|--------|----------|
 | 索引管理器 | 22 | 掃描、findOwner、getChildren、遞迴掃描驗證、resolveModulePath |
-| MCP 工具介面 | 74 | 正常流程、路徑穿越防禦、時間戳驗證、replace/append/patch 三模式、段落解析與合併、子區段級合併、dryRun 閘門、大幅刪減保護、過期狀態診斷、巢狀路徑解析、parentModule 巢狀建立、行內標題黏連修復 |
+| MCP 工具介面 | 82 | 正常流程、路徑穿越防禦、時間戳驗證、replace/append/patch 三模式、段落解析與合併、子區段級合併、dryRun 閘門、大幅刪減保護、過期狀態診斷、巢狀路徑解析、parentModule 巢狀建立、行內標題黏連修復、memory_commit 後設資料同步 |
 | 過期分析器 | 11 | 過期等級四分支、三種事件計分、閾值觸發 |
 | 警報寫入器 | 9 | 冪等植入、條件式清除、狀態回復 |
 | 路徑安全驗證 | 8 | 絕對/相對路徑、穿越攻擊拒絕 |
@@ -207,7 +192,7 @@ cartridge_system/
 │   ├── path-guard.ts      # 路徑安全驗證（雙層防禦）
 │   ├── timestamp.ts       # 時間戳生成（Intl API）
 │   ├── types.ts           # 共用型別定義
-│   └── tests/             # vitest 單元測試（8 檔 146 案例）
+│   └── tests/             # vitest 單元測試（8 檔 154 案例）
 ├── .agents/
 │   ├── memory/            # 記憶卡匣（v0.6.0 起獨立目錄）
 │   │   ├── _system/              # 系統記憶
@@ -223,7 +208,7 @@ cartridge_system/
 │   └── workflows/         # Antigravity 工作流程
 ├── dist/                  # 編譯輸出（tsup 打包）
 ├── CHANGELOG.md           # 更新紀錄
-└── package.json           # v0.7.0
+└── package.json           # v0.8.0
 ```
 
 ### 技術堆疊

@@ -9,6 +9,7 @@ import {
   handleMemoryRead,
   handleMemoryUpdate,
   handleMemoryStatus,
+  handleMemoryCommit,
 } from './mcp-handlers.js'
 
 const server = new Server(
@@ -51,7 +52,7 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
       },
       {
         name: 'memory_update',
-        description: '寫入並更新指定專案中特定 mem-* 模組的內容（會自動更新時間戳記與健康狀態）。支援三種模式：replace（整張替換）、append（附加到末尾）、patch（## / ### 區段級替換，支援 dryRun 預覽）。',
+        description: '⚠️ 建議使用 write_to_file → memory_commit 的新流程。本工具為舊版介面，保留向後相容。寫入並更新指定專案中特定模組的內容（會自動更新時間戳記與健康狀態）。支援三種模式：replace（整張替換）、append（已棄用）、patch（已棄用，## / ### 區段級替換）。',
         inputSchema: {
           type: 'object',
           properties: {
@@ -72,6 +73,18 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
           type: 'object',
           properties: {
             moduleName: { type: 'string', description: '記憶卡匣名稱，例如 mem-analyzer' },
+            projectRoot: { type: 'string', description: '目標專案的根目錄絕對路徑' },
+          },
+          required: ['moduleName', 'projectRoot'],
+        },
+      },
+      {
+        name: 'memory_commit',
+        description: '在 AI 用原生工具（write_to_file / replace_file_content）寫入 SKILL.md 後呼叫。自動完成：(1) 時間戳注入（台灣時區 +08:00）(2) staleness 歸零 (3) cartridge_index.json 索引同步（清除 pendingChanges、重新解析 trackedFiles）(4) 結構驗證（檢查必要欄位與區段）。此工具不處理任何內容寫入。',
+        inputSchema: {
+          type: 'object',
+          properties: {
+            moduleName: { type: 'string', description: '記憶卡匣名稱，例如 _system' },
             projectRoot: { type: 'string', description: '目標專案的根目錄絕對路徑' },
           },
           required: ['moduleName', 'projectRoot'],
@@ -99,6 +112,10 @@ server.setRequestHandler(CallToolRequestSchema, async (request): Promise<any> =>
 
   if (name === 'memory_status') {
     return handleMemoryStatus(args)
+  }
+
+  if (name === 'memory_commit') {
+    return handleMemoryCommit(args)
   }
 
   return { content: [{ type: 'text', text: `Unknown tool: ${name}` }], isError: true }

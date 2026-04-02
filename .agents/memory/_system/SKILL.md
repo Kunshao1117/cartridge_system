@@ -2,10 +2,19 @@
 name: _system
 description: |
   專案記憶：系統技術堆疊與部署設定。 Use when: 確認技術選型、環境設定、部署組態時載入。
-last_updated: '2026-03-31T06:40:03+08:00'
-status: stable
-staleness: 0
+last_updated: '2026-03-31T12:15:32+08:00'
+status: stale
+staleness: 11
 ---
+<!-- CARTRIDGE_SYSTEM_WARNING_START -->
+
+> [!CAUTION]
+> 🟠 **系統強制攔截**：此記憶已過期失真！
+> 追蹤檔案異動：`package.json`（2026-04-02T11:43:32+08:00）
+> AI 嚴禁基於此記憶施工，必須優先閱讀最新原始碼並更新此記憶卡。
+> staleness: 11 | threshold: 🟠 顯著過期
+
+<!-- CARTRIDGE_SYSTEM_WARNING_END -->
 
 # System — 系統記憶
 
@@ -49,13 +58,12 @@ staleness: 0
 - `vitest` ^3.0.0
 
 ## Config Files
-- `package.json` — VS Code Extension 元數據（含 activationEvents / contributes），當前版本 **0.6.5**
+- `package.json` — VS Code Extension 元數據（含 activationEvents / contributes），當前版本 **0.7.0**
 - `tsconfig.json` — CommonJS + node 模組解析
 - `tsup.config.ts` — entry: extension.ts / format: cjs / external: vscode / noExternal: chokidar, gray-matter / **onSuccess: 複製範本目錄**
 - `eslint.config.js` — ESLint v9 Flat Config（CJS 格式，@typescript-eslint）
 - `.vscodeignore` — 打包排除清單（含 .agents/ 排除）
-- `cartridge_index.json` — 執行期產生
-## Key Decisions
+- `cartridge_index.json` — 執行期產生## Key Decisions
 ### D11
 D11: tsup `onSuccess` hook 負責在建置完成後自動複製 `src/templates/` 至 `dist/templates/`，確保注入器的靜態範本隨外掛打包
 
@@ -63,5 +71,5 @@ D11: tsup `onSuccess` hook 負責在建置完成後自動複製 `src/templates/`
 - 無
 
 ## Module Lessons
-### D08
-D08: tsup 只打包 TypeScript 模組樹，不會自動複製非程式碼的靜態資源（Markdown、JSONL 等）。需透過 `onSuccess` hook 手動複製
+- L01: _system 紀錄專案的基礎依賴變更與發布紀錄。
+- L02: v0.7.0 (2026-03-31) — 發布區段標題黏連修復與行內自動修復引擎。

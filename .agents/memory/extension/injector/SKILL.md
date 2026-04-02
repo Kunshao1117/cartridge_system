@@ -16,11 +16,11 @@ staleness: 0
 
 ## Key Decisions
 - D01: SHA-256 雜湊值比對範本與實體檔案
-- D02: 絕不覆寫記憶卡匣（安全防護，相容新舊路徑：mem-* 前綴 + memory/ 目錄）
+- D02: 絕不覆寫記憶卡匣（安全防護，相容新舊路徑：* 前綴 + memory/ 目錄）
 - D03: 三態偵測：Missing / Outdated / Match
 - D04: 黃金範本隨外掛原始碼打包
 - D05: CommonJS 環境使用 __dirname 取得範本路徑（非 import.meta.dirname）
-- D06: v4.0 路徑遷移 — 安全防護擴展至 memory/ 目錄，除了 mem-* 前綴判斷外新增 memory/ 路徑保護
+- D06: v4.0 路徑遷移 — 安全防護擴展至 memory/ 目錄，除了 * 前綴判斷外新增 memory/ 路徑保護
 - D07: v4.1 棄用日誌系統 — 移除 inject() 啟動時自動建立 .agents/logs 目錄的邏輯，logs 目錄不再由注入器管理
 ## Known Issues
 - 無

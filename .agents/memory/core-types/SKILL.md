@@ -2,7 +2,7 @@
 name: core-types
 description: |
   專案記憶：共用型別與設定模組。 Use when: 處理系統共用型別定義、設定工廠函式、預設參數時載入。
-last_updated: '2026-04-02T20:03:10+08:00'
+last_updated: '2026-04-09T18:56:49+08:00'
 status: stale
 staleness: 0
 scopePath: src/
@@ -16,7 +16,7 @@ scopePath: src/
 - src/config.ts
 
 ## Key Decisions
-- D01: CartridgeEntry 資料結構包含 depth（必填）和 parent（系統推導，string | null），支援巢狀目錄層級
+- D01: CartridgeEntry 資料結構不包含 scopePath，廢除原有的基於目錄前綴推導歸屬機制的債務
 - D02: StalenessLevel 四級制（healthy / mild / significant / critical）
 - D03: CartridgeConfig 包含 projectRoot、skillsDir、memoryDir、excludeDirs、ignoreFiles、thresholds、scoring 七大設定區塊
 - D04: createConfig() 工廠函式支援 Partial<CartridgeConfig> 覆蓋，預設值集中管理

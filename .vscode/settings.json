@@ -1,4 +1,26 @@
 {
   "snyk.advanced.autoSelectOrganization": true,
-  "snyk.advanced.organization": "a35df476-88c8-4401-89ea-ff00b82f2f22"
+  "snyk.advanced.organization": "a35df476-88c8-4401-89ea-ff00b82f2f22",
+  "files.exclude": {
+    "**/.git": true,
+    "**/.svn": true,
+    "**/.hg": true,
+    "**/.DS_Store": true,
+    "**/Thumbs.db": true,
+    "**/CVS": true,
+    "**/.ruby-lsp": true,
+    "**/.trunk/*actions/": true,
+    "**/.trunk/*logs/": true,
+    "**/.trunk/*notifications/": true,
+    "**/.trunk/*out/": true,
+    "**/.trunk/*plugins/": true,
+    "**/.cartridge": true
+  },
+  "search.exclude": {
+    "**/node_modules": true,
+    "**/bower_components": true,
+    "**/*.code-search": true,
+    "**/.ruby-lsp": true,
+    "**/.cartridge": true
+  }
 }

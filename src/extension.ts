@@ -4,18 +4,21 @@
  * deactivate：VS Code 關閉時自動執行
  */
 
-import * as vscode from 'vscode'
-import { createConfig } from './config'
-import { CoreInjector } from './injector'
-import { CartridgeIndexManager } from './index-manager'
-import { StalenessAnalyzer } from './analyzer'
-import { MemoryWriter } from './writer'
-import { CartridgeWatcher } from './watcher'
-import { CartridgeStatusBar } from './status-bar'
+import * as vscode from "vscode";
+import { createConfig } from "./config";
+import { CoreInjector } from "./injector";
+import { CartridgeIndexManager } from "./index-manager";
+import { StalenessAnalyzer } from "./analyzer";
+import { MemoryWriter } from "./writer";
+import { CartridgeWatcher } from "./watcher";
+import { CartridgeStatusBar } from "./status-bar";
+import { GitignoreFilter } from "./gitignore-filter";
 
-let watcher: CartridgeWatcher | undefined
-let indexManager: CartridgeIndexManager | undefined
-let statusBar: CartridgeStatusBar | undefined
+let watcher: CartridgeWatcher | undefined;
+let indexManager: CartridgeIndexManager | undefined;
+let statusBar: CartridgeStatusBar | undefined;
+let gitignoreFilter: GitignoreFilter | undefined;
+let config: ReturnType<typeof createConfig> | undefined;
 
 /**
  * 擴充套件啟動（VS Code 開啟含 .agents 工作區時自動呼叫）
@@ -23,141 +26,202 @@ let statusBar: CartridgeStatusBar | undefined
 export async function activate(
   context: vscode.ExtensionContext,
 ): Promise<void> {
-
   // === 最優先：無條件註冊指令 ===
 
   // 命令：重新掃描索引
   context.subscriptions.push(
-    vscode.commands.registerCommand('cartridge.scan', async () => {
-      if (!indexManager) {
-        vscode.window.showWarningMessage('記憶卡匣：系統尚未初始化完成')
-        return
+    vscode.commands.registerCommand("cartridge.scan", async () => {
+      if (!indexManager || !config || !gitignoreFilter) {
+        vscode.window.showWarningMessage("記憶卡匣：系統尚未初始化完成");
+        return;
       }
-      const newIndex = await indexManager.scan()
-      await indexManager.persist()
-      statusBar?.update(newIndex)
-      const count = Object.keys(newIndex.cartridges).length
-      vscode.window.showInformationMessage(
-        `記憶卡匣：已掃描 ${count} 個卡匣`,
-      )
+      const newIndex = await indexManager.scan();
+      indexManager.detectMissedChanges(config.scoring);
+      indexManager.refilterUntrackedFiles(gitignoreFilter);
+      await indexManager.persist();
+      statusBar?.update(indexManager.getIndex());
+      const count = Object.keys(newIndex.cartridges).length;
+      vscode.window.showInformationMessage(`記憶卡匣：已掃描 ${count} 個卡匣`);
     }),
-  )
+  );
+
+  // 命令：重新掃描未歸屬檔案
+  context.subscriptions.push(
+    vscode.commands.registerCommand("cartridge.scanGhosts", async () => {
+      if (!indexManager || !gitignoreFilter) {
+        vscode.window.showWarningMessage("記憶卡匣：系統尚未初始化完成");
+        return;
+      }
+      gitignoreFilter.reload();
+      indexManager.clearUntrackedFiles();
+      indexManager.detectUntrackedFiles(gitignoreFilter);
+      await indexManager.persist();
+      statusBar?.update(indexManager.getIndex());
+      const count = indexManager.getUntrackedFiles().length;
+      vscode.window.showInformationMessage(
+        `記憶卡匣：已掃描 ${count} 個未歸屬檔案`,
+      );
+    }),
+  );
 
   // 命令：查看健康報告
   context.subscriptions.push(
-    vscode.commands.registerCommand('cartridge.status', () => {
-      const idx = indexManager?.getIndex()
+    vscode.commands.registerCommand("cartridge.status", () => {
+      const idx = indexManager?.getIndex();
       if (!idx) {
-        vscode.window.showWarningMessage('記憶卡匣：尚未初始化')
-        return
+        vscode.window.showWarningMessage("記憶卡匣：尚未初始化");
+        return;
       }
-      const entries = Object.entries(idx.cartridges)
-      const totalScore = entries.reduce(
-        (sum, [, v]) => sum + v.staleness, 0,
-      )
+      const entries = Object.entries(idx.cartridges);
+      const totalScore = entries.reduce((sum, [, v]) => sum + v.staleness, 0);
       if (totalScore === 0) {
         vscode.window.showInformationMessage(
-          '記憶卡匣 🟢 全部健康，無過期卡匣',
-        )
+          "記憶卡匣 🟢 全部健康，無過期卡匣",
+        );
       } else {
-        const channel = vscode.window.createOutputChannel(
-          '記憶卡匣健康報告',
-        )
+        const channel = vscode.window.createOutputChannel("記憶卡匣健康報告");
         const sorted = entries
           .filter(([, v]) => v.staleness > 0)
-          .sort(([, a], [, b]) => b.staleness - a.staleness)
+          .sort(([, a], [, b]) => b.staleness - a.staleness);
         const tierIcon = (s: number) =>
-          s >= 100 ? '🔴' : s >= 60 ? '🟠' : s >= 30 ? '🟡' : s >= 10 ? '🔵' : '🟢'
+          s >= 100
+            ? "🔴"
+            : s >= 60
+              ? "🟠"
+              : s >= 30
+                ? "🟡"
+                : s >= 10
+                  ? "🔵"
+                  : "🟢";
 
-        channel.clear()
-        channel.appendLine(`⚠️ 記憶卡匣過期報告（總分：${totalScore}）`)
-        channel.appendLine('')
+        channel.clear();
+        channel.appendLine(`⚠️ 記憶卡匣過期報告（總分：${totalScore}）`);
+        channel.appendLine("");
         for (const [id, v] of sorted) {
-          const icon = tierIcon(v.staleness)
-          const changes = v.pendingChanges?.length ?? 0
+          const icon = tierIcon(v.staleness);
+          const changes = v.pendingChanges?.length ?? 0;
           channel.appendLine(
             `${icon} ${id.padEnd(24)} staleness=${String(v.staleness).padStart(3)}  (${changes} 個檔案異動)`,
-          )
+          );
         }
-        const healthy = entries.filter(([, v]) => v.staleness === 0)
+        const healthy = entries.filter(([, v]) => v.staleness === 0);
         for (const [id] of healthy) {
-          channel.appendLine(`🟢 ${id.padEnd(24)} staleness=  0`)
+          channel.appendLine(`🟢 ${id.padEnd(24)} staleness=  0`);
         }
-        channel.show(true)
+        channel.show(true);
+      }
+
+      // 未歸屬檔案報告
+      const untracked = idx.untrackedFiles ?? [];
+      if (untracked.length > 0) {
+        const channel = vscode.window.createOutputChannel("記憶卡匣未歸屬檔案");
+        channel.clear();
+        channel.appendLine(`👻 未歸屬檔案 (共 ${untracked.length} 個)`);
+        channel.appendLine("");
+        for (const entry of untracked) {
+          const owner = entry.suggestedOwner
+            ? ` → 建議歸屬: ${entry.suggestedOwner}`
+            : " → 無匹配的記憶卡";
+          channel.appendLine(`  • ${entry.filePath}${owner}`);
+        }
+        channel.show(true);
       }
     }),
-  )
+  );
 
   // === 工作區檢查（僅影響初始化，不影響指令） ===
-  const workspaceFolders = vscode.workspace.workspaceFolders
+  const workspaceFolders = vscode.workspace.workspaceFolders;
   if (!workspaceFolders || workspaceFolders.length === 0) {
-    return
+    return;
   }
 
-  const projectRoot = workspaceFolders[0].uri.fsPath
+  const projectRoot = workspaceFolders[0].uri.fsPath;
 
   // === 自動排除設定 ===
   try {
-    const wsConfig = vscode.workspace.getConfiguration()
+    const wsConfig = vscode.workspace.getConfiguration();
     // files.exclude 影響檔案總管顯示
-    const filesExclude = wsConfig.get<Record<string, boolean>>('files.exclude') || {}
+    const filesExclude =
+      wsConfig.get<Record<string, boolean>>("files.exclude") || {};
     // search.exclude 影響全域搜尋
-    const searchExclude = wsConfig.get<Record<string, boolean>>('search.exclude') || {}
-    let settingsUpdated = false
+    const searchExclude =
+      wsConfig.get<Record<string, boolean>>("search.exclude") || {};
+    let settingsUpdated = false;
 
-    if (filesExclude['**/.cartridge'] !== true) {
-      filesExclude['**/.cartridge'] = true
-      settingsUpdated = true
+    if (filesExclude["**/.cartridge"] !== true) {
+      filesExclude["**/.cartridge"] = true;
+      settingsUpdated = true;
     }
-    if (searchExclude['**/.cartridge'] !== true) {
-      searchExclude['**/.cartridge'] = true
-      settingsUpdated = true
+    if (searchExclude["**/.cartridge"] !== true) {
+      searchExclude["**/.cartridge"] = true;
+      settingsUpdated = true;
     }
 
     if (settingsUpdated) {
-      await wsConfig.update('files.exclude', filesExclude, vscode.ConfigurationTarget.Workspace)
-      await wsConfig.update('search.exclude', searchExclude, vscode.ConfigurationTarget.Workspace)
-      console.log('[記憶卡匣] 已將 .cartridge 自動加入工作區排除清單')
+      await wsConfig.update(
+        "files.exclude",
+        filesExclude,
+        vscode.ConfigurationTarget.Workspace,
+      );
+      await wsConfig.update(
+        "search.exclude",
+        searchExclude,
+        vscode.ConfigurationTarget.Workspace,
+      );
+      console.log("[記憶卡匣] 已將 .cartridge 自動加入工作區排除清單");
     }
   } catch (err) {
-    console.error('[記憶卡匣] 自動排除設定失敗：', err)
+    console.error("[記憶卡匣] 自動排除設定失敗：", err);
   }
 
   // === 初始化流程（允許失敗但不影響指令） ===
   try {
-    const config = createConfig(projectRoot)
+    config = createConfig(projectRoot);
 
-    statusBar = new CartridgeStatusBar(context)
-    statusBar.show('初始化中...')
+    statusBar = new CartridgeStatusBar(context);
+    statusBar.show("初始化中...");
 
-    const injector = new CoreInjector(config)
-    await injector.inject()
-    vscode.window.setStatusBarMessage(injector.formatReport(), 5000)
+    const injector = new CoreInjector(config);
+    await injector.inject();
+    vscode.window.setStatusBarMessage(injector.formatReport(), 5000);
 
-    indexManager = new CartridgeIndexManager(config)
-    const index = await indexManager.scan()
-    indexManager.detectMissedChanges(config.scoring)
-    await indexManager.persist()
+    // Gitignore 排除引擎初始化
+    gitignoreFilter = new GitignoreFilter(projectRoot);
 
-    statusBar.update(index)
+    indexManager = new CartridgeIndexManager(config);
+    const index = await indexManager.scan();
+    indexManager.detectMissedChanges(config.scoring);
 
-    const writer = new MemoryWriter(config)
-    const analyzer = new StalenessAnalyzer(config, indexManager, writer)
-    const refreshStatusBar = () => statusBar?.update(indexManager?.getIndex())
-    watcher = new CartridgeWatcher(config, indexManager, analyzer, refreshStatusBar)
-    await watcher.start()
+    // 全專案目錄掃描：找出未歸屬檔案
+    indexManager.detectUntrackedFiles(gitignoreFilter);
+
+    await indexManager.persist();
+
+    statusBar.update(index);
+
+    const writer = new MemoryWriter(config);
+    const analyzer = new StalenessAnalyzer(config, indexManager, writer);
+    const refreshStatusBar = () => statusBar?.update(indexManager?.getIndex());
+    watcher = new CartridgeWatcher(
+      config,
+      indexManager,
+      analyzer,
+      gitignoreFilter,
+      refreshStatusBar,
+    );
+    await watcher.start();
 
     context.subscriptions.push(
       vscode.workspace.onDidChangeWorkspaceFolders(async () => {
-        if (!indexManager) return
-        const newIndex = await indexManager.scan()
-        statusBar?.update(newIndex)
+        if (!indexManager) return;
+        const newIndex = await indexManager.scan();
+        statusBar?.update(newIndex);
       }),
-    )
+    );
   } catch (error: unknown) {
-    const msg = error instanceof Error ? error.message : String(error)
-    console.error('[記憶卡匣] 初始化失敗：', msg)
-    vscode.window.showErrorMessage(`記憶卡匣初始化失敗：${msg}`)
+    const msg = error instanceof Error ? error.message : String(error);
+    console.error("[記憶卡匣] 初始化失敗：", msg);
+    vscode.window.showErrorMessage(`記憶卡匣初始化失敗：${msg}`);
   }
 }
 
@@ -165,8 +229,7 @@ export async function activate(
  * 擴充套件關閉（VS Code 關閉時自動呼叫）
  */
 export async function deactivate(): Promise<void> {
-  await watcher?.stop()
-  await indexManager?.persist()
-  statusBar?.dispose()
+  await watcher?.stop();
+  await indexManager?.persist();
+  statusBar?.dispose();
 }
-

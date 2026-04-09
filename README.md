@@ -2,8 +2,8 @@
 
 > **主動式 AI 記憶防禦引擎** — 自動偵測記憶卡過期、植入攔截警報，確保 AI 不讀取失效的上下文。
 
-[![version](https://img.shields.io/badge/version-0.9.0-blue)](./CHANGELOG.md)
-[![tests](https://img.shields.io/badge/tests-120%20passed-brightgreen)](#-執行測試)
+[![version](https://img.shields.io/badge/version-1.0.0-blue)](./CHANGELOG.md)
+[![tests](https://img.shields.io/badge/tests-128%20passed-brightgreen)](#-執行測試)
 [![license](https://img.shields.io/badge/license-MIT-green)](#)
 
 ---
@@ -16,11 +16,11 @@ Cartridge System 是一個為 [Antigravity 框架](https://github.com/Kunshao111
 
 當你修改了專案原始碼，但忘記更新對應的記憶技能時，Cartridge System 會：
 
-1. **即時偵測** — 透過 chokidar 監聽所有被記憶技能列管的原始碼異動
+1. **全域追蹤** — 直接於根目錄層級架設雷達，整合原生 `.gitignore` 引擎，感知專案中每一個新生檔案。
 2. **計算過期指數** — 使用衰退演算法計算每張記憶卡的「失效程度」
-3. **植入警報** — 在過期的記憶技能頂部自動插入攔截警告，阻止 AI 讀取舊資料
-4. **引導更新** — AI 更新記憶卡後，系統自動清除警報，恢復健康狀態
-5. **動態追蹤** — 記憶卡新增追蹤檔案時，監聽器即時更新，不需重啟 IDE
+3. **未歸屬提示** — 沒有歸屬的孤兒檔案將展示在前端狀態列，透過 👻 提示通知您建立/指派到對應技能。
+4. **警報植入** — 在過期的記憶技能頂部自動插入攔截警告，阻止 AI 讀取舊資料
+5. **引導更新** — AI 更新記憶卡後，系統自動清除警報，恢復健康狀態
 
 ---
 
@@ -28,12 +28,12 @@ Cartridge System 是一個為 [Antigravity 框架](https://github.com/Kunshao111
 
 | 功能 | 說明 |
 |------|------|
-| 🔍 **即時檔案監聽** | 使用 chokidar v4 監聽所有被記憶技能列管的原始碼檔案，支援動態新增/移除 |
+| 🔍 **全域雷達** | 使用 chokidar v4 全專案監聽，結合原生 `.gitignore` 規則精準屏除依賴庫。 |
+| 👻 **未歸屬檔案池** | 智能偵測專案內新增但未被任何卡匣記錄的檔案，支援歸屬建議。 |
 | 📊 **過期指數計算** | 根據異動類型（新增/修改/刪除）與時間衰退計算分數 |
 | 🚨 **警報自動植入** | 過期指數超過閾值時，自動在 SKILL.md 頂部插入攔截警告 |
-| 🟢 **狀態列燈號** | VS Code 狀態列即時顯示記憶卡健康概覽（五層等級：🟢🔵🟡🟠🔴） |
+| 🟢 **狀態列燈號** | VS Code 狀態列即時顯示記憶卡指標（五層等級：🟢🔵🟡🟠🔴）以及 👻 幽靈計數 |
 | 🛠️ **MCP 工具介面** | 提供四個標準化 AI 工具，支援跨專案動態路徑解析 |
-| 🔄 **監聽器動態更新** | 記憶卡追蹤清單變更時，自動 diff 並動態調整 chokidar 監聽清單 |
 | 🌐 **跨平台相容** | 完整支援 Windows CRLF 與 Unix LF 行尾格式 |
 | 🛡️ **路徑安全防禦** | 雙層路徑驗證（Zod 格式守衛 + 語意守衛），阻擋路徑穿越攻擊 |
 | 🌲 **巢狀目錄掃描** | 支援最大 4 層深度的記憶卡樹狀結構，目錄結構即層級 |
@@ -54,7 +54,7 @@ npm run build
 npm run package
 
 # 使用 Antigravity IDE CLI 安裝（注意：不可用 code 指令）
-antigravity --install-extension cartridge-system-0.9.0.vsix --force
+antigravity --install-extension cartridge-system-1.0.0.vsix --force
 ```
 
 ### 方法二：開發模式
@@ -96,8 +96,8 @@ Cartridge System 提供 MCP（Model Context Protocol）工具伺服器，供 AI 
 
 | 工具名稱 | 說明 |
 |----------|------|
-| `memory_list` | 列出指定專案中所有記憶卡匣（含過期指數、健康等級、深度層級、待處理異動數量） |
-| `memory_read` | 讀取特定記憶技能的完整 SKILL.md 內容（自動解析巢狀路徑） |
+| `memory_list` | 列出專案中所有記憶卡匣與**未歸屬檔案清單**（含過期指數、健康等級、待處理異動） |
+| `memory_read` | 讀取特定記憶技能的完整 SKILL.md 內容（自動解析巢狀點分隔路徑） |
 | `memory_update` | ⚠️ 舊版介面（建議改用 `memory_commit`）。用完整內容整張替換指定模組的記憶技能內容 |
 | `memory_commit` | **推薦** — AI 用原生工具寫入 SKILL.md 後呼叫。自動完成：時間戳注入（+08:00）、staleness 歸零、索引同步（清除 pendingChanges、重新解析 trackedFiles、重建 fileMap）、結構驗證 |
 | `memory_status` | 查詢指定記憶卡的過期修復診斷：過期指數、異動檔案清單（含絕對路徑）及修復行動指引 |
@@ -161,7 +161,7 @@ npm test
 npm run test:watch
 ```
 
-測試涵蓋 8 個測試檔案：
+測試涵蓋 8 個測試檔案（128 個案例）：
 
 | 測試模組 | 案例數 | 涵蓋範圍 |
 |----------|--------|----------|

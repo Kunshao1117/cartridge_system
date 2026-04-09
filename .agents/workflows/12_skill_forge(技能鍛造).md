@@ -1,6 +1,6 @@
 ---
-description: Creates new project-specific skills by distilling reusable patterns from audit findings, debugging methodologies, or Director directives.
-required_skills: [skill-factory, memory-ops, cross-lingual-guard]
+description: 從健檢發現、除錯方法論或總監指令中萃取可重用模式，建立新的專案衍生技能。
+required_skills: [skill-factory, memory-ops]
 memory_awareness: full
 skill_generation: true
 ---
@@ -12,6 +12,7 @@ skill_generation: true
 ## 1. Trigger Conditions (觸發條件)
 
 This workflow is triggered by one of the following:
+
 - Director explicitly requests a new project skill（總監明確指示建立新技能）
 - `/08_audit` Phase G recommends a new skill based on pattern detection（健檢偵測到跨模組重複模式）
 - `/04_fix` or `/07_debug` recommends distilling a methodology（修復/除錯後發現可萃取方法論）
@@ -35,6 +36,7 @@ This workflow is triggered by one of the following:
 ## 4. Skill Generation (Execution)
 
 Upon approval:
+
 1. Call `task_boundary` to switch to `EXECUTION` mode.
 2. Create the skill directory under `.agents/project_skills/{skill-name}/`.
 3. Write `SKILL.md` following the `skill-factory` template. Frontmatter MUST include:
@@ -50,15 +52,34 @@ Upon approval:
 
 ## 5. Verification
 
-- Read back the generated `SKILL.md` and validate format compliance.
+```
+[FORGE VALIDATION GATE] Post-generation structural check:
+├── [SUDO] detected? → Skip structural validation.
+├── Read back generated SKILL.md.
+├── Validate YAML frontmatter parseable?
+│   └── NO → Auto-regenerate frontmatter. (Max 2 retries)
+├── Validate body sections match § 4 order?
+│   └── NO → Auto-reorder. (Max 2 retries)
+├── Validate generated skill INHERITS Trinity Pattern?
+│   ├── Contains [SILENT GATE] or equivalent? → OK.
+│   └── Missing → Inject Silent Gate template into generated skill.
+│       「This ensures all offspring skills carry the Trinity DNA.」
+└── ALL valid → Proceed to quality scan.
+```
+
 // turbo
+
 - Run `.agents/scripts/Measure-SkillQuality.ps1 -Target {skill-path}` — ALL items MUST be 🟢. If any 🔴 → fix and re-scan.
 - Confirm the symlink `.agents/skills/_project` correctly resolves to the new skill's parent directory.
 
 ## COMPLETION GATE（完成閘門 — 不可略過）
+
 > Inherits: `.agents/workflows/_completion_gate.md`
+
 - Execute all checks defined in the shared Completion Gate.
 
 ## [SECURITY & COMPLIANCE MANDATE]
-> Inherits: `.agents/workflows/_security_footer.md` (Browser Gate)
-- **Role**: `Worker` | 權限依安全閘門矩陣。衍生技能目錄寫入授權。
+
+> Inherits: `.agents/workflows/_security_footer.md` (Role Lock Gate)
+
+- **Role**: `Worker` | Permissions based on the security gate matrix。衍生技能目錄寫入授權。

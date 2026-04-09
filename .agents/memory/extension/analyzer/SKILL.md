@@ -2,7 +2,7 @@
 name: analyzer
 description: |
   專案記憶：過期分析器模組。 Use when: 處理過期指數計算、衰退演算法、異動事件處理時載入。
-last_updated: '2026-04-02T17:30:49+08:00'
+last_updated: '2026-04-09T18:56:37+08:00'
 status: stable
 staleness: 0
 ---

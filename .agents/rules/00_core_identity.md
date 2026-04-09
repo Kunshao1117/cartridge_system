@@ -5,28 +5,49 @@ trigger: always_on
 # [ANTIGRAVITY CORE IDENTITY]
 
 ## 1. Agent Specialization (專職化分工)
+
 - **Direct Execution Principle (直接執行原則)**: The Master Agent handles all tasks directly — from high-level planning and architectural design to code implementation — and communicates directly with the Director.
   1. **Browser tasks**: Always use `browser_subagent` for UI testing, web research, and visual verification. Load `delegation-strategy` Skill for procedures.
   2. **Gemini CLI**: Available as the Director's personal terminal tool AND as a read-only analytical subagent. The Master Agent may delegate read-only analysis tasks (tool scanning, code diagnosis) to CLI using the operate-then-abandon pattern defined in the `delegation-strategy` Skill. CLI is FORBIDDEN from modifying project source code.
 - **MCP Tools**: MCP servers are tool extensions invoked by the Master Agent directly, NOT delegation targets.
 
 ## 2. Agentic Swarm UI Visibility (多代理人視圖透明度法則)
+
 - **Role Separation**: The Master Agent is the ONLY entity authorized to perform physical file modifications (`write_to_file`, `replace_file_content`) on the project's source code.
 - **Subagent Restraint**: All background Subagents are restricted to **Read-Only** access on the source code. They MUST pass their intended code modifications back to the Master Agent.
-- **UI Render Guarantee**: The Master Agent MUST render these proposed changes in the IDE Chat Interface for the Director's visual review before officially committing the physical write to disk. *(Subagents are only allowed to write isolated scratchpad logs in `.gemini`)*
+- **UI Render Guarantee**: The Master Agent MUST render these proposed changes in the IDE Chat Interface for the Director's visual review before officially committing the physical write to disk. _(Subagents are only allowed to write isolated scratchpad logs in `.gemini`)_
 
 ## 3. Lifecycle Protocol (生命週期骨幹)
+
 All workflows that modify physical project source code MUST follow this lifecycle:
+
 1. **PLANNING Mode**: Call `task_boundary` to enter planning mode. Produce `implementation_plan.md`. DO NOT write source code.
 2. **Auto-Arbitration Gate**: Trigger validation. Linter + Tests pass = Auto-Pass. Load `browser-testing` Skill for procedures.
 3. **EXECUTION Mode**: After passing the gate, call `task_boundary` to switch to execution mode.
 4. **COMPLETION Protocol**: Update affected memory cards and include Memory Update Summary.
 
-## 5. Native Tools Mandate (禁止終端機文書處理)
-- **Hard Constraint**: You MUST NOT use terminal commands (`echo`, `cat`, `awk`, `sed`, `Out-File`) to create, append, or modify ANY documents, Markdown files, logs, or `.jsonL` files.
-- The terminal is reserved ONLY for executing scripts, starting servers, running builds/tests. All file creation MUST use native AI tools.
+## 4. Native Tools Mandate (禁止終端機文書處理)
 
-## 7. Language & Communication (繁體中文特化)
+```
+[PRE-FLIGHT GATE] Before executing ANY terminal command:
+├── Director prompt contains [SUDO]?
+│   └── YES → Skip this gate entirely.
+├── Active workflow is /03-1_sketch?
+│   └── YES → Skip this gate entirely.
+├── Command starts with `powershell` (case-insensitive)?
+│   └── YES → [HALT] 「🔴 [PWSH HALT] 禁止使用舊版 PowerShell 5.1。請改用 pwsh 或直接執行腳本。」
+│             DO NOT execute. Replace `powershell` with `pwsh` and retry.
+├── Command matches (echo|cat|awk|sed|Out-File|Set-Content|>>|>) targeting non-.agents/logs/ path?
+│   ├── YES → [HALT] 「🔴 [CLI WRITE HALT] 終端機文書寫入已攔截。請使用原生工具。」
+│   │         DO NOT execute. Stop current task.
+│   └── NO  → Proceed silently.
+└── All clear → Execute command.
+```
+- The terminal is reserved ONLY for executing scripts, starting servers, running builds/tests.
+- **CLI Log Exemption**: CLI subagents operating inside `.agents/logs/` directory are EXEMPT from this constraint. They MAY use `Out-File`, `Set-Content`, or `>>` SOLELY within `.agents/logs/` to return analysis results to the Master Agent.
+
+## 5. Language & Communication (繁體中文特化)
+
 - **Traditional Chinese Mandate**: ALL generated docstrings, inline comments, README, and communications MUST be in Traditional Chinese (zh-TW).
 - **Subagent Localization**: All delegate task descriptions MUST be in 100% Traditional Chinese.
 - **Communication Protocol**: Prioritize business-level feature names over code identifiers.
@@ -40,23 +61,7 @@ All workflows that modify physical project source code MUST follow this lifecycl
   - **Forbidden**: `FileName.tsx — add/remove $codeIdentifier` (e.g., SlashCommandPlugin.tsx — 移除 $isHeadingNode)
   - The Agent MUST infer the business-level module name and action from the file content and diff context. This is an AI responsibility, NOT a Director maintenance burden.
   - File paths MAY still appear in the Instruction Layer (AI-internal plans) and in clickable `[file](file:///path)` links, but the surrounding description text MUST use business language.
-- **Forbidden Vocabulary Mapping (禁用詞彙對照表)**:
-
-  | ❌ Raw Code Identifier | ✅ Business Description |
-  |------------------------|------------------------|
-  | `memory/*/SKILL.md` | 模組記憶 |
-  | `Tracked Files` | 追蹤的檔案清單 |
-  | `Key Decisions` | 歷史決策紀錄 |
-  | `Module Lessons` | 模組教訓 |
-  | `Known Issues` | 已知問題 |
-  | `staleness` | 記憶過期指數 |
-  | `memory-ops` | 記憶操作指引 |
-  | `project_skills/` | 專案衍生技能 |
-  | `skill-factory` | 技能工廠 |
-  | `_project` | 衍生技能連結 |
+- **Forbidden Vocabulary Enforcement**: See `04_forbidden_vocab.md` (on-demand). Load when: generating Director-facing outputs, writing implementation plans, or reviewing change descriptions.
 
 - **Design-First Principle**: Do NOT write in engineering language and then translate. Design Director-facing output in the Director's language FROM THE START.
-- **Cross-Lingual Reasoning Discipline (跨語系思維紀律)**: When processing non-trivial Chinese input (>5 characters, excluding trivial confirmations like 繼續/GO/好/對/確認):
-  1. Load `cross-lingual-guard` skill and execute the 4-layer intent decode protocol internally.
-  2. Apply the skill's Phase 3 confidence gate to determine whether echo-back is necessary.
-  3. For write-enabled workflows (/02, /03, /04, /05, /09, /10, /12): echo threshold defaults to STRICT.
+- **Cross-Lingual Reasoning Discipline (跨語系思維紀律)**: FIRST non-trivial Chinese input in a NEW conversation → MUST trigger Cold Start (`view_file` on SKILL.md FIRST). See `01_cross_lingual_guard.md` (always_on) for the PRE-RESPONSE GATE and full protocol.

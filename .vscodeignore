@@ -10,3 +10,8 @@ tsup.config.ts
 vitest.config.ts
 eslint.config.js
 cartridge_index.json
+.cartridge
+.cartridge/**
+.trunk
+.trunk/**
+tmp.js

@@ -35,16 +35,40 @@ Trigger?
 ## 3. Generation Procedure
 
 ### Step 1: Name & Scope Definition
+
 1. Choose a descriptive kebab-case name (1-64 characters)
-2. Define scope — what it covers and what it does NOT cover
+2. **Project skills MUST use a project-code prefix** to prevent collision with future framework skills:
+   - Format: `{project-code}-{skill-name}` (e.g., `bartendermap-booking-rules`, `myapp-auth-patterns`)
+   - Project code: short 2–12 char identifier matching the project (e.g., `bartendermap`, `myapp`)
+   - Framework core skills NEVER use a hyphenated project-code prefix — collision is impossible by design
+3. Define scope — what it covers and what it does NOT cover
+
+### Step 1.5: Style Determination (風格判定)
+
+```
+[STYLE GATE] Determine instruction style for the new skill:
+├── Consequence severity: wrong judgment → security breach / data corruption / memory pollution?
+│   └── YES → 🔴 Imperative
+├── Deterministic output: must produce precise PASS/FAIL?
+│   └── YES → 🔴 Imperative
+├── Cross-module consistency: must execute identically across all modules?
+│   └── YES → 🔴 Imperative
+├── Flow control node: sits at workflow decision point, result affects branching?
+│   └── YES → 🟡 Hybrid (gate at decision node + guided procedure)
+└── None of above → 🟢 Guided
+```
+
+Record the result in `metadata.style` field.
 
 ### Step 2: Write SKILL.md
+
 1. Read references/skill-template.md → 取得標準模板
-2. Read references/skill-style-guide.md → 取得書寫風格規範
-3. Frontmatter MUST include `metadata.origin: project`
+2. Read references/skill-style-guide.md → 取得書寫風格規範（含 §6 風格密度對照表）
+3. Frontmatter MUST include `metadata.origin: project` and `metadata.style` from Step 1.5
 4. `description` MUST include English + Chinese keywords for IDE trigger matching
 
 ### Step 3: Create Directory Structure
+
 ```
 .agents/project_skills/{skill-name}/
 ├── SKILL.md           ← Core instruction file (required)
@@ -53,36 +77,43 @@ Trigger?
 ```
 
 ### Step 4: Register in Skill Index
+
 1. Append one row to `.agents/project_skills/_index.md` with the new skill's keywords
 2. Do NOT modify `.agents/skills/_index.md` — it is reserved for core framework skills
 
 ### Step 5: Verify Symlink Resolution
+
 1. Confirm discoverable via `.agents/skills/_project/{skill-name}/SKILL.md`
 
 ## 4. Format Compliance Rules
 
 ### Frontmatter Standard
+
 ```yaml
 ---
-name: {skill-name}
+name: { skill-name }
 description: >
-  {English description}.
+  [{Domain|Quality|Workflow}] {English description}.
   Use when: {中文觸發條件描述}。
+  DO NOT use when: {排他性與負向觸發條件描述}。
 metadata:
   author: antigravity
   version: "1.0"
   origin: project
+  style: imperative|guided|hybrid
   memory_awareness: none|read|full
   tool_scope: ["{scope}"]
 ---
 ```
 
 ### Body Content Standard
+
 SKILL.md body MUST follow this section order:
+
 1. `# {Skill Name} — {Subtitle}`
 2. `## Trigger Conditions` — Decision tree or condition list
 3. `## Procedure` — Numbered steps with L3 references inline
-4. `## Gotchas` — ⚠️ warnings (if applicable)
+4. `## Gotchas` — warnings (if applicable)
 5. `## Constraints` — Boundaries and limitations
 
 ### §4.5 Writing Style Rules (書寫風格規範)
@@ -102,21 +133,48 @@ Every sentence in SKILL.md:
     └── Rewrite: narrative openings → decision trees
 ```
 
+### §4.55 Style Enforcement Rules (風格落地指引)
+
+Read references/skill-style-guide.md §6 for the full density matrix. Summary:
+
+| Style           | Requirements                                                       |
+| --------------- | ------------------------------------------------------------------ |
+| 🔴 `imperative` | ≥1 code fence gate + HALT mechanism + `[SUDO]` override path       |
+| 🟡 `hybrid`     | Code fence gate ONLY at decision nodes, guided procedure elsewhere |
+| 🟢 `guided`     | Recipes + gotchas + interpretation. Code fence gates FORBIDDEN     |
+
 ### §4.6 Token Budget (Token 預算約束)
 
-| Constraint | Limit |
-|-----------|-------|
-| SKILL.md line count | < 500 lines |
-| L2 token estimate | < 5,000 tokens (char count ÷ 3) |
-| Overflow handling | Move details to `references/` as L3 resources |
+| Constraint          | Limit                                         |
+| ------------------- | --------------------------------------------- |
+| SKILL.md line count | < 500 lines                                   |
+| L2 token estimate   | < 5,000 tokens (char count ÷ 3)               |
+| Overflow handling   | Move details to `references/` as L3 resources |
+
+### §4.8 Trinity DNA Inheritance (三位一體基因遺傳)
+
+```
+[INHERITANCE GATE] For EVERY generated project skill:
+├── metadata.style = imperative or hybrid?
+│   ├── YES → SKILL.md contains at least one [SILENT GATE] block?
+│   │   ├── YES → Proceed.
+│   │   └── NO  → Auto-inject Override & Sandbox Detection template (from code-quality § 0).
+│   └── NO (guided) → Skip gate injection. Proceed.
+├── metadata.style = imperative or hybrid?
+│   ├── YES → SKILL.md mentions [SUDO] override path?
+│   │   ├── YES → Proceed.
+│   │   └── NO  → Auto-inject [SUDO] bypass clause.
+│   └── NO (guided) → Skip. Proceed.
+└── Gate cleared.
+```
 
 ### §4.7 agentskills.io Compatibility
 
-| Field | Rule |
-|-------|------|
-| `name` | kebab-case, ≤ 64 characters |
-| `description` | < 1024 characters |
-| Directory | `{skill-name}/SKILL.md` + optional `references/` |
+| Field         | Rule                                             |
+| ------------- | ------------------------------------------------ |
+| `name`        | kebab-case, ≤ 64 characters                      |
+| `description` | < 1024 characters                                |
+| Directory     | `{skill-name}/SKILL.md` + optional `references/` |
 
 ## 5. Director Review Gate（總監審核閘門）
 

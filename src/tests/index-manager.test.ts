@@ -3,54 +3,54 @@
  * 覆蓋 parseTrackedFiles 路徑淨化邏輯與 CartridgeIndexManager 核心方法
  */
 
-import { describe, it, expect, beforeEach } from 'vitest'
-import { parseTrackedFiles } from '../index-manager.js'
-import { CartridgeIndexManager } from '../index-manager.js'
-import { createConfig } from '../config.js'
+import { describe, it, expect, beforeEach } from "vitest";
+import { parseTrackedFiles } from "../index-manager.js";
+import { CartridgeIndexManager } from "../index-manager.js";
+import { createConfig } from "../config.js";
 
 // ---------------------------------------------------------------------------
 // parseTrackedFiles — 路徑淨化邏輯
 // ---------------------------------------------------------------------------
-describe('parseTrackedFiles — 路徑淨化邏輯', () => {
-  it('應正確解析標準純路徑', () => {
+describe("parseTrackedFiles — 路徑淨化邏輯", () => {
+  it("應正確解析標準純路徑", () => {
     const content = `
 ## Tracked Files
 - src/index-manager.ts
 - src/config.ts
 
 ## Key Decisions
-`
+`;
     expect(parseTrackedFiles(content)).toEqual([
-      'src/index-manager.ts',
-      'src/config.ts',
-    ])
-  })
+      "src/index-manager.ts",
+      "src/config.ts",
+    ]);
+  });
 
-  it('應去除 Markdown 反引號', () => {
+  it("應去除 Markdown 反引號", () => {
     const content = `
 ## Tracked Files
 - \`src/mcp-server.ts\`
 
 ## Key Decisions
-`
-    expect(parseTrackedFiles(content)).toEqual(['src/mcp-server.ts'])
-  })
+`;
+    expect(parseTrackedFiles(content)).toEqual(["src/mcp-server.ts"]);
+  });
 
-  it('應截斷第一個空格後的說明文字', () => {
+  it("應截斷第一個空格後的說明文字", () => {
     const content = `
 ## Tracked Files
 - src/extension.ts (VS Code 外掛入口)
 - package.json (MCP dependencies)
 
 ## Key Decisions
-`
+`;
     expect(parseTrackedFiles(content)).toEqual([
-      'src/extension.ts',
-      'package.json',
-    ])
-  })
+      "src/extension.ts",
+      "package.json",
+    ]);
+  });
 
-  it('應同時處理反引號與說明文字的混合格式', () => {
+  it("應同時處理反引號與說明文字的混合格式", () => {
     const content = `
 ## Tracked Files
 - \`src/writer.ts\`
@@ -58,25 +58,25 @@ describe('parseTrackedFiles — 路徑淨化邏輯', () => {
 - src/watcher.ts
 
 ## Key Decisions
-`
+`;
     expect(parseTrackedFiles(content)).toEqual([
-      'src/writer.ts',
-      'src/analyzer.ts',
-      'src/watcher.ts',
-    ])
-  })
+      "src/writer.ts",
+      "src/analyzer.ts",
+      "src/watcher.ts",
+    ]);
+  });
 
-  it('應在無 Tracked Files 區段時回傳空陣列', () => {
+  it("應在無 Tracked Files 區段時回傳空陣列", () => {
     const content = `
 ## Key Decisions
 - D01: some decision
 
 ## Module Lessons
-`
-    expect(parseTrackedFiles(content)).toEqual([])
-  })
+`;
+    expect(parseTrackedFiles(content)).toEqual([]);
+  });
 
-  it('應忽略全為空的行', () => {
+  it("應忽略全為空的行", () => {
     const content = `
 ## Tracked Files
 - src/types.ts
@@ -84,23 +84,21 @@ describe('parseTrackedFiles — 路徑淨化邏輯', () => {
 - src/config.ts
 
 ## Key Decisions
-`
+`;
     expect(parseTrackedFiles(content)).toEqual([
-      'src/types.ts',
-      'src/config.ts',
-    ])
-  })
+      "src/types.ts",
+      "src/config.ts",
+    ]);
+  });
 
-  it('應正確解析 CRLF（Windows）行尾的檔案', () => {
+  it("應正確解析 CRLF（Windows）行尾的檔案", () => {
     // 模擬 Windows CRLF 行尾
-    const content = '## Tracked Files\r\n- src/foo.ts\r\n- src/bar.ts\r\n\r\n## Key Decisions\r\n'
-    expect(parseTrackedFiles(content)).toEqual([
-      'src/foo.ts',
-      'src/bar.ts',
-    ])
-  })
+    const content =
+      "## Tracked Files\r\n- src/foo.ts\r\n- src/bar.ts\r\n\r\n## Key Decisions\r\n";
+    expect(parseTrackedFiles(content)).toEqual(["src/foo.ts", "src/bar.ts"]);
+  });
 
-  it('應過濾 ### 分組標題（不當成路徑）', () => {
+  it("應過濾 ### 分組標題（不當成路徑）", () => {
     const content = `
 ## Tracked Files
 
@@ -112,273 +110,206 @@ describe('parseTrackedFiles — 路徑淨化邏輯', () => {
 - src/tests/foo.test.ts
 
 ## Key Decisions
-`
-    const result = parseTrackedFiles(content)
+`;
+    const result = parseTrackedFiles(content);
     expect(result).toEqual([
-      'src/config.ts',
-      'src/types.ts',
-      'src/tests/foo.test.ts',
-    ])
-    expect(result).not.toContain('###')
-    expect(result).not.toContain('### Config')
-  })
+      "src/config.ts",
+      "src/types.ts",
+      "src/tests/foo.test.ts",
+    ]);
+    expect(result).not.toContain("###");
+    expect(result).not.toContain("### Config");
+  });
 
-  it('應過濾 HTML 註解標記（如系統警報殘留）', () => {
+  it("應過濾 HTML 註解標記（如系統警報殘留）", () => {
     const content = `
 ## Tracked Files
 <!-- CARTRIDGE_SYSTEM_WARNING_START -->
 - src/foo.ts
 
 ## Key Decisions
-`
-    const result = parseTrackedFiles(content)
-    expect(result).toEqual(['src/foo.ts'])
-    expect(result).not.toContain('<!--')
-  })
-})
+`;
+    const result = parseTrackedFiles(content);
+    expect(result).toEqual(["src/foo.ts"]);
+    expect(result).not.toContain("<!--");
+  });
+});
 
 // ---------------------------------------------------------------------------
 // CartridgeIndexManager — addPendingChange 去重邏輯
 // ---------------------------------------------------------------------------
-describe('CartridgeIndexManager — addPendingChange 去重邏輯', () => {
-  let manager: CartridgeIndexManager
+describe("CartridgeIndexManager — addPendingChange 去重邏輯", () => {
+  let manager: CartridgeIndexManager;
 
   beforeEach(() => {
-    const config = createConfig('d:/cartridge_system')
-    manager = new CartridgeIndexManager(config)
+    const config = createConfig("d:/cartridge_system");
+    manager = new CartridgeIndexManager(config);
     // 手動注入一個卡匣記錄，跳過 fs 依賴的 scan()
-    manager['index'] = {
+    manager["index"] = {
       version: 1,
-      lastScanned: '',
+      lastScanned: "",
       cartridges: {
-        'mem-test': {
-          skillPath: '.agents/skills/mem-test/SKILL.md',
-          trackedFiles: ['src/test.ts'],
+        "mem-test": {
+          skillPath: ".agents/skills/mem-test/SKILL.md",
+          description: "",
+          trackedFiles: ["src/test.ts"],
           staleness: 0,
-          lastUpdated: '',
+          lastUpdated: "",
           pendingChanges: [],
           depth: 1,
           parent: null,
         },
       },
-      fileMap: { 'src/test.ts': ['mem-test'] },
-    }
-  })
+      fileMap: { "src/test.ts": ["mem-test"] },
+      untrackedFiles: [],
+    };
+  });
 
-  it('同一檔案兩次 change 事件只應記錄一筆', () => {
-    manager.addPendingChange('mem-test', 'src/test.ts', 'change')
-    manager.addPendingChange('mem-test', 'src/test.ts', 'change')
+  it("同一檔案兩次 change 事件只應記錄一筆", () => {
+    manager.addPendingChange("mem-test", "src/test.ts", "change");
+    manager.addPendingChange("mem-test", "src/test.ts", "change");
 
-    const changes = manager.getIndex().cartridges['mem-test'].pendingChanges
-    expect(changes).toHaveLength(1)
-  })
+    const changes = manager.getIndex().cartridges["mem-test"].pendingChanges;
+    expect(changes).toHaveLength(1);
+  });
 
-  it('clearPendingChanges 後應清空待處理清單', () => {
-    manager.addPendingChange('mem-test', 'src/test.ts', 'change')
-    expect(manager.getIndex().cartridges['mem-test'].pendingChanges).toHaveLength(1)
+  it("clearPendingChanges 後應清空待處理清單", () => {
+    manager.addPendingChange("mem-test", "src/test.ts", "change");
+    expect(
+      manager.getIndex().cartridges["mem-test"].pendingChanges,
+    ).toHaveLength(1);
 
-    manager.clearPendingChanges('mem-test')
-    expect(manager.getIndex().cartridges['mem-test'].pendingChanges).toHaveLength(0)
-  })
+    manager.clearPendingChanges("mem-test");
+    expect(
+      manager.getIndex().cartridges["mem-test"].pendingChanges,
+    ).toHaveLength(0);
+  });
 
-  it('getAffectedCartridges 應支援 forward slash 正規化', () => {
-    const result = manager.getAffectedCartridges('src\\test.ts')
+  it("getAffectedCartridges 應支援 forward slash 正規化", () => {
+    const result = manager.getAffectedCartridges("src\\test.ts");
     // Windows 反斜線正規化後應找到 mem-test
-    expect(result).toEqual(['mem-test'])
-  })
-})
-
-// ---------------------------------------------------------------------------
-// CartridgeIndexManager — findOwner 最長前綴匹配
-// ---------------------------------------------------------------------------
-describe('CartridgeIndexManager — findOwner 最長前綴匹配', () => {
-  let manager: CartridgeIndexManager
-
-  beforeEach(() => {
-    const config = createConfig('d:/test-project')
-    manager = new CartridgeIndexManager(config)
-    manager['index'] = {
-      version: 1,
-      lastScanned: '',
-      cartridges: {
-        'mem-api': {
-          skillPath: '.agents/skills/mem-api/SKILL.md',
-          trackedFiles: [],
-          staleness: 0,
-          lastUpdated: '',
-          pendingChanges: [],
-          depth: 1,
-          parent: null,
-          scopePath: 'app/api/',
-        },
-        'mem-api-auth': {
-          skillPath: '.agents/skills/mem-api/mem-api-auth/SKILL.md',
-          trackedFiles: ['app/api/auth/login/route.ts'],
-          staleness: 0,
-          lastUpdated: '',
-          pendingChanges: [],
-          depth: 2,
-          parent: 'mem-api',
-          scopePath: 'app/api/auth/',
-        },
-        'mem-api-manage': {
-          skillPath: '.agents/skills/mem-api/mem-api-manage/SKILL.md',
-          trackedFiles: ['app/api/manage/export/route.ts'],
-          staleness: 0,
-          lastUpdated: '',
-          pendingChanges: [],
-          depth: 2,
-          parent: 'mem-api',
-          scopePath: 'app/api/manage/',
-        },
-        'mem-no-scope': {
-          skillPath: '.agents/skills/mem-no-scope/SKILL.md',
-          trackedFiles: ['src/utils.ts'],
-          staleness: 0,
-          lastUpdated: '',
-          pendingChanges: [],
-          depth: 1,
-          parent: null,
-        },
-      },
-      fileMap: {
-        'app/api/auth/login/route.ts': ['mem-api-auth'],
-        'app/api/manage/export/route.ts': ['mem-api-manage'],
-        'src/utils.ts': ['mem-no-scope'],
-      },
-    }
-  })
-
-  it('應回傳最長前綴匹配的記憶卡', () => {
-    // app/api/manage/import/route.ts 匹配 mem-api-manage (app/api/manage/) 比 mem-api (app/api/) 更長
-    expect(manager.findOwner('app/api/manage/import/route.ts')).toBe('mem-api-manage')
-  })
-
-  it('應回傳次長匹配當子卡不匹配時', () => {
-    // app/api/posts/route.ts 不匹配 mem-api-auth 或 mem-api-manage，但匹配 mem-api
-    expect(manager.findOwner('app/api/posts/route.ts')).toBe('mem-api')
-  })
-
-  it('無匹配時應回傳 null', () => {
-    expect(manager.findOwner('src/components/Button.tsx')).toBeNull()
-  })
-
-  it('應正規化 Windows 反斜線路徑', () => {
-    expect(manager.findOwner('app\\api\\manage\\backup\\route.ts')).toBe('mem-api-manage')
-  })
-})
+    expect(result).toEqual(["mem-test"]);
+  });
+});
 
 // ---------------------------------------------------------------------------
 // CartridgeIndexManager — getChildren 子卡查詢
 // ---------------------------------------------------------------------------
-describe('CartridgeIndexManager — getChildren 子卡查詢', () => {
-  let manager: CartridgeIndexManager
+describe("CartridgeIndexManager — getChildren 子卡查詢", () => {
+  let manager: CartridgeIndexManager;
 
   beforeEach(() => {
-    const config = createConfig('d:/test-project')
-    manager = new CartridgeIndexManager(config)
-    manager['index'] = {
+    const config = createConfig("d:/test-project");
+    manager = new CartridgeIndexManager(config);
+    manager["index"] = {
       version: 1,
-      lastScanned: '',
+      lastScanned: "",
       cartridges: {
-        'mem-api': {
-          skillPath: '.agents/skills/mem-api/SKILL.md',
+        "mem-api": {
+          skillPath: ".agents/skills/mem-api/SKILL.md",
+          description: "",
           trackedFiles: [],
           staleness: 0,
-          lastUpdated: '',
+          lastUpdated: "",
           pendingChanges: [],
           depth: 1,
           parent: null,
         },
-        'mem-api-auth': {
-          skillPath: '.agents/skills/mem-api/mem-api-auth/SKILL.md',
+        "mem-api-auth": {
+          skillPath: ".agents/skills/mem-api/mem-api-auth/SKILL.md",
+          description: "",
           trackedFiles: [],
           staleness: 0,
-          lastUpdated: '',
+          lastUpdated: "",
           pendingChanges: [],
           depth: 2,
-          parent: 'mem-api',
+          parent: "mem-api",
         },
-        'mem-api-manage': {
-          skillPath: '.agents/skills/mem-api/mem-api-manage/SKILL.md',
+        "mem-api-manage": {
+          skillPath: ".agents/skills/mem-api/mem-api-manage/SKILL.md",
+          description: "",
           trackedFiles: [],
           staleness: 0,
-          lastUpdated: '',
+          lastUpdated: "",
           pendingChanges: [],
           depth: 2,
-          parent: 'mem-api',
+          parent: "mem-api",
         },
       },
       fileMap: {},
-    }
-  })
+      untrackedFiles: [],
+    };
+  });
 
-  it('應回傳指定記憶卡的子卡清單', () => {
-    const children = manager.getChildren('mem-api')
-    expect(children).toHaveLength(2)
-    expect(children).toContain('mem-api-auth')
-    expect(children).toContain('mem-api-manage')
-  })
+  it("應回傳指定記憶卡的子卡清單", () => {
+    const children = manager.getChildren("mem-api");
+    expect(children).toHaveLength(2);
+    expect(children).toContain("mem-api-auth");
+    expect(children).toContain("mem-api-manage");
+  });
 
-  it('無子卡時應回傳空陣列', () => {
-    expect(manager.getChildren('mem-api-auth')).toEqual([])
-  })
+  it("無子卡時應回傳空陣列", () => {
+    expect(manager.getChildren("mem-api-auth")).toEqual([]);
+  });
 
-  it('不存在的記憶卡應回傳空陣列', () => {
-    expect(manager.getChildren('mem-nonexistent')).toEqual([])
-  })
-})
+  it("不存在的記憶卡應回傳空陣列", () => {
+    expect(manager.getChildren("mem-nonexistent")).toEqual([]);
+  });
+});
 
 // ---------------------------------------------------------------------------
 // CartridgeIndexManager — resolveModulePath 巢狀路徑解析
 // ---------------------------------------------------------------------------
-describe('CartridgeIndexManager — resolveModulePath', () => {
-  let manager: CartridgeIndexManager
+describe("CartridgeIndexManager — resolveModulePath", () => {
+  let manager: CartridgeIndexManager;
 
   beforeEach(() => {
-    const config = createConfig('d:/test-project')
-    manager = new CartridgeIndexManager(config)
-    manager['index'] = {
+    const config = createConfig("d:/test-project");
+    manager = new CartridgeIndexManager(config);
+    manager["index"] = {
       version: 1,
-      lastScanned: '',
+      lastScanned: "",
       cartridges: {
-        'mem-api': {
-          skillPath: '.agents/skills/mem-api/SKILL.md',
+        "mem-api": {
+          skillPath: ".agents/skills/mem-api/SKILL.md",
+          description: "",
           trackedFiles: [],
           staleness: 0,
-          lastUpdated: '',
+          lastUpdated: "",
           pendingChanges: [],
           depth: 1,
           parent: null,
         },
-        'mem-api-auth': {
-          skillPath: '.agents/skills/mem-api/mem-api-auth/SKILL.md',
+        "mem-api-auth": {
+          skillPath: ".agents/skills/mem-api/mem-api-auth/SKILL.md",
+          description: "",
           trackedFiles: [],
           staleness: 0,
-          lastUpdated: '',
+          lastUpdated: "",
           pendingChanges: [],
           depth: 2,
-          parent: 'mem-api',
+          parent: "mem-api",
         },
       },
       fileMap: {},
-    }
-  })
+      untrackedFiles: [],
+    };
+  });
 
-  it('索引中存在的模組應回傳絕對路徑', () => {
-    const result = manager.resolveModulePath('mem-api')
-    expect(result).toContain('mem-api')
-    expect(result).toContain('SKILL.md')
-  })
+  it("索引中存在的模組應回傳絕對路徑", () => {
+    const result = manager.resolveModulePath("mem-api");
+    expect(result).toContain("mem-api");
+    expect(result).toContain("SKILL.md");
+  });
 
-  it('巢狀模組應回傳包含巢狀路徑', () => {
-    const result = manager.resolveModulePath('mem-api-auth')
-    expect(result).toContain('mem-api')
-    expect(result).toContain('mem-api-auth')
-    expect(result).toContain('SKILL.md')
-  })
+  it("巢狀模組應回傳包含巢狀路徑", () => {
+    const result = manager.resolveModulePath("mem-api-auth");
+    expect(result).toContain("mem-api");
+    expect(result).toContain("mem-api-auth");
+    expect(result).toContain("SKILL.md");
+  });
 
-  it('索引中不存在的模組應回傳 null', () => {
-    expect(manager.resolveModulePath('mem-nonexistent')).toBeNull()
-  })
-})
+  it("索引中不存在的模組應回傳 null", () => {
+    expect(manager.resolveModulePath("mem-nonexistent")).toBeNull();
+  });
+});

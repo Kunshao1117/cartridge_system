@@ -2,10 +2,19 @@
 name: _system
 description: |
   專案記憶：系統技術堆疊與部署設定。 Use when: 確認技術選型、環境設定、部署組態時載入。
-last_updated: '2026-04-02T18:11:38+08:00'
-status: stable
-staleness: 0
+last_updated: '2026-04-09T18:56:36+08:00'
+status: stale
+staleness: 10
 ---
+<!-- CARTRIDGE_SYSTEM_WARNING_START -->
+
+> [!CAUTION]
+> 🟠 **系統強制攔截**：此記憶已過期失真！
+> 追蹤檔案異動：`package.json`（2026-04-09T18:58:19+08:00）
+> AI 嚴禁基於此記憶施工，必須優先閱讀最新原始碼並更新此記憶卡。
+> staleness: 10 | threshold: 🟠 顯著過期
+
+<!-- CARTRIDGE_SYSTEM_WARNING_END -->
 
 # System — 系統記憶
 
@@ -31,7 +40,7 @@ staleness: 0
 - Entry: `src/extension.ts` 及 `src/mcp-server.ts`
 - Output: `dist/extension.js` 及 `dist/mcp-server.js`
 - Activation: `workspaceContains:.agents` + `onStartupFinished`
-- Commands: `cartridge.scan`、`cartridge.status`
+- Commands: `cartridge.scan`、`cartridge.status`、`cartridge.scanGhosts`
 - Engine: `vscode ^1.85.0`
 - Publisher: `cartridge-system`
 
@@ -39,6 +48,7 @@ staleness: 0
 - `@modelcontextprotocol/sdk` ^1.0.1
 - `chokidar` ^4.0.0
 - `gray-matter` ^4.0.3
+- `ignore` ^7.0.5
 
 ## DevDependencies
 - `@types/vscode` ^1.85.0

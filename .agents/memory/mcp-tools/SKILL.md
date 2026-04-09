@@ -2,7 +2,7 @@
 name: mcp-tools
 description: |
   專案記憶：MCP 工具介面模組（第二階段）。 Use when: 處理MCP伺服器註冊、工具路由、AI工具呼叫介面時載入。
-last_updated: '2026-04-02T18:11:36+08:00'
+last_updated: '2026-04-09T18:56:49+08:00'
 status: stable
 staleness: 0
 ---
@@ -32,7 +32,7 @@ staleness: 0
 - D13: memory_update 雙模式寫入 — mode='replace'(預設)整張替換 / mode='append'附加至末尾。AI 可明確選擇寫入策略，避免重複段落堆疊。
 - D14: memory_update 新增 patch 模式（區段級替換）— 以 `##` 為分割粒度，同名區段就地替換、新區段附加到末尾、未提及區段保持不動。新增 `parseSections()` 段落分割函式（含 CRLF 正規化、程式碼區塊守衛）和 `mergeSections()` 合併函式（含標題正規化比對）。patch 內容必須含至少一個 `##` 區段否則回傳錯誤。回傳結果包含替換/新增統計。
 - D15: patch 模式閘門機制強化 — 三層防護：(1) `parseSubSections()` 兩層解析支援 `###` 子區段粒度合併，只替換提及的子區段保留未提及的（最小匹配原則）；(2) `dryRun` 參數支援操作前預覽，不寫入磁碟只回傳結構化 JSON 報告（含 replaced/added/removed/preserved 區段名稱列表與行數差異）；(3) 大幅刪減保護閘門，行數減少超過 30% 時自動產生警告。`MergeResult` 從數字計數升級為字串陣列追蹤具體區段名稱。`PatchReport` 介面定義結構化回傳格式。
-- D16: memory_list 回傳增強 — 每個模組包含 parent、scopePath、trackedFilesCount、splitSuggestion 欄位。追蹤超過 8 個檔案的模組自動附帶拆分建議。
+- D16: memory_list 回傳增強 — 每個模組包含 trackedFilesCount 欄位。追蹤超過 8 個檔案的模組自動附帶拆分建議。已於 v1.0 去除對 scopePath 的依賴。
 - D17: memory_read 回傳增強 — 讀取記憶卡時若索引存在，附加父子節點提示（提示 AI 同時讀取父卡獲取共用架構脈絡）。
 - D18: memory_update patch 模式新增 pendingChanges 遺漏偵測 — 若 pendingChanges 中有 add 事件但 patch 未包含 ## Tracked Files 區段，在 warnings 中提醒 AI 確認是否需要更新追蹤清單。
 - D19: 新增 resolveSkillPath() 共用路徑解析函式，三層策略：索引查找（最快）→ 平面路徑回退（向後相容）→ 遞迴搜尋（最後手段）。四個 MCP 工具全部改用此函式解析巢狀路徑。

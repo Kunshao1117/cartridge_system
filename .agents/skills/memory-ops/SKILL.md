@@ -1,9 +1,10 @@
 ---
 name: memory-ops
 description: >
-  Complete operating guide for reading, updating, and creating memory cards.
+  [Infra] Complete operating guide for reading, updating, and creating memory cards.
   MCP Server: cartridge-system
   Use when: 建立、讀取或更新專案記憶卡時載入。本技能取代手動的 Markdown 編輯，強制執行合規自動化。
+  DO NOT use when: 純讀取記憶卡內容（直接用 view_file）、非記憶寫入/建立/修復場景。
 metadata:
   author: antigravity
   version: "2.0"
@@ -91,8 +92,8 @@ Need to update memory?
 ### Legacy Fallback (舊版備用)
 
 - `memory_update(mode: replace)`: Send complete SKILL.md content for full replacement. Still functional but less stable than the two-step flow.
-- ⚠️ `memory_update(mode: patch)`: **Deprecated** — High error rate due to Markdown section matching sensitivity.
-- ⚠️ `memory_update(mode: append)`: **Deprecated** — No structural validation, causes duplicate sections.
+- `memory_update(mode: patch)`: **Deprecated** — High error rate due to Markdown section matching sensitivity.
+- `memory_update(mode: append)`: **Deprecated** — No structural validation, causes duplicate sections.
 
 ### Post-Commit Obligations (歸卡後義務)
 

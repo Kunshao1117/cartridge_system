@@ -4,4 +4,8 @@ dist/
 .vscode-test/
 .DS_Store
 .cartridge/
-.vscode
+.trunk/
+.vscode/
+.markdownlint.yaml
+.agents/logs/
+.vscodeignore

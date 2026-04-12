@@ -1,10 +1,13 @@
-﻿param (
+param (
     [Parameter(Mandatory = $true)]
     [string]$Target,
 
     [Parameter(Mandatory = $false)]
     [ValidateSet("Fresh", "Upgrade")]
-    [string]$Mode = "Fresh"
+    [string]$Mode = "Fresh",
+
+    [Parameter(Mandatory = $false)]
+    [switch]$RemoveOrphans
 )
 
 # 腳本從 .agents/scripts/ 執行，往上兩層取得框架根目錄 (Antigravity/)
@@ -442,9 +445,34 @@ if ($Mode -eq "Upgrade") {
     Write-Host "-----------------------------------------------"
     Write-Host "[OK] 升級完成！v$targetVersion → v$sourceVersion（更新 $applied 個檔案 / 遷移 $($migrateItems.Count) 個記憶卡）"
     if ($stats.Orphan -gt 0) {
-        Write-Host "[!] 注意: $($stats.Orphan) 個孤兒檔案（源碼已刪除但目標仍存在）："
-        $report | Where-Object { $_.Status -eq "ORPHAN" } | ForEach-Object {
-            Write-Host "    → $($_.Path)" -ForegroundColor Magenta
+        if ($RemoveOrphans) {
+            Write-Host "[*] 正在清除 $($stats.Orphan) 個孤兒檔案..."
+            $report | Where-Object { $_.Status -eq "ORPHAN" } | ForEach-Object {
+                $orphanFile = Join-Path -Path $targetDir -ChildPath $_.Path
+                if (Test-Path -Path $orphanFile) {
+                    Remove-Item -Path $orphanFile -Force
+                    Write-Host "    [x] 已刪除: $($_.Path)" -ForegroundColor Green
+                }
+            }
+            # 清理可能殘留的空目錄（由深到淺）
+            foreach ($dir in @("rules", "workflows", "scripts", "skills")) {
+                $dirPath = Join-Path -Path $targetDir -ChildPath $dir
+                if (Test-Path -Path $dirPath) {
+                    Get-ChildItem -Path $dirPath -Directory -Recurse | Sort-Object { $_.FullName.Length } -Descending | ForEach-Object {
+                        if (@(Get-ChildItem -Path $_.FullName -Force).Count -eq 0) {
+                            Remove-Item -Path $_.FullName -Force
+                            Write-Host "    [x] 已清除空目錄: $($_.FullName.Substring($targetDir.Length + 1))" -ForegroundColor DarkGreen
+                        }
+                    }
+                }
+            }
+            Write-Host "[OK] 孤兒檔案清除完成。"
+        } else {
+            Write-Host "[!] 注意: $($stats.Orphan) 個孤兒檔案（源碼已刪除但目標仍存在）："
+            $report | Where-Object { $_.Status -eq "ORPHAN" } | ForEach-Object {
+                Write-Host "    → $($_.Path)" -ForegroundColor Magenta
+            }
+            Write-Host "    提示: 加入 -RemoveOrphans 參數可自動清除這些檔案。" -ForegroundColor DarkYellow
         }
     }
     Write-Host "-----------------------------------------------"

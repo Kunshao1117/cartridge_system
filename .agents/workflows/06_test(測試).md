@@ -7,11 +7,14 @@ memory_awareness: read
 
 # [WORKFLOW: TEST (測試)]
 
-> **Required Skills**: 見 YAML `required_skills` 欄位。
 
 ## 1. Invocation & Autonomy
 
 - This workflow can be called by the Director directly or autonomously invoked by other workflows (e.g., via the `// turbo` chain from `/03_build`).
+
+> [LOAD SKILL] §2 啟動瀏覽器測試前，必須讀取：
+> 1. `view_file .agents/skills/browser-testing/SKILL.md`
+> 2. `view_file .agents/skills/test-automation-strategy/SKILL.md`
 
 ## 2. Robotic QA & Visual Verification
 
@@ -27,6 +30,9 @@ memory_awareness: read
 │   Log to memory card ## Known Issues → Chain to /04_fix.
 └── Output constraint: Maximum 5 lines of failure detail per test.
 ```
+
+> [LOAD SKILL] §2.5 無障礙掃描前，必須讀取：
+> `view_file .agents/skills/a11y-testing/SKILL.md`
 
 ## 2.5 Accessibility Scan (無障礙掃描 — 新增步驟)
 

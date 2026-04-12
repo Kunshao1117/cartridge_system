@@ -3,9 +3,9 @@ name: gitignore-filter
 description: >
   專案記憶：Gitignore 排除引擎模組。讀取 .gitignore 規則進行路徑排除過濾。Use when:
   涉及檔案掃描、監聽排除、未歸屬檔案偵測時載入。
-last_updated: '2026-04-09T18:56:37+08:00'
+last_updated: '2026-04-12T11:26:26+08:00'
 status: stale
-staleness: 0
+staleness: 10
 metadata:
   author: antigravity
   version: '1.0'
@@ -14,6 +14,15 @@ metadata:
   tool_scope:
     - 'filesystem:read'
 ---
+<!-- CARTRIDGE_SYSTEM_WARNING_START -->
+
+> [!CAUTION]
+> 🟠 **系統強制攔截**：此記憶已過期失真！
+> 追蹤檔案異動：`src/gitignore-filter.ts`（2026-04-12T11:47:50+08:00）
+> AI 嚴禁基於此記憶施工，必須優先閱讀最新原始碼並更新此記憶卡。
+> staleness: 10 | threshold: 🟠 顯著過期
+
+<!-- CARTRIDGE_SYSTEM_WARNING_END -->
 
 # GitignoreFilter — Gitignore 排除引擎記憶
 
@@ -33,6 +42,7 @@ metadata:
 
 ## Module Lessons
 - D01: ignore 套件內部使用 Trie 結構，單次查詢 O(path_length)，效能影響可忽略
+- D07: filterPaths 搭配忽略 `.git` 已能穩固應付巨量掃描，並能有效阻絕潛在的路徑穿越與掃描無限迴圈。
 
 ## Relations
 - index-manager（根層模組：detectUntrackedFiles 傳入 GitignoreFilter 實例）

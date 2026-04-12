@@ -7,7 +7,6 @@ skill_generation: true
 
 # [WORKFLOW: SKILL FORGE (技能鍛造)]
 
-> **Required Skills**: 見 YAML `required_skills` 欄位。另外，`memory-ops` 僅在需要更新記憶卡時載入。
 
 ## 1. Trigger Conditions (觸發條件)
 
@@ -16,6 +15,9 @@ This workflow is triggered by one of the following:
 - Director explicitly requests a new project skill（總監明確指示建立新技能）
 - `/08_audit` Phase G recommends a new skill based on pattern detection（健檢偵測到跨模組重複模式）
 - `/04_fix` or `/07_debug` recommends distilling a methodology（修復/除錯後發現可萃取方法論）
+
+> [LOAD SKILL] §2 設計前，必須讀取：
+> `view_file .agents/skills/skill-factory/SKILL.md`
 
 ## 2. Skill Design Planning
 
@@ -49,6 +51,10 @@ Upon approval:
    ```
 4. Create `references/` subdirectory if the skill requires L3 resources.
 5. Update `.agents/skills/_index.md` to register the new project skill with keywords.
+6. **[LOAD SKILL 義務更新]** 新技能建立後，MUST 宣告「此技能應加入哪些工作流的 `[LOAD SKILL]` 閘門」，並執行相應工作流的修改。
+
+> [LOAD SKILL] 若需更新記憶卡：
+> `view_file .agents/skills/memory-ops/SKILL.md`
 
 ## 5. Verification
 

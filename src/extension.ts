@@ -1,10 +1,18 @@
 /**
- * 記憶卡匣外掛系統 — VS Code 擴充套件入口
+ * 記憶卡匣外掛系統 v2.0 — VS Code 擴充套件入口
  * activate：開啟含 .agents 目錄的工作區時自動執行
  * deactivate：VS Code 關閉時自動執行
+ *
+ * v2.0 架構核心升級：
+ * - 原生 VS Code FileSystemWatcher 取代 chokidar
+ * - Cache-First 寫入機制 + 安全心跳
+ * - 背景化幽靈掃描（不阻塞啟動）
+ * - TreeView 側邊欄 + CodeLens 行內標記
+ * - 智慧歸屬推薦引擎 + 右鍵歸檔指令
  */
 
 import * as vscode from "vscode";
+import path from "node:path";
 import { createConfig } from "./config";
 import { CoreInjector } from "./injector";
 import { CartridgeIndexManager } from "./index-manager";
@@ -13,12 +21,18 @@ import { MemoryWriter } from "./writer";
 import { CartridgeWatcher } from "./watcher";
 import { CartridgeStatusBar } from "./status-bar";
 import { GitignoreFilter } from "./gitignore-filter";
+import { CartridgeTreeProvider } from "./treeview-provider";
+import { CartridgeCodeLensProvider } from "./codelens-provider";
+import { suggestOwner } from "./smart-owner";
 
 let watcher: CartridgeWatcher | undefined;
 let indexManager: CartridgeIndexManager | undefined;
 let statusBar: CartridgeStatusBar | undefined;
 let gitignoreFilter: GitignoreFilter | undefined;
 let config: ReturnType<typeof createConfig> | undefined;
+let treeProvider: CartridgeTreeProvider | undefined;
+let codeLensProvider: CartridgeCodeLensProvider | undefined;
+let heartbeatTimer: NodeJS.Timeout | undefined;
 
 /**
  * 擴充套件啟動（VS Code 開啟含 .agents 工作區時自動呼叫）
@@ -38,6 +52,7 @@ export async function activate(
       const newIndex = await indexManager.scan();
       indexManager.detectMissedChanges(config.scoring);
       indexManager.refilterUntrackedFiles(gitignoreFilter);
+      await indexManager.flushIfDirty();
       await indexManager.persist();
       statusBar?.update(indexManager.getIndex());
       const count = Object.keys(newIndex.cartridges).length;
@@ -54,8 +69,18 @@ export async function activate(
       }
       gitignoreFilter.reload();
       indexManager.clearUntrackedFiles();
-      indexManager.detectUntrackedFiles(gitignoreFilter);
-      await indexManager.persist();
+
+      // v2.0: 使用 findFiles 取代 scanDirectory
+      const projectRoot =
+        vscode.workspace.workspaceFolders?.[0]?.uri.fsPath ?? "";
+      const uris = await vscode.workspace.findFiles("**/*", "**/.git/**");
+      const allFiles = uris.map((u) =>
+        path.relative(projectRoot, u.fsPath).replace(/\\/g, "/"),
+      );
+      indexManager.detectUntrackedFiles(allFiles, gitignoreFilter);
+
+      indexManager.markDirty();
+      await indexManager.flushIfDirty();
       statusBar?.update(indexManager.getIndex());
       const count = indexManager.getUntrackedFiles().length;
       vscode.window.showInformationMessage(
@@ -129,6 +154,36 @@ export async function activate(
     }),
   );
 
+  // 命令：歸屬到記憶卡（智慧推薦 + QuickPick 選擇）
+  context.subscriptions.push(
+    vscode.commands.registerCommand(
+      "cartridge.attributeFile",
+      async (uri?: vscode.Uri) => {
+        if (!indexManager || !config) return;
+        const fileUri = uri ?? vscode.window.activeTextEditor?.document.uri;
+        if (!fileUri) return;
+        const relPath = path
+          .relative(config.projectRoot, fileUri.fsPath)
+          .replace(/\\/g, "/");
+        const index = indexManager.getIndex();
+        const suggested = suggestOwner(relPath, index);
+        const cartridgeIds = Object.keys(index.cartridges);
+        const picked = await vscode.window.showQuickPick(
+          cartridgeIds.map((id) => ({
+            label: id === suggested ? `⭐ ${id} (推薦)` : id,
+            id,
+          })),
+          { placeHolder: "選擇要歸屬的記憶卡" },
+        );
+        if (picked) {
+          vscode.window.showInformationMessage(
+            `已將 ${path.basename(relPath)} 標記歸屬至 [${picked.id}]。請使用 MCP 工具更新記憶卡的追蹤清單。`,
+          );
+        }
+      },
+    ),
+  );
+
   // === 工作區檢查（僅影響初始化，不影響指令） ===
   const workspaceFolders = vscode.workspace.workspaceFolders;
   if (!workspaceFolders || workspaceFolders.length === 0) {
@@ -140,10 +195,8 @@ export async function activate(
   // === 自動排除設定 ===
   try {
     const wsConfig = vscode.workspace.getConfiguration();
-    // files.exclude 影響檔案總管顯示
     const filesExclude =
       wsConfig.get<Record<string, boolean>>("files.exclude") || {};
-    // search.exclude 影響全域搜尋
     const searchExclude =
       wsConfig.get<Record<string, boolean>>("search.exclude") || {};
     let settingsUpdated = false;
@@ -192,24 +245,52 @@ export async function activate(
     const index = await indexManager.scan();
     indexManager.detectMissedChanges(config.scoring);
 
-    // 全專案目錄掃描：找出未歸屬檔案
-    indexManager.detectUntrackedFiles(gitignoreFilter);
-
-    await indexManager.persist();
-
+    // v2.0: 立即顯示基礎燈號（不等待幽靈掃描）
     statusBar.update(index);
+
+    // v2.0: TreeView 側邊欄
+    treeProvider = new CartridgeTreeProvider(indexManager, projectRoot);
+    vscode.window.registerTreeDataProvider("cartridgeExplorer", treeProvider);
+
+    // v2.0: CodeLens 行內標記
+    codeLensProvider = new CartridgeCodeLensProvider(indexManager, projectRoot);
+    context.subscriptions.push(
+      vscode.languages.registerCodeLensProvider("*", codeLensProvider),
+    );
+
+    // v2.0: 記憶體變動通知 hook（連動 UI 三兄弟）
+    indexManager.onChanged = () => {
+      statusBar?.update(indexManager?.getIndex());
+      treeProvider?.refresh();
+      codeLensProvider?.refresh();
+    };
 
     const writer = new MemoryWriter(config);
     const analyzer = new StalenessAnalyzer(config, indexManager, writer);
-    const refreshStatusBar = () => statusBar?.update(indexManager?.getIndex());
     watcher = new CartridgeWatcher(
       config,
       indexManager,
       analyzer,
       gitignoreFilter,
-      refreshStatusBar,
     );
     await watcher.start();
+
+    // v2.0: 背景化幽靈掃描（不阻塞啟動流程）
+    setTimeout(async () => {
+      try {
+        const uris = await vscode.workspace.findFiles("**/*", "**/.git/**");
+        const allFiles = uris.map((u) =>
+          path.relative(projectRoot, u.fsPath).replace(/\\/g, "/"),
+        );
+        indexManager?.detectUntrackedFiles(allFiles, gitignoreFilter!);
+        indexManager?.markDirty();
+      } catch (err) {
+        console.error("[記憶卡匣] 背景幽靈掃描失敗：", err);
+      }
+    }, 3000);
+
+    // v2.0: 安全心跳（每 5 分鐘落地一次）
+    heartbeatTimer = setInterval(() => indexManager?.flushIfDirty(), 300_000);
 
     context.subscriptions.push(
       vscode.workspace.onDidChangeWorkspaceFolders(async () => {
@@ -229,7 +310,10 @@ export async function activate(
  * 擴充套件關閉（VS Code 關閉時自動呼叫）
  */
 export async function deactivate(): Promise<void> {
-  await watcher?.stop();
-  await indexManager?.persist();
+  watcher?.stop();
+  if (heartbeatTimer) clearInterval(heartbeatTimer);
+  await indexManager?.flushIfDirty();
   statusBar?.dispose();
+  treeProvider?.dispose();
+  codeLensProvider?.dispose();
 }

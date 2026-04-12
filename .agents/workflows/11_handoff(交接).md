@@ -6,7 +6,10 @@ memory_awareness: full
 
 # [WORKFLOW: HANDOFF (交接)]
 
-> **Required Skills**: 見 YAML `required_skills` 欄位。
+
+> [LOAD SKILL] 執行任何步驟前，必須依序讀取：
+> 1. `view_file .agents/skills/memory-ops/SKILL.md`
+> 2. `view_file .agents/skills/memory-arch/SKILL.md`
 
 ## 1. Memory Skill State Aggregation
 

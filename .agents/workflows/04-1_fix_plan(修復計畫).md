@@ -6,7 +6,9 @@ memory_awareness: full
 
 # [WORKFLOW: FIX PLAN (修復計畫)]
 
-> **Required Skills**: See YAML `required_skills`.
+
+> [LOAD SKILL] §0 執行前，必須讀取：
+> `view_file .agents/skills/memory-ops/SKILL.md`
 
 ## 0. Memory Recall
 - Check the IDE-injected skill list for memory cards relevant to the target modules.
@@ -15,6 +17,9 @@ memory_awareness: full
 ## 1. Current State Constraint
 - [CONSTRAINT] Use loaded memory skills' `## Tracked Files` to navigate directly to relevant files.
 - [FORBIDDEN] DO NOT guess the architecture or file paths blindly.
+
+> [LOAD SKILL] 影響分析執行前，必須讀取：
+> `view_file .agents/skills/impact-test-strategy/SKILL.md`
 
 ## 1.5 Impact Analysis
 - Execute `impact-test-strategy` skill § 1 Impact Analysis Flow:

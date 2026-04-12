@@ -59,6 +59,10 @@ export function parseTrackedFiles(content: string): string[] {
 export class CartridgeIndexManager {
   private config: CartridgeConfig;
   private index: CartridgeIndex;
+  private isDirty = false;
+
+  /** 記憶體變動通知 hook（由 extension.ts 注入，MCP Server 可忽略） */
+  onChanged?: () => void;
 
   constructor(config: CartridgeConfig) {
     this.config = config;
@@ -69,6 +73,25 @@ export class CartridgeIndexManager {
       fileMap: {},
       untrackedFiles: [],
     };
+  }
+
+  /**
+   * 標記索引已變動，待安全時機寫入磁碟
+   */
+  markDirty(): void {
+    this.isDirty = true;
+    this.onChanged?.();
+  }
+
+  /**
+   * 若索引有變動，執行一次磁碟寫入並重置 dirty flag
+   * 由安全時機點呼叫：deactivate / 心跳 / 手動指令
+   */
+  async flushIfDirty(): Promise<void> {
+    if (this.isDirty) {
+      await this.persist();
+      this.isDirty = false;
+    }
   }
 
   /**
@@ -368,13 +391,19 @@ export class CartridgeIndexManager {
   }
 
   /**
-   * 掃描完整專案目錄，找出未被任何記憶卡追蹤且不在 .gitignore 內的檔案
+   * 從外部傳入的檔案清單中，找出未被任何記憶卡追蹤的檔案
+   * @param allFiles - 由 vscode.workspace.findFiles 或其他來源產出的相對路徑清單
+   * @param gitignoreFilter - 用於二次過濾 .gitignore 規則
    */
-  detectUntrackedFiles(gitignoreFilter: GitignoreFilter): void {
-    const allFiles = gitignoreFilter.scanDirectory(this.config.projectRoot);
+  detectUntrackedFiles(
+    allFiles: string[],
+    gitignoreFilter: GitignoreFilter,
+  ): void {
     const allTracked = new Set(this.getAllTrackedFiles());
 
     for (const file of allFiles) {
+      // .gitignore 二次過濾
+      if (gitignoreFilter.isIgnored(file)) continue;
       // 排除系統安全網目錄
       if (this.config.excludeDirs.some((d) => file.startsWith(d))) continue;
       // 排除系統產物

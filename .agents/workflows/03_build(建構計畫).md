@@ -6,7 +6,6 @@ memory_awareness: read
 
 # [WORKFLOW: BUILD — PLAN (建構計畫)]
 
-> **Required Skills**: 見 YAML `required_skills` 欄位。
 
 ## 0. Execution Identity（角色識別 — 必讀）
 
@@ -25,6 +24,9 @@ memory_awareness: read
 └── Otherwise → [PRODUCTION MODE] Continue to §1.
 ```
 
+> [LOAD SKILL] §1 執行前，必須讀取：
+> `view_file .agents/skills/memory-ops/SKILL.md`
+
 ## 1. Memory Recall（記憶載入）
 
 - 從 IDE 注入的技能清單中，找出與目標模組相關的記憶卡。
@@ -37,6 +39,10 @@ memory_awareness: read
 - 使用已載入的記憶技能，理解模組架構與當前狀態。
 - 嚴格遵守 `/02_blueprint` 或總監指定的藍圖 / 實作計畫。
 - 根據 Glob 模式，自動套用 `.agents/rules/` 中所有適用的規範。
+
+> [LOAD SKILL] §3 產出計畫並涉及程式碼時，必須讀取：
+> 1. `view_file .agents/skills/code-quality/SKILL.md`
+> 2. `view_file .agents/skills/security-sre/SKILL.md`
 
 ## 3. Planning Mode & Diff Generation（規劃模式與差異生成）
 

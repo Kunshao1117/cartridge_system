@@ -28,6 +28,9 @@ You MUST halt and output an Artifact or Response EXACTLY matching this Tradition
 > [!CAUTION]
 > 總監，以上的程式碼將會徹底消失。確認要扣動扳機？請輸入 GO 授權。
 
+> [LOAD SKILL] §4 還原前，必須讀取：
+> `view_file .agents/skills/memory-ops/SKILL.md`
+
 ## 4. Execution
 
 - Upon the Director's **GO** signal, execute the precise Git rollback command (e.g. `git reset --hard <hash>`).

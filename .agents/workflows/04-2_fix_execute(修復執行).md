@@ -7,7 +7,9 @@ memory_awareness: full
 
 # [WORKFLOW: FIX EXECUTE (修復執行)]
 
-> **Required Skills**: See YAML `required_skills`.
+
+> [LOAD SKILL] §2 修復寫入前，必須讀取：
+> `view_file .agents/skills/security-sre/SKILL.md`
 
 ## 1. Authorization Check
 

@@ -56,38 +56,4 @@ export class GitignoreFilter {
   filterPaths(relativePaths: string[]): string[] {
     return relativePaths.filter((p) => !this.isIgnored(p));
   }
-
-  /**
-   * 遞迴掃描目錄，回傳所有不被忽略的檔案相對路徑
-   * 用於 detectMissedChanges 第二階段的全目錄掃描
-   */
-  scanDirectory(dir: string): string[] {
-    const results: string[] = [];
-    this._scanRecursive(dir, results);
-    return results;
-  }
-
-  private _scanRecursive(dir: string, results: string[]): void {
-    let entries: fs.Dirent[];
-    try {
-      entries = fs.readdirSync(dir, { withFileTypes: true });
-    } catch {
-      return;
-    }
-
-    for (const entry of entries) {
-      const absPath = path.join(dir, entry.name);
-      const relPath = path
-        .relative(this.projectRoot, absPath)
-        .replace(/\\/g, "/");
-
-      if (this.isIgnored(relPath)) continue;
-
-      if (entry.isDirectory()) {
-        this._scanRecursive(absPath, results);
-      } else {
-        results.push(relPath);
-      }
-    }
-  }
 }

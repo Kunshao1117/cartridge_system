@@ -1,18 +1,28 @@
 ---
 name: index-manager
-description: |
-  專案記憶：記憶索引管理器模組。管理卡匣索引、檔案反向映射、離線偵測、未歸屬檔案池。Use when: 處理卡匣索引、檔案反向映射、持久化讀寫時載入。
-last_updated: '2026-04-09T18:56:50+08:00'
+description: >
+  專案記憶：記憶索引管理器模組。管理卡匣索引、檔案反向映射、離線偵測、未歸屬檔案池、Cache-First 持久化。Use when:
+  處理卡匣索引、檔案反向映射、持久化讀寫時載入。
+last_updated: '2026-04-12T11:26:26+08:00'
 status: stale
-staleness: 0
+staleness: 10
 metadata:
   author: antigravity
-  version: '1.0'
+  version: '2.0'
   origin: project
   memory_awareness: full
   tool_scope:
     - 'filesystem:write'
 ---
+<!-- CARTRIDGE_SYSTEM_WARNING_START -->
+
+> [!CAUTION]
+> 🟠 **系統強制攔截**：此記憶已過期失真！
+> 追蹤檔案異動：`src/index-manager.ts`（2026-04-12T11:47:50+08:00）
+> AI 嚴禁基於此記憶施工，必須優先閱讀最新原始碼並更新此記憶卡。
+> staleness: 10 | threshold: 🟠 顯著過期
+
+<!-- CARTRIDGE_SYSTEM_WARNING_END -->
 
 # Cartridge Index Manager — 索引管理器記憶
 
@@ -40,6 +50,10 @@ metadata:
 - D16: v1.0 未歸屬檔案池 — 新增 addUntrackedFile/removeUntrackedFile/getUntrackedFiles 管理方法
 - D17: v1.0 全專案目錄掃描 — 新增 detectUntrackedFiles(gitignoreFilter)，掃描不在 gitignore/已追蹤/已歸屬範圍中的檔案
 - D18: v1.0 幽靈雙向即時過濾 — 新增 `clearUntrackedFiles()` 和 `refilterUntrackedFiles()` 處理檔案刪除或 `.gitignore` 變更的清單刷新
+- D19: v2.0 Cache-First 持久化 — 新增 isDirty flag + markDirty() + flushIfDirty()，磁碟寫入延遲至安全時機（deactivate / 心跳 / 手動指令）
+- D20: v2.0 onChanged callback hook — 由 extension.ts 注入，MCP Server 可安全忽略（因 MCP 端不依賴 vscode API）
+- D21: v2.0 detectUntrackedFiles 簽名變更 — 不再內部呼叫 scanDirectory，改為接受外部傳入的 `allFiles: string[]` 參數，保持模組不依賴 vscode API
+- D22: v2.0 persist() 保留 public — MCP Server 的 memory_commit 需要在明確保存時機直接呼叫
 
 ## Key Decisions Addendum
 - D07: parseTrackedFiles 在解析前統一將 CRLF (`\r\n`) 正規化為 LF (`\n`)
@@ -52,9 +66,11 @@ metadata:
 - D05: 測試 detectMissedChanges() 時需 mock node:fs 的 statSync 來控制 mtimeMs 回傳值
 - D13: 新增必要欄位時，所有測試的 fixture 物件也必須同步更新
 - D18: v1.0 scopePath 技術債教訓 — findOwner() 的最長前綴匹配會靠靜呑噥全部 scopePath 範圍內的新檔案，阻既幽靈池又封死過期計分。已全面移除。
+- D19: 幽靈檔案池 (Untracked Files Pool) 被證實為極為重要之機制，讓索引不只管「已追蹤檔案」，更能幫助總監主動抓出落單的實作程式碼，徹底消滅盲區。
+- L05: (2026-04-12) v2.0 EventEmitter 不可放 index-manager 內部，因其同時被 MCP Server 引用。改用 callback hook 確保跨環境安全。
 
 ## Relations
-- watcher（extension 子卡：提供監聽檔案清單）
+- watcher（extension 子卡：提供監聯檔案清單）
 - analyzer（extension 子卡：接收過期指數更新）
 - mcp-tools（根層模組：第二階段對外暴露查詢能力）
 - gitignore-filter（根層模組：detectUntrackedFiles 需要 GitignoreFilter 實例）

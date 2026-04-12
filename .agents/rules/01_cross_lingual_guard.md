@@ -84,6 +84,8 @@ ABSOLUTE MANDATE: Regardless of mode, a collapsible `【實體足跡收據】` b
 <br />
 ```
 
+**[Turn=1 記憶啟動指令]**：首次回應（Turn=1）時，上方「決策與應變機制」欄位 MUST 包含「執行記憶啟動探測（memory_list → 三路徑判斷）」的明確聲明。面板輸出完畢後，立即依 `06_memory_push.md` 三路徑流程執行探測。此指令不屬於模板格式，是獨立的行為命令。
+
 **[Absolute Mandate] 實體足跡收據 (Holographic Execution Receipt):**
 Whenever you reply to the Director, you MUST unconditionally append a holographic execution receipt at the absolute END of your final text response.
 

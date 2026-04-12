@@ -2,7 +2,7 @@
 
 > **主動式 AI 記憶防禦引擎** — 自動偵測記憶卡過期、植入攔截警報，確保 AI 不讀取失效的上下文。
 
-[![version](https://img.shields.io/badge/version-1.0.0-blue)](./CHANGELOG.md)
+[![version](https://img.shields.io/badge/version-2.0.0-blue)](./CHANGELOG.md)
 [![tests](https://img.shields.io/badge/tests-128%20passed-brightgreen)](#-執行測試)
 [![license](https://img.shields.io/badge/license-MIT-green)](#)
 
@@ -28,11 +28,13 @@ Cartridge System 是一個為 [Antigravity 框架](https://github.com/Kunshao111
 
 | 功能 | 說明 |
 |------|------|
-| 🔍 **全域雷達** | 使用 chokidar v4 全專案監聽，結合原生 `.gitignore` 規則精準屏除依賴庫。 |
+| 🔍 **全域雷達** | 使用 VS Code 原生 FileSystemWatcher 全專案監聽，結合原生 `.gitignore` 規則精準屏除依賴庫。 |
 | 👻 **未歸屬檔案池** | 智能偵測專案內新增但未被任何卡匣記錄的檔案，支援歸屬建議。 |
 | 📊 **過期指數計算** | 根據異動類型（新增/修改/刪除）與時間衰退計算分數 |
 | 🚨 **警報自動植入** | 過期指數超過閾值時，自動在 SKILL.md 頂部插入攔截警告 |
 | 🟢 **狀態列燈號** | VS Code 狀態列即時顯示記憶卡指標（五層等級：🟢🔵🟡🟠🔴）以及 👻 幽靈計數 |
+| 🌳 **TreeView 面板**| v2.0 新增記憶卡匣專屬側邊欄，樹狀可視化呈現所有健康指標與幽靈池 |
+| 🔍 **CodeLens 標記**| v2.0 新增編輯器頂部行內標記，即時顯示當前檔案所屬的記憶卡與過期狀態 |
 | 🛠️ **MCP 工具介面** | 提供四個標準化 AI 工具，支援跨專案動態路徑解析 |
 | 🌐 **跨平台相容** | 完整支援 Windows CRLF 與 Unix LF 行尾格式 |
 | 🛡️ **路徑安全防禦** | 雙層路徑驗證（Zod 格式守衛 + 語意守衛），阻擋路徑穿越攻擊 |
@@ -54,7 +56,7 @@ npm run build
 npm run package
 
 # 使用 Antigravity IDE CLI 安裝（注意：不可用 code 指令）
-antigravity --install-extension cartridge-system-1.0.0.vsix --force
+antigravity --install-extension cartridge-system-2.0.0.vsix --force
 ```
 
 ### 方法二：開發模式
@@ -185,9 +187,12 @@ cartridge_system/
 │   ├── mcp-server.ts      # MCP 伺服器路由（SDK 層）
 │   ├── mcp-handlers.ts    # MCP 工具商業邏輯（純函式層）
 │   ├── index-manager.ts   # 記憶索引管理器（路徑掃描 + 反向映射）
-│   ├── watcher.ts         # 檔案監聽引擎（chokidar + 動態 refresh）
+│   ├── watcher.ts         # 檔案監聽引擎（原生 Watcher + debounceMap）
 │   ├── analyzer.ts        # 過期指數計算器（事件計分 + 時間衰退）
 │   ├── writer.ts          # 記憶卡警報寫入器（植入/清除）
+│   ├── treeview-provider.ts # 🌲 TreeView 側邊欄面板提供者
+│   ├── codelens-provider.ts # 🔍 CodeLens 行內狀態標記提供者
+│   ├── smart-owner.ts     # 🧠 智慧歸屬推薦引擎（最長前綴匹配）
 │   ├── config.ts          # 外掛設定（閾值、計分權重）
 │   ├── path-guard.ts      # 路徑安全驗證（雙層防禦）
 │   ├── timestamp.ts       # 時間戳生成（Intl API）
@@ -217,7 +222,7 @@ cartridge_system/
 |------|------|
 | 語言 | TypeScript 5.x |
 | 框架 | VS Code Extension API |
-| 檔案監聽 | chokidar v4 |
+| 檔案監聽 | VS Code 原生 FileSystemWatcher |
 | YAML 解析 | gray-matter |
 | MCP SDK | @modelcontextprotocol/sdk |
 | 打包 | tsup（CJS 輸出，vscode external） |

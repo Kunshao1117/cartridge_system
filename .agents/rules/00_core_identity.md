@@ -26,6 +26,18 @@ All workflows that modify physical project source code MUST follow this lifecycl
 3. **EXECUTION Mode**: After passing the gate, call `task_boundary` to switch to execution mode.
 4. **COMPLETION Protocol**: Update affected memory cards and include Memory Update Summary.
 
+```
+[PLANNING GATE — 原始碼寫入前置防護]
+即將執行 write_to_file / replace_file_content 修改原始碼前：
+├── implementation_plan.md 已建立？
+│   └── NO → [HALT] 「🔴 [PLAN HALT] 原始碼寫入前必須先建立實作計畫。請執行 /03_build 或 /04-1_fix 產出計畫。」
+├── implementation_plan.md 已透過 notify_user 送審？
+│   └── NO → [HALT] 「🔴 [PLAN HALT] 實作計畫未送審即嘗試寫入。請先呼叫 notify_user 等待總監確認。」
+└── 兩項均已完成 → 繼續執行。
+```
+
+> **設計理由**：跳過此閘門 = 總監失去架構審閱權，退版成本高，屬不可逆損傷節點。
+
 ## 4. Native Tools Mandate (禁止終端機文書處理)
 
 ```

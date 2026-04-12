@@ -6,12 +6,18 @@ memory_awareness: full
 
 # [WORKFLOW: REFACTOR (重構)]
 
-> **Required Skills**: 見 YAML `required_skills` 欄位。
+
+> [LOAD SKILL] §0 執行前，必須讀取：
+> `view_file .agents/skills/memory-ops/SKILL.md`
 
 ## 0. Memory Recall (記憶載入)
 
 - Check the IDE-injected skill list for memory cards relevant to the target modules.
 - Load relevant memory card SKILL.md files — check `## Relations` to ensure refactoring does not break dependent modules.
+
+> [LOAD SKILL] 測試基線建立前，必須讀取：
+> 1. `view_file .agents/skills/test-patterns/SKILL.md`
+> 2. `view_file .agents/skills/impact-test-strategy/SKILL.md`
 
 ## 1. Tech-Stack Binding & Zero-Regression
 
@@ -30,6 +36,9 @@ memory_awareness: full
 │       「🔴 [REFACTOR HALT] 重構導致回歸。已自動退版。請總監審閱。」
 └── Gate cleared → Report to Director.
 ```
+
+> [LOAD SKILL] §2 重構執行前，必須讀取：
+> `view_file .agents/skills/code-quality/SKILL.md`
 
 ## 2. Refactoring Execution
 

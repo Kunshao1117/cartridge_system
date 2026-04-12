@@ -20,12 +20,14 @@ memory_awareness: full
 
 # [WORKFLOW: AUDIT & MEMORY HEALTH (專案健檢)]
 
-> **Required Skills**: 見 YAML `required_skills` 欄位。
 
 ## 1. Global Workspace Security Scan
 
 - Scan `package.json`, `requirements.txt`, or equivalent for deprecated packages/CVEs.
 - Scan for hardcoded API keys, orphaned files, and unused dependencies.
+
+> [LOAD SKILL] §2 記憶系統健檢前，必須讀取：
+> `view_file .agents/skills/memory-ops/SKILL.md`
 
 ## 2. Memory Skill System Initialization Check
 
@@ -81,6 +83,10 @@ memory_awareness: full
 
 > **Execution Condition**: This section ONLY executes when memory cards contain non-empty `## Tracked Files`. If the project is a pure framework/ruleset (e.g., Antigravity itself), output: 「本專案無應用程式原始碼，跳過深度審計。」 and skip to §4.
 
+> [LOAD SKILL] CLI 工具掃描前，必須讀取：
+> 1. `view_file .agents/skills/delegation-strategy/SKILL.md`
+> 2. `view_file .agents/skills/code-audit/SKILL.md`
+
 ### Step 1: CLI Tool Scan (CLI 工具掃描 — 無條件強制委派)
 
 > [!IMPORTANT]
@@ -117,6 +123,9 @@ CLI 執行完成後輸出：
 
 1. 如果專案具備測試框架，由主腦 (Master Agent) 直接呼叫原生工具 `mcp_trunk_detect-frameworks` 取代 CLI 子代理。
 2. 分析專案是否有不穩定測試 (Flaky Tests)，並彙整 Trunk 的建議狀態。
+
+> [LOAD SKILL] AI 跨邊界分析前，必須讀取：
+> `view_file .agents/skills/audit-engine/SKILL.md`
 
 ### Step 3: AI Cross-Boundary Analysis (AI 跨邊界架構分析)
 

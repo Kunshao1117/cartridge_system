@@ -1,13 +1,13 @@
 ---
 name: memory-ops
 description: >
-  [Infra] Complete operating guide for reading, updating, and creating memory cards.
+  [Infra] Lightweight operational guide for reading, updating memory cards, and fixing staleness.
   MCP Server: cartridge-system
-  Use when: 建立、讀取或更新專案記憶卡時載入。本技能取代手動的 Markdown 編輯，強制執行合規自動化。
-  DO NOT use when: 純讀取記憶卡內容（直接用 view_file）、非記憶寫入/建立/修復場景。
+  Use when: 讀取、更新已存在的專案記憶卡、復原過期指數或升級舊卡格式時載入。
+  DO NOT use when: 決定系統層級架構拓樸、新建模組或拆分卡匣（用 memory-arch 技能）。
 metadata:
   author: antigravity
-  version: "2.0"
+  version: "2.1"
   origin: framework
   memory_awareness: full
   tool_scope: ["filesystem:write", "mcp:cartridge-system"]
@@ -74,9 +74,7 @@ After modifying source files tracked by a memory skill, you **MUST** update the 
 ```
 Need to update memory?
 ├── 🔍 Granularity pre-check: does the target memory card have > 8 trackedFiles?
-│   └── Yes → Pause update. Execute § 5.6 split procedure first
-│       → Propose split strategy to Director
-│       → After Director approves, execute split, then update the resulting child cards
+│   └── Yes → Pause update. Execute memory-arch split procedure first.
 ├── Step 1: Call memory_read(moduleName) to get current content
 │   ⇒ Understand existing decisions, tracked files, known issues
 ├── Step 2: Use write_to_file / replace_file_content to write updated SKILL.md
@@ -118,103 +116,21 @@ New source file created?
 │   └── No match → Step 3
 └── Step 3: HALT and propose to Director:
     ├── Option A: Expand nearest card's scopePath to cover the new file
-    └── Option B: Create new memory card (execute § 5)
+    └── Option B: Create new memory card (load memory-arch skill)
 ```
 
 **FORBIDDEN**: Leaving new source files untracked. Every production source file MUST belong to exactly one memory card.
 
-## 5. Creating New Memory (建立新記憶)
+## 4.6 Lazy Upgrade Protocol (舊版記憶卡延遲升級義務)
 
-```
-New module identified by /02_blueprint or /08_audit?
-├── Step 1: Determine nesting level (see Nesting Decision Tree below)
-├── Step 2: Create folder at resolved path → `.agents/memory/{module}/`
-├── Step 3: Create SKILL.md using template → see references/memory-template.md
-│   ⇒ frontmatter: name, description (MUST include Chinese keywords), scopePath
-│   ⇒ body: Tracked Files, Key Decisions, Known Issues, Module Lessons, Relations, Applicable Skills
-└── Step 4: Call memory_commit(moduleName, projectRoot)
-    ⇒ Registers card in index + validates structure
-```
+When modifying, fixing logic, or repairing staleness on a legacy memory card (e.g. ones created before V5 architecture), you MUST organically upgrade the card format during your two-step flow to match the latest structural requirements:
+- Inject missing fields strictly according to the format constraint.
+- Normalize section headers (e.g., ensure `## Tracked Files` matches naming conventions).
+- **Goal**: Seamlessly patch technical debt dynamically on-demand. Avoid massive migration shocks.
 
-### Nesting Decision Tree (層級判斷決策樹)
+<!-- NOTE: Creation, Tree Topology, and Splitting operations have been migrated to the memory-arch skill. -->
 
-```
-Create new memory card?
-├── Does this module belong to an existing functional domain card?
-│   ├── No → Create at `.agents/memory/` root level (layer 1)
-│   └── Yes → Is the parent card's depth < 4?
-│       ├── No → Max depth reached, create at parent's level (keep flat)
-│       └── Yes → Create inside parent card's subdirectory
-│           ⇒ Path: `.agents/memory/{parentName}/{child}/SKILL.md`
-└── Decision criteria:
-    ├── scopePath containment? (child's scopePath is sub-path of parent's)
-    ├── Does modifying the child typically require referencing the parent's shared decisions?
-    └── Are there 3+ modules under the same domain that can be independently tracked?
-```
-
-## 5.5 Tree Structure (樹狀結構規則)
-
-### Rules (規則)
-
-- Layer 1–2: `.agents/memory/{module}/SKILL.md` — IDE auto-discovers
-- Layer 3–4: `.agents/memory/{parent}/{child}/SKILL.md` — AI loads on-demand via `## Relations`
-- Maximum depth: **4 layers**
-- `scopePath` (optional): directory prefix for file attribution matching
-
-### Directory Example (目錄範例)
-
-```
-.agents/memory/
-├── api/                          ← Layer 1 (functional domain) depth=1
-│   ├── SKILL.md                  ← Shared API architecture decisions
-│   ├── auth/                     ← Layer 2 depth=2, parent='api'
-│   │   ├── SKILL.md              ← Auth module specific decisions
-│   │   └── oauth/                ← Layer 3 depth=3
-│   │       └── SKILL.md          ← OAuth sub-module
-│   └── manage/                   ← Layer 2 depth=2, parent='api'
-│       └── SKILL.md              ← Management module
-└── frontend/                     ← Layer 1 (independent domain)
-    └── SKILL.md
-```
-
-### Loading Nested Cards (子卡載入流程)
-
-```
-Need to access a nested card (layer 3–4)?
-├── Step 1: Read parent card → check ## Relations for child card names
-├── Step 2: Call memory_read(childName)
-│   ⇒ resolveSkillPath handles path resolution automatically
-└── No manual path construction needed
-```
-
-### Granularity Rule (粒度規則)
-
-- Maximum **8 tracked files** per card
-- Exceeded → `memory_list` flags automatically → execute § 5.6
-
-## 5.6 Splitting Memory Cards (拆分操作步驟)
-
-When the system flags a memory card as oversized, or maintenance difficulty is discovered during routine work:
-
-```
-Need to split a memory card?
-├── Step 1: Call memory_read to get the full content of the old card
-│   ⇒ Analyze trackedFiles directory distribution and Key Decisions attribution
-├── Step 2: Propose split strategy to Director
-│   ⇒ Explain which decisions promote to shared (parent) and which demote to (child)
-├── Step 3: Execute after Director approves
-│   ├── Promote the original card to parent (retain shared decisions + scopePath)
-│   ├── Create child card subdirectories under parent (each with scopePath + specific decisions)
-│   └── write_to_file to update parent SKILL.md (trim to shared portions only)
-├── Step 4: Plugin auto scan + refresh
-│   ⇒ Index and file watchers update automatically
-├── Step 5: Call memory_commit for EACH new child card
-│   ⇒ Each child card must be individually committed
-└── Step 6: Call memory_commit for the parent card
-    ⇒ Parent card's trimmed content must also be committed
-```
-
-## 6. System Memory (系統記憶)
+## 5. System Memory (系統記憶)
 
 - Path: `.agents/memory/_system/SKILL.md`
 - Content: tech stack, host platform, deployment config

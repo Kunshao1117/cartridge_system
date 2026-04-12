@@ -8,6 +8,9 @@ description: 單純前置掃描與狀態盤點，列出各項結果
 
 [CONSTRAINT] YOU MUST READ THIS EXECUTABLE SCRIPT STRICTLY. DO NOT AUTO-COMPLETE. DO NOT GUESS.
 
+> [LOAD SKILL] 掃描前，必須讀取：
+> `view_file .agents/skills/memory-ops/SKILL.md`
+
 ## 1. REPOSITORY_STATUS_CHECK
 
 [EXECUTE]

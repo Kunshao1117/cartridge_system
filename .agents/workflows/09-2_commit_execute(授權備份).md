@@ -4,6 +4,9 @@ description: 打包日誌與進行遠端推播
 
 # [WORKFLOW: COMMIT EXECUTE (授權備份)]
 
+> [LOAD SKILL] 推播作業前，必須讀取：
+> `view_file .agents/skills/github-ops/SKILL.md`
+
 ## 1. SNAPSHOT_AND_RECORD
 
 [EXECUTE] Parse uncommitted diffs via `git diff`.

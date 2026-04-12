@@ -2,11 +2,21 @@
 name: core-types
 description: |
   專案記憶：共用型別與設定模組。 Use when: 處理系統共用型別定義、設定工廠函式、預設參數時載入。
-last_updated: '2026-04-09T18:56:49+08:00'
+last_updated: '2026-04-12T10:52:33+08:00'
 status: stale
 staleness: 0
 scopePath: src/
 ---
+<!-- CARTRIDGE_SYSTEM_WARNING_START -->
+
+> [!CAUTION]
+> 🟠 **系統強制攔截**：此記憶已過期失真！
+> 追蹤檔案異動：`src/config.ts`、`src/types.ts`（2026-04-09T18:59:43+08:00）
+> AI 嚴禁基於此記憶施工，必須優先閱讀最新原始碼並更新此記憶卡。
+> staleness: 20 | threshold: 🟠 顯著過期
+
+<!-- CARTRIDGE_SYSTEM_WARNING_END -->
+
 # Core Types & Config — 共用型別與設定記憶
 
 > 本模組包含整個系統的共用型別定義和設定工廠函式，被幾乎所有其他模組引用。
@@ -28,6 +38,7 @@ scopePath: src/
 ## Module Lessons
 - D01: types.ts 是純型別定義檔（無執行邏輯），修改時需確認所有引用模組的型別相容性
 - D02: config.ts 的 DEFAULT_EXCLUDES 清單需與 watcher 的實際排除邏輯保持一致（例如加入 `.cartridge` 避免無謂掃描）。
+- D08: 新增之 config 管理有效將 memoryDir 和 skillsDir 切開，防止系統本身因結構目錄設計變化（如 v4.0）產生的降級相容錯誤。
 
 ## Relations
 - analyzer（引用 CartridgeConfig、StalenessLevel、FileEventType）

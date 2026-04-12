@@ -2,10 +2,19 @@
 name: mcp-tools
 description: |
   專案記憶：MCP 工具介面模組（第二階段）。 Use when: 處理MCP伺服器註冊、工具路由、AI工具呼叫介面時載入。
-last_updated: '2026-04-09T18:56:49+08:00'
-status: stable
+last_updated: '2026-04-12T10:52:34+08:00'
+status: stale
 staleness: 0
 ---
+<!-- CARTRIDGE_SYSTEM_WARNING_START -->
+
+> [!CAUTION]
+> 🟠 **系統強制攔截**：此記憶已過期失真！
+> 追蹤檔案異動：`src/mcp-handlers.ts`、`src/tests/mcp-handlers.test.ts`（2026-04-09T18:59:43+08:00）
+> AI 嚴禁基於此記憶施工，必須優先閱讀最新原始碼並更新此記憶卡。
+> staleness: 20 | threshold: 🟠 顯著過期
+
+<!-- CARTRIDGE_SYSTEM_WARNING_END -->
 
 # MCP Tool Interface — 工具介面記憶（第二階段）
 
@@ -54,6 +63,7 @@ staleness: 0
 - D09: 路徑驗證需雙層防禦：Zod refine 做格式守衛（快速失敗），`validateProjectRoot` 做語意守衛（正規化 + 穿越檢查）。單層防禦不夠，因為 Zod refine 無法做 `path.normalize`。
 - D10: `toLocaleString('sv', { timeZone })` 是取得近似 ISO 格式最簡潔的方法，瑞典語系的日期格式天生接近 ISO 8601。
 - D11: `gray-matter` 的 `matter.stringify(content, frontmatter)` 會自動處理 YAML 序列化，不需要手動拼接引號或格式。
+- D28: memory_commit 的二步流被證實為唯一穩定路徑。已全面廢除 MCP 的 append 與 patch 實務，將 markdown 解析衝突的可能性降至 0。
 - D12: `memory_update` 工具明確區分兩種呼叫語意：mode='replace' 傳入完整 SKILL.md 內容（含 frontmatter）；mode='append' 傳入純差分段落不含 frontmatter。測試中，replace 測試不需 readFile mock，append 測試需模擬現有檔案的 readFile 回傳。
 - D14: Markdown 段落分割使用字元位置切割（substring）而非逐行拼接，可精確保留原始格式（包含空行、縮排等）。合併時保持原檔區段順序，新區段附加到末尾。patch 模式的測試需同時模擬 readFile（現有檔案）和 writeFile，驗證未提及區段的完整保留。
 - D15: 子區段級合併的關鍵設計：當 patch 的 `##` 區段同時包含 `###` 子區段且原始區段也包含 `###` 時，執行子區段級合併；否則回退到整段替換（向下相容）。`rebuildSectionContent()` 負責從 leading + subSections 重組完整的區段文字。測試需使用 `parseSubSections()` 建構含子區段的 Section 物件。

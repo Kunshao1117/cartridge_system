@@ -6,7 +6,7 @@ memory_awareness: full
 
 # [WORKFLOW: BUILD — EXECUTE (建構執行)]
 
-> **Required Skills**: 見 YAML `required_skills` 欄位。
+
 > **前置條件**: 本工作流須由 `/03_build(建構計畫)` 的 GO 授權後方可執行。
 
 ## 0. Precondition Check（前置條件確認）
@@ -63,6 +63,9 @@ memory_awareness: full
 │             DO NOT proceed to §4.
 └── All cards updated → Proceed silently.
 ```
+
+> [LOAD SKILL] §4 測試步驟前，必須讀取：
+> `view_file .agents/skills/test-patterns/SKILL.md`
 
 ## 4. Unit Test Generation（單元測試熔斷器）
 

@@ -1,29 +1,29 @@
 /**
- * 記憶卡匣外掛系統 — 檔案監聽引擎
- * 使用 chokidar 監聽整個專案目錄，搭配 Gitignore 排除引擎過濾事件
+ * 記憶卡匣外掛系統 — 檔案監聽引擎 v2.0
+ * 使用 VS Code 原生 FileSystemWatcher + 自製 debounceMap 取代 chokidar
  */
 
-import fs from "node:fs";
 import path from "node:path";
-import { watch } from "chokidar";
-import type { FSWatcher } from "chokidar";
+import * as vscode from "vscode";
 import type { CartridgeConfig, FileEventType } from "./types.js";
 import type { CartridgeIndexManager } from "./index-manager.js";
 import type { StalenessAnalyzer } from "./analyzer.js";
 import type { GitignoreFilter } from "./gitignore-filter.js";
-import { MemoryWriter } from "./writer.js";
-import matter from "gray-matter";
 
 /**
- * 檔案監聽引擎（v1.0 全專案目錄監控模式）
+ * 檔案監聽引擎（v2.0 VS Code 原生監聽模式）
  */
 export class CartridgeWatcher {
   private config: CartridgeConfig;
   private indexManager: CartridgeIndexManager;
   private analyzer: StalenessAnalyzer;
   private gitignoreFilter: GitignoreFilter;
-  private watcher: FSWatcher | null = null;
+  private watchers: vscode.Disposable[] = [];
+  private debounceMap = new Map<string, NodeJS.Timeout>();
   private onUpdate?: () => void;
+
+  /** 穩定等待毫秒數（取代 chokidar awaitWriteFinish） */
+  private static DEBOUNCE_MS = 300;
 
   constructor(
     config: CartridgeConfig,
@@ -40,61 +40,57 @@ export class CartridgeWatcher {
   }
 
   /**
-   * 啟動監聽引擎（全專案目錄監控模式）
+   * 啟動監聽引擎（VS Code 原生監聽模式）
    */
   async start(): Promise<void> {
-    if (this.watcher) {
-      await this.stop();
-    }
+    this.stop();
 
-    this.watcher = watch(this.config.projectRoot, {
-      persistent: true,
-      ignoreInitial: true,
-      ignored: (filePath: string) => {
-        const rel = path
-          .relative(this.config.projectRoot, filePath)
-          .replace(/\\/g, "/");
-        // 空路徑或根路徑不忽略
-        if (!rel || rel === ".") return false;
-        // 安全網排除（DEFAULT_EXCLUDES） + Gitignore 動態排除
-        return (
-          this.config.excludeDirs.some((d) => rel.startsWith(d)) ||
-          this.gitignoreFilter.isIgnored(rel)
-        );
-      },
-      awaitWriteFinish: {
-        stabilityThreshold: 300,
-        pollInterval: 100,
-      },
-    });
+    const watcher = vscode.workspace.createFileSystemWatcher("**/*");
 
-    this.watcher
-      .on("change", (filePath: string) => this.handleEvent(filePath, "change"))
-      .on("add", (filePath: string) => this.handleEvent(filePath, "add"))
-      .on("unlink", (filePath: string) => this.handleEvent(filePath, "unlink"));
-
-    console.log(
-      `[監聽引擎] 已啟動，全專案目錄監控模式（Gitignore 排除引擎啟用）`,
+    this.watchers.push(
+      watcher.onDidChange((uri) => this.debounceEvent(uri.fsPath, "change")),
+      watcher.onDidCreate((uri) => this.debounceEvent(uri.fsPath, "add")),
+      watcher.onDidDelete((uri) => this.debounceEvent(uri.fsPath, "unlink")),
+      watcher,
     );
+
+    console.log("[監聽引擎] 已啟動（VS Code 原生監聽模式）");
   }
 
   /**
    * 停止監聽引擎
    */
-  async stop(): Promise<void> {
-    if (this.watcher) {
-      await this.watcher.close();
-      this.watcher = null;
-      console.log("[監聽引擎] 已停止");
-    }
+  stop(): void {
+    for (const d of this.watchers) d.dispose();
+    this.watchers = [];
+    for (const t of this.debounceMap.values()) clearTimeout(t);
+    this.debounceMap.clear();
+    console.log("[監聽引擎] 已停止");
   }
 
   /**
-   * 動態更新監聽清單（v1.0 全目錄監控模式下簡化為空操作）
+   * 動態更新監聽清單（原生監聽模式下為空操作）
    * 保留此方法以維持介面相容性
    */
   refresh(): void {
-    // 全目錄監控模式下無需動態調整監聽路徑
+    // 原生監聽模式下無需動態調整
+  }
+
+  /**
+   * 300ms 穩定等待防抖（取代 chokidar awaitWriteFinish）
+   * 同一檔案在 300ms 內的多次事件只處理最後一次
+   */
+  private debounceEvent(absPath: string, eventType: FileEventType): void {
+    const existing = this.debounceMap.get(absPath);
+    if (existing) clearTimeout(existing);
+
+    this.debounceMap.set(
+      absPath,
+      setTimeout(() => {
+        this.debounceMap.delete(absPath);
+        this.handleEvent(absPath, eventType);
+      }, CartridgeWatcher.DEBOUNCE_MS),
+    );
   }
 
   /**
@@ -110,6 +106,14 @@ export class CartridgeWatcher {
 
     // 系統產物豁免：跳過外掛自身產出的檔案，防止自我監聽迴圈
     if (this.config.ignoreFiles.some((f) => relPath.endsWith(f))) {
+      return;
+    }
+
+    // 安全網排除（DEFAULT_EXCLUDES）+ Gitignore 動態排除
+    if (
+      this.config.excludeDirs.some((d) => relPath.startsWith(d)) ||
+      this.gitignoreFilter.isIgnored(relPath)
+    ) {
       return;
     }
 
@@ -146,59 +150,38 @@ export class CartridgeWatcher {
       console.log("[監聽引擎] .gitignore 已變更，重載排除引擎");
       this.gitignoreFilter.reload();
       this.indexManager.refilterUntrackedFiles(this.gitignoreFilter);
-      await this.indexManager.persist();
+      this.indexManager.markDirty();
       this.onUpdate?.();
       return;
     }
 
-    // 刪除事件 → 從幽靈池移除（如果存在的話）
+    // 刪除事件 → 從幽靈池移除
     if (eventType === "unlink") {
       this.indexManager.removeUntrackedFile(relPath);
-      await this.indexManager.persist();
+      this.indexManager.markDirty();
       this.onUpdate?.();
       return;
     }
 
-    // 以上皆非 → 未歸屬檔案，加入未歸屬池
+    // 以上皆非 → 未歸屬檔案，加入幽靈池
     this.indexManager.addUntrackedFile(relPath, eventType);
-    await this.indexManager.persist();
+    this.indexManager.markDirty();
     this.onUpdate?.();
   }
 
   /**
    * 處理記憶卡匣自身的變動（偵測 AI 是否重設了過期指數）
-   * 修復：MCP 寫入乾淨 SKILL.md（無警告區塊）時也需觸發快取同步
    */
   private async handleSkillFileChange(relPath: string): Promise<void> {
-    const writer = new MemoryWriter(this.config);
-
-    // 先嘗試清除舊警告（有警告 + staleness=0 的情況）
-    const cleaned = await writer.checkAndCleanWarning(relPath);
-
-    // 即使沒有舊警告，只要 staleness=0 就視為 AI 已重設，需同步快取
-    let needsSync = cleaned;
-    if (!needsSync) {
-      const absPath = path.resolve(this.config.projectRoot, relPath);
-      try {
-        const raw = fs.readFileSync(absPath, "utf-8");
-        const parsed = matter(raw);
-        needsSync = Number(parsed.data.staleness) === 0;
-      } catch {
-        // 讀取失敗則不同步
-      }
-    }
-
-    if (needsSync) {
-      // 巢狀路徑：取 SKILL.md 前一層目錄名作為 cartridgeId
-      const pathParts = relPath.split("/");
-      const skillIdx = pathParts.lastIndexOf("SKILL.md");
-      const cartridgeId =
-        skillIdx > 0 ? pathParts[skillIdx - 1] : pathParts.slice(-2)[0];
-      this.indexManager.clearPendingChanges(cartridgeId);
-      await this.indexManager.scan();
-      this.refresh();
-      console.log(`[監聯引擎] 偵測到記憶卡重設，已清除警報: ${relPath}`);
-      this.onUpdate?.();
-    }
+    // 偵測記憶卡匣變動時，重新掃描索引以同步快取
+    const pathParts = relPath.split("/");
+    const skillIdx = pathParts.lastIndexOf("SKILL.md");
+    const cartridgeId =
+      skillIdx > 0 ? pathParts[skillIdx - 1] : pathParts.slice(-2)[0];
+    this.indexManager.clearPendingChanges(cartridgeId);
+    await this.indexManager.scan();
+    this.refresh();
+    console.log(`[監聽引擎] 偵測到記憶卡重設，已清除警報: ${relPath}`);
+    this.onUpdate?.();
   }
 }

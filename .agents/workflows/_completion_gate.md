@@ -9,12 +9,13 @@ Output ONLY when a check FAILS — use the halt message format.
 ```
 [COMPLETION GATE — SILENT MODE]
 ├── [SUDO] detected in session? → Skip ALL checks. Force complete.
+├── [HALT MANDATE] Writer/Worker 角色結案前，Check 1–3 中任一 FAIL → 必須 HALT，禁止靜默跳過。
 ├── Check 1: Memory Diff — modified files reflected in memory cards?
-│   └── FAIL → 「🔴 [GATE FAIL] 記憶卡未同步。」
+│   └── FAIL → [HALT] 「🔴 [GATE HALT] 記憶卡未同步。完成閘門強制中止，禁止結案。」
 ├── Check 2: Commit Verification — memory_commit called after last write?
-│   └── FAIL → 「🔴 [GATE FAIL] 記憶卡寫入但未歸卡。」
+│   └── FAIL → [HALT] 「🔴 [GATE HALT] 記憶卡寫入但未 memory_commit。完成閘門強制中止。」
 ├── Check 3: New File Attribution — new files tracked in memory cards?
-│   └── FAIL → 「🔴 [GATE FAIL] 新檔案未歸屬記憶卡。」
+│   └── FAIL → [HALT] 「🔴 [GATE HALT] 新建檔案未歸入記憶卡。完成閘門強制中止。」
 ├── Check 4: Interface Layer — completion uses business language?
 │   └── FAIL → Self-correct internally. No output needed.
 ├── Check 5: Granularity — trackedFiles ≤ 8 per card?

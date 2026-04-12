@@ -11,6 +11,22 @@ import { validateProjectRoot } from "./path-guard.js";
 import { getTaiwanISO } from "./timestamp.js";
 import { parseTrackedFiles } from "./index-manager.js";
 
+/** 警報區塊的標記邊界（與 writer.ts 保持一致） */
+const WARNING_START = "<!-- CARTRIDGE_SYSTEM_WARNING_START -->";
+const WARNING_END = "<!-- CARTRIDGE_SYSTEM_WARNING_END -->";
+
+/**
+ * 移除內文中的警報區塊（MCP 端獨立實作，因為 MCP 與外掛是不同進程）
+ */
+function stripWarningBlock(content: string): string {
+  const startIdx = content.indexOf(WARNING_START);
+  const endIdx = content.indexOf(WARNING_END);
+  if (startIdx === -1 || endIdx === -1) return content;
+  const before = content.substring(0, startIdx);
+  const after = content.substring(endIdx + WARNING_END.length);
+  return (before + after).replace(/^\n+/, "\n");
+}
+
 /** 過期等級閾值（預設值，與 Extension 的 CartridgeConfig 解耦） */
 const STALENESS_THRESHOLDS = { significant: 10, critical: 30 };
 
@@ -614,11 +630,14 @@ export async function handleMemoryUpdate(
       );
     }
 
-    // 整張替換寫入
-    const finalContent = updateFrontmatterFields(parsed.data.content, {
+    // 整張替換寫入（修復 #4：清除殘留的警報區塊）
+    let finalContent = updateFrontmatterFields(parsed.data.content, {
       last_updated: isoLocal,
       staleness: 0,
     });
+    const { data: fm, content: bd } = matter(finalContent);
+    fm.status = "stable";
+    finalContent = matter.stringify(stripWarningBlock(bd), fm);
 
     await fs.writeFile(filePath, finalContent, "utf-8");
 
@@ -748,11 +767,14 @@ export async function handleMemoryCommit(
       }
     }
 
-    // 4. 時間戳注入 + staleness 歸零
-    const updatedContent = updateFrontmatterFields(rawContent, {
+    // 4. 時間戳注入 + staleness 歸零 + 清除殘留警報區塊（修復 #4）
+    let updatedContent = updateFrontmatterFields(rawContent, {
       last_updated: isoLocal,
       staleness: 0,
     });
+    const { data: commitFm, content: commitBody } = matter(updatedContent);
+    commitFm.status = "stable";
+    updatedContent = matter.stringify(stripWarningBlock(commitBody), commitFm);
     await fs.writeFile(filePath, updatedContent, "utf-8");
 
     // 5. 索引同步（graceful，失敗不影響主流程）

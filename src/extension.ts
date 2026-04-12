@@ -243,7 +243,25 @@ export async function activate(
 
     indexManager = new CartridgeIndexManager(config);
     const index = await indexManager.scan();
+
+    const writer = new MemoryWriter(config);
+
     indexManager.detectMissedChanges(config.scoring);
+
+    // v2.0: 啟動時將過期警報寫入 SKILL.md（修復 #3：原本只更新 RAM 沒有寫入檔案）
+    for (const [, entry] of Object.entries(index.cartridges)) {
+      if (
+        entry.staleness >= config.thresholds.significant &&
+        entry.pendingChanges.length > 0
+      ) {
+        const changedFiles = entry.pendingChanges.map((c) => c.filePath);
+        await writer.injectWarning(
+          entry.skillPath,
+          changedFiles,
+          entry.staleness,
+        );
+      }
+    }
 
     // v2.0: 立即顯示基礎燈號（不等待幽靈掃描）
     statusBar.update(index);
@@ -265,13 +283,13 @@ export async function activate(
       codeLensProvider?.refresh();
     };
 
-    const writer = new MemoryWriter(config);
     const analyzer = new StalenessAnalyzer(config, indexManager, writer);
     watcher = new CartridgeWatcher(
       config,
       indexManager,
       analyzer,
       gitignoreFilter,
+      writer,
     );
     await watcher.start();
 

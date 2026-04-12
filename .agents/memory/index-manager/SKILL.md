@@ -3,17 +3,18 @@ name: index-manager
 description: >
   專案記憶：記憶索引管理器模組。管理卡匣索引、檔案反向映射、離線偵測、未歸屬檔案池、Cache-First 持久化。Use when:
   處理卡匣索引、檔案反向映射、持久化讀寫時載入。
-last_updated: '2026-04-12T11:26:26+08:00'
+last_updated: "2026-04-12T11:59:32+08:00"
 status: stale
-staleness: 10
+staleness: 0
 metadata:
   author: antigravity
-  version: '2.0'
+  version: "2.0"
   origin: project
   memory_awareness: full
   tool_scope:
-    - 'filesystem:write'
+    - "filesystem:write"
 ---
+
 <!-- CARTRIDGE_SYSTEM_WARNING_START -->
 
 > [!CAUTION]
@@ -27,11 +28,13 @@ metadata:
 # Cartridge Index Manager — 索引管理器記憶
 
 ## Tracked Files
+
 - src/index-manager.ts
 - src/tests/index-manager.test.ts
 - src/tests/detect-missed-changes.test.ts
 
 ## Key Decisions
+
 - D01: CartridgeIndexManager 負責掃描、持久化與讀取索引檔（`.cartridge/index.json`）
 - D02: fileMap 以 filePath 為 key、cartridgeId[] 為 value 的反向映射
 - D03: pendingChanges 去重邏輯：同一檔案同一事件類型只記錄一筆
@@ -56,13 +59,16 @@ metadata:
 - D22: v2.0 persist() 保留 public — MCP Server 的 memory_commit 需要在明確保存時機直接呼叫
 
 ## Key Decisions Addendum
+
 - D07: parseTrackedFiles 在解析前統一將 CRLF (`\r\n`) 正規化為 LF (`\n`)
 - D08: filter 過濾 `#` / `<` / `←` 開頭的虛假行
 
 ## Known Issues
+
 - 無
 
 ## Module Lessons
+
 - D05: 測試 detectMissedChanges() 時需 mock node:fs 的 statSync 來控制 mtimeMs 回傳值
 - D13: 新增必要欄位時，所有測試的 fixture 物件也必須同步更新
 - D18: v1.0 scopePath 技術債教訓 — findOwner() 的最長前綴匹配會靠靜呑噥全部 scopePath 範圍內的新檔案，阻既幽靈池又封死過期計分。已全面移除。
@@ -70,10 +76,12 @@ metadata:
 - L05: (2026-04-12) v2.0 EventEmitter 不可放 index-manager 內部，因其同時被 MCP Server 引用。改用 callback hook 確保跨環境安全。
 
 ## Relations
+
 - watcher（extension 子卡：提供監聯檔案清單）
 - analyzer（extension 子卡：接收過期指數更新）
 - mcp-tools（根層模組：第二階段對外暴露查詢能力）
 - gitignore-filter（根層模組：detectUntrackedFiles 需要 GitignoreFilter 實例）
 
 ## Applicable Skills
+
 - test-patterns

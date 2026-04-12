@@ -3,25 +3,17 @@ name: extension
 description: >
   專案記憶：VS Code 外掛入口與 UI 模組。 Use when:
   處理外掛啟動生命週期、指令註冊、狀態列/TreeView/CodeLens/智慧歸屬等 UI 更新時載入。
-last_updated: '2026-04-12T11:40:31+08:00'
-status: stale
-staleness: 20
+last_updated: "2026-04-12T12:29:30+08:00"
+staleness: 0
+status: stable
 ---
-<!-- CARTRIDGE_SYSTEM_WARNING_START -->
-
-> [!CAUTION]
-> 🟠 **系統強制攔截**：此記憶已過期失真！
-> 追蹤檔案異動：`src/extension.ts`、`src/treeview-provider.ts`（2026-04-12T11:47:50+08:00）
-> AI 嚴禁基於此記憶施工，必須優先閱讀最新原始碼並更新此記憶卡。
-> staleness: 20 | threshold: 🟠 顯著過期
-
-<!-- CARTRIDGE_SYSTEM_WARNING_END -->
 
 # Extension & UI Layer — 外掛入口記憶
 
 > 本模組為外掛的主入口和 UI 層，負責編排所有運行時子模組的啟動、監聽和關閉。
 
 ## Tracked Files
+
 - src/extension.ts
 - src/status-bar.ts
 - src/treeview-provider.ts
@@ -29,9 +21,10 @@ staleness: 20
 - src/smart-owner.ts
 
 ## Key Decisions
+
 - D01: 指令註冊（registerCommand）必須放在 activate() 最前面，在任何可能失敗的初始化邏輯之前
 - D02: activationEvents 包含 `workspaceContains:.agents` + `onStartupFinished` 雙保險，確保在 Antigravity IDE 中無條件啟動
-- D03: `onStartupFinished`  確保外掛在 IDE 啟動後自動啟用，不需要使用者手動觸發
+- D03: `onStartupFinished` 確保外掛在 IDE 啟動後自動啟用，不需要使用者手動觸發
 - D04: 外掛解除安裝（deactivate）時，停止 CartridgeWatcher 並 dispose 狀態列
 - D05: 狀態列項目使用 `StatusBarAlignment.Left` 靠左顯示，priority 10
 - D06: 健康報告（cartridge.status）以 VS Code OutputChannel 呈現詳細資訊，每張卡匣一行、按嚴重度排序
@@ -55,11 +48,14 @@ staleness: 20
 - D24: v2.0 安全心跳 — setInterval 每 5 分鐘呼叫 flushIfDirty()，確保崩潰最大損失窗口僅 5 分鐘
 - D25: v2.0 deactivate 增加 clearInterval、flushIfDirty、treeProvider.dispose()、codeLensProvider.dispose() 完整資源釋放
 - D26: v2.0 indexManager.onChanged callback hook 連動 UI 三兄弟（StatusBar + TreeView + CodeLens）即時刷新
+- D27: (2026-04-12) 補全啟動時的 `detectMissedChanges` 流程，針對過期卡匣不僅更新 RAM 內 `staleness`，也會主動呼叫 `writer.injectWarning()` 植入警報區塊，修正了啟動無法顯示警報區塊的遺漏。
 
 ## Known Issues
+
 - 無
 
 ## Module Lessons
+
 - D01: 指令必須先於工作區驗證和初始化邏輯之前完成註冊，否則 VS Code 在找不到指令時會回報 "command not found"
 - D02: Antigravity IDE 使用獨立 CLI（`antigravity`），安裝時須用 `antigravity --install-extension`，不可用 `code`
 - D07: VS Code 的 `showWarningMessage` 不支援多行格式，所有 `\n` 會被壓成一行。結構化多行報告必須改用 `OutputChannel` 呈現
@@ -69,10 +65,13 @@ staleness: 20
 - L04: (2026-04-12) 心跳 clearInterval 必須在 deactivate 中明確清除，否則會造成記憶體洩漏。
 
 ## Relations
+
 - core-types（引用共用型別與設定工廠函式）
 - index-manager（呼叫掃描以建立初始索引）
 - mcp-tools（雙入口架構，共用檔案系統互動）
+
 ### 子模組
+
 - injector（啟動時呼叫注入器確保記憶卡匣存在）
 - watcher（啟動後委託監聽引擎管理檔案監聽）
 - analyzer（過期分析器，接收監聽事件計算衰退指數）
@@ -83,4 +82,5 @@ staleness: 20
 - smart-owner（v2.0 新增：智慧歸屬推薦引擎）
 
 ## Applicable Skills
+
 - code-quality

@@ -2,25 +2,17 @@
 name: mcp-tools
 description: |
   專案記憶：MCP 工具介面模組（第二階段）。 Use when: 處理MCP伺服器註冊、工具路由、AI工具呼叫介面時載入。
-last_updated: '2026-04-12T10:52:34+08:00'
-status: stale
+last_updated: "2026-04-12T12:29:30+08:00"
 staleness: 0
+status: stable
 ---
-<!-- CARTRIDGE_SYSTEM_WARNING_START -->
-
-> [!CAUTION]
-> 🟠 **系統強制攔截**：此記憶已過期失真！
-> 追蹤檔案異動：`src/mcp-handlers.ts`、`src/tests/mcp-handlers.test.ts`（2026-04-09T18:59:43+08:00）
-> AI 嚴禁基於此記憶施工，必須優先閱讀最新原始碼並更新此記憶卡。
-> staleness: 20 | threshold: 🟠 顯著過期
-
-<!-- CARTRIDGE_SYSTEM_WARNING_END -->
 
 # MCP Tool Interface — 工具介面記憶（第二階段）
 
 > 本模組提供標準化 AI 呼叫工具，支援跨專案動態路徑解析。
 
 ## Tracked Files
+
 - src/mcp-server.ts
 - src/mcp-handlers.ts
 - src/path-guard.ts
@@ -30,6 +22,7 @@ staleness: 0
 - src/tests/timestamp.test.ts
 
 ## Key Decisions
+
 - D01: 獨立出 `mcp-server.ts` 作為標準 stdio Server 入口，與 VS Code Extension 解耦，雙核心透過實體檔案系統互動。
 - D02: 首發提供 3 個核心工具：`memory_list`, `memory_read`, `memory_update`，取代直接檔案寫入。
 - D05: 新增 `mcp-handlers.ts` 商業邏輯解耦層，三個純函式（handleMemoryList/Read/Update）從 MCP SDK 解耦，讓工具邏輯可獨立進行 vitest 單元測試。`mcp-server.ts` 僅保留 SDK 連接與路由職責。
@@ -51,11 +44,14 @@ staleness: 0
 - D25: parseSections / parseSubSections 新增行內標題正規化前處理 — 新增 `normalizeInlineHeadings()` 函式，逐行掃描（程式碼區塊感知）偵測行內的 `## ` / `### ` 並在前方自動插入換行符。解決原始檔案因缺少換行導致區段標題黏連、patch 模式產生重複區段的問題。`PatchReport` 新增 `autoFixes` 欄位回報自動修正紀錄。
 - D26: 職責分離重構 — 新增 `memory_commit` 工具，將記憶卡更新拆為兩步驟：(1) AI 用原生工具寫入 SKILL.md 內容（穩定性最高）；(2) 呼叫 memory_commit 完成後設資料同步（時間戳注入、staleness 歸零、索引同步、trackedFiles 重新解析、fileMap 重建、結構驗證）。memory_update 的 patch/append 模式標記為已棄用，replace 模式保留為向後相容備用。memory-ops 技能指引首選流程更新為 write_to_file → memory_commit。
 - D27: v0.9.0 棄用模式正式移除 — 完全移除 `memory_update` 的 `patch`/`append` 模式程式碼（約 390 行），包含：`parseSections()`、`mergeSections()`、`parseSubSections()`、`normalizeTitle()`、`normalizeInlineHeadings()`、`rebuildSectionContent()` 函式及相關型別定義（`Section`、`SubSection`、`ParsedDocument`、`MergeResult`、`PatchReport`）。移除 `mode`、`dryRun` 參數，工具僅保留整張替換模式。同步移除 23 個對應單元測試。
+- D28: (2026-04-12) MCP `memory_commit` 與 `memory_update` 作業結束前，新增 `stripWarningBlock()` 手續自動拔除過期 Markdown 警報，同時解決假警報殘留問題與確保 UI 乾淨狀態。
 
 ## Known Issues
+
 - 無
 
 ## Module Lessons
+
 - D03: MCP 伺服器使用 `process.cwd()` 作為工作區路徑會導致 Gateway 啟動時讀取到錯誤的工作區。**正確做法**：透過 `--workspace` 命令列參數接受工作區路徑，並在 Gateway 設定檔（`cartridge-system.json`）中明確傳入目標路徑。（現已由 D07 取代，`--workspace` 參數不再需要）
 - D04: `npm run package`（vsce package）不會重新執行 tsup 編譯。修改 `src/mcp-server.ts` 後，必須先執行 `npm run build` 更新 `dist/`，再執行 `gateway__rescan` 才能使修復生效。
 - D06: 測試 mcp-handlers 時使用 `vi.mock('fs/promises')` 搭配 `vi.mocked().mockResolvedValue()` 即可完全隔離磁碟 I/O。`writeFile` 回傳 `undefined`（void）需使用 `mockResolvedValue(undefined)` 而非 `mockResolvedValue()`。
@@ -72,10 +68,11 @@ staleness: 0
 - D18: resolveSkillPath 會在 handler 進入商業邏輯前調用 fs.readFile 讀取索引檔，測試必須新增 fs.access mock 且理解 readFile 的呼叫順序變化（第一次不再是 SKILL.md 而是 cartridge_index.json）。
 - D22: memory_list 改為優先從索引檔讀取全部卡匣（含巢狀子卡），不再依賴目錄掃描。索引檔透過 `Object.keys(cartridges)` 取得模組清單，確保 depth=2+ 的子卡也被包含在回傳結果中。目錄掃描降級為索引不存在時的回退方案。
 - D19: `memory_list` 若依賴 `readdir` 掃描 `.agents/skills/` 的直接子目錄，巢狀在父卡底下的子卡會被完全遺漏。正確做法是從 `cartridge_index.json` 讀取全量卡匣清單，因為索引管理器在掃描時已執行遞迴搜尋。
-- D24: v4.0 路徑遷移 — resolveSkillPath() 擴展為 5 層策略：索引查找 → memory/ 平面回退 → skills/ 平面回退 → memory/ 遞迴搜尋 → skills/ 遞迴搜尋。handleMemoryList() 回退掃描先掃 memory/ 再掃 skills/*。handleMemoryUpdate() 新建路徑改為 .agents/memory/。findSkillRecursive() 新增 requireMemPrefix 參數。
+- D24: v4.0 路徑遷移 — resolveSkillPath() 擴展為 5 層策略：索引查找 → memory/ 平面回退 → skills/ 平面回退 → memory/ 遞迴搜尋 → skills/ 遞迴搜尋。handleMemoryList() 回退掃描先掃 memory/ 再掃 skills/\*。handleMemoryUpdate() 新建路徑改為 .agents/memory/。findSkillRecursive() 新增 requireMemPrefix 參數。
 - D25: Markdown 區段標題解析不能只依賴 `startsWith('## ')`。當上游寫入缺少換行符時，`## ` 會被黏在前一行末尾，導致 `split('\n')` 後無法識別。正確做法是在解析前做一次行內標題正規化，將非行首的 `## ` / `### ` 前自動插入換行符。此正規化需追蹤 ``` 狀態以避免影響程式碼區塊內容。
 - D26: handleMemoryCommit 從 index-manager.ts 匯入 parseTrackedFiles() 來重新解析追蹤檔案清單，確保索引與 SKILL.md 內容同步。同時重建 fileMap 反向映射，先清除模組的舊映射再建立新映射。測試需 mock readFile 區分索引檔和 SKILL.md 的回傳值。
 
 ## Applicable Skills
+
 - security-sre
 - test-patterns

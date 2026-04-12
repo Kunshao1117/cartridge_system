@@ -9,6 +9,7 @@ import type { CartridgeConfig, FileEventType } from "./types.js";
 import type { CartridgeIndexManager } from "./index-manager.js";
 import type { StalenessAnalyzer } from "./analyzer.js";
 import type { GitignoreFilter } from "./gitignore-filter.js";
+import type { MemoryWriter } from "./writer.js";
 
 /**
  * 檔案監聽引擎（v2.0 VS Code 原生監聽模式）
@@ -18,6 +19,7 @@ export class CartridgeWatcher {
   private indexManager: CartridgeIndexManager;
   private analyzer: StalenessAnalyzer;
   private gitignoreFilter: GitignoreFilter;
+  private writer: MemoryWriter;
   private watchers: vscode.Disposable[] = [];
   private debounceMap = new Map<string, NodeJS.Timeout>();
   private onUpdate?: () => void;
@@ -30,12 +32,14 @@ export class CartridgeWatcher {
     indexManager: CartridgeIndexManager,
     analyzer: StalenessAnalyzer,
     gitignoreFilter: GitignoreFilter,
+    writer: MemoryWriter,
     onUpdate?: () => void,
   ) {
     this.config = config;
     this.indexManager = indexManager;
     this.analyzer = analyzer;
     this.gitignoreFilter = gitignoreFilter;
+    this.writer = writer;
     this.onUpdate = onUpdate;
   }
 
@@ -174,14 +178,21 @@ export class CartridgeWatcher {
    */
   private async handleSkillFileChange(relPath: string): Promise<void> {
     // 偵測記憶卡匣變動時，重新掃描索引以同步快取
-    const pathParts = relPath.split("/");
-    const skillIdx = pathParts.lastIndexOf("SKILL.md");
-    const cartridgeId =
-      skillIdx > 0 ? pathParts[skillIdx - 1] : pathParts.slice(-2)[0];
-    this.indexManager.clearPendingChanges(cartridgeId);
+    const index = this.indexManager.getIndex();
+    const cartridgeEntry = Object.entries(index.cartridges).find(
+      ([, entry]) => entry.skillPath === relPath,
+    );
+
+    if (cartridgeEntry) {
+      this.indexManager.clearPendingChanges(cartridgeEntry[0]);
+    }
+
+    await this.writer.checkAndCleanWarning(relPath);
+
     await this.indexManager.scan();
+    this.indexManager.markDirty(); // 強制觸發 UI 變動通知 (onChanged)
     this.refresh();
-    console.log(`[監聽引擎] 偵測到記憶卡重設，已清除警報: ${relPath}`);
+    console.log(`[監聽引擎] 偵測到記憶卡重設: ${relPath}`);
     this.onUpdate?.();
   }
 }

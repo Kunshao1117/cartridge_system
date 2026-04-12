@@ -16,6 +16,7 @@ import type {
 import type { GitignoreFilter } from "./gitignore-filter.js";
 import { getSkillsAbsPath, getMemoryAbsPath } from "./config.js";
 import { getTaiwanISO } from "./timestamp.js";
+import { suggestOwner } from "./smart-owner.js";
 
 const INDEX_FILENAME = ".cartridge/index.json";
 
@@ -360,7 +361,7 @@ export class CartridgeIndexManager {
 
     this.index.untrackedFiles.push({
       filePath,
-      suggestedOwner: null,
+      suggestedOwner: suggestOwner(filePath, this.index),
       detectedAt: getTaiwanISO(),
       lastEvent: eventType,
     });

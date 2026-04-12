@@ -2,10 +2,11 @@
 name: _system
 description: |
   專案記憶：系統技術堆疊與部署設定。 Use when: 確認技術選型、環境設定、部署組態時載入。
-last_updated: '2026-04-12T11:27:03+08:00'
+last_updated: "2026-04-12T11:54:44+08:00"
 status: stale
 staleness: 0
 ---
+
 <!-- CARTRIDGE_SYSTEM_WARNING_START -->
 
 > [!CAUTION]
@@ -19,14 +20,22 @@ staleness: 0
 # System — 系統記憶
 
 ## Tracked Files
+
 - package.json
+- tsconfig.json
+- tsup.config.ts
+- eslint.config.js
+- vitest.config.ts
+- package-lock.json
 
 ## Runtime & Host
+
 - OS: Windows 11 家用版 (10.0.26200, 64-bit)
 - Node.js: v22.13.1
 - npm: 10.9.2
 
 ## Tech Stack
+
 - Language: TypeScript 5.x
 - Framework: **VS Code Extension API**
 - File Watcher: **VS Code 原生 FileSystemWatcher**（v2.0 棄用 chokidar）
@@ -37,6 +46,7 @@ staleness: 0
 - Config: JSON
 
 ## VS Code Extension & MCP
+
 - Entry: `src/extension.ts` 及 `src/mcp-server.ts`
 - Output: `dist/extension.js` 及 `dist/mcp-server.js`
 - Activation: `workspaceContains:.agents` + `onStartupFinished`
@@ -46,11 +56,13 @@ staleness: 0
 - Publisher: `cartridge-system`
 
 ## Dependencies（生產）
+
 - `@modelcontextprotocol/sdk` ^1.0.1
 - `gray-matter` ^4.0.3
 - `ignore` ^7.0.5
 
 ## DevDependencies
+
 - `@types/vscode` ^1.85.0
 - `@vscode/vsce` ^3.0.0
 - `@types/node` ^25.5.0
@@ -59,6 +71,7 @@ staleness: 0
 - `vitest` ^3.0.0
 
 ## Config Files
+
 - `package.json` — VS Code Extension 元數據（含 activationEvents / contributes），當前版本 **2.0.0**
 - `tsconfig.json` — CommonJS + node 模組解析
 - `tsup.config.ts` — entry: extension.ts / format: cjs / external: vscode / noExternal: gray-matter / **onSuccess: 複製範本目錄**
@@ -69,14 +82,18 @@ staleness: 0
 - `.cartridge/injector.json` — 執行期產生（注入器狀態檔）
 
 ## Key Decisions
+
 ### D11
+
 D11: tsup `onSuccess` hook 負責在建置完成後自動複製 `src/templates/` 至 `dist/templates/`，確保注入器的靜態範本隨外掛打包
 
 ## Known Issues
+
 - 無
 
 ## Module Lessons
-- L01: _system 紀錄專案的基礎依賴變更與發布紀錄。
+
+- L01: \_system 紀錄專案的基礎依賴變更與發布紀錄。
 - L02: v0.7.0 (2026-03-31) — 發布區段標題黏連修復與行內自動修復引擎。
 - L03: v0.8.1 (2026-04-02) — MCP Server 新增 memory_commit 兩步驟操作流機制，同步升級版本號。
 - L04: v0.9.0 (2026-04-02) — 三合一架構重構：移除 patch/append 棄用模式、索引檔搬遷至 `.cartridge/`、注入器三方比對覆蓋機制。
@@ -84,4 +101,5 @@ D11: tsup `onSuccess` hook 負責在建置完成後自動複製 `src/templates/`
 - L06: v2.0.0 (2026-04-12) — 次世代架構升級：棄用 chokidar 改用 VS Code 原生 FileSystemWatcher + debounceMap；Cache-First I/O 機制（isDirty + flushIfDirty + 5 分鐘安全心跳）；背景化幽靈掃描；新增 TreeView 側邊欄 + CodeLens 行內標記 + 智慧歸屬推薦引擎。
 
 ## Applicable Skills
+
 - tech-stack-protocol

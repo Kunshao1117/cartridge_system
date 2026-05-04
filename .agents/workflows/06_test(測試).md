@@ -12,29 +12,23 @@ memory_awareness: read
 
 - This workflow can be called by the Director directly or autonomously invoked by other workflows (e.g., via the `// turbo` chain from `/03_build`).
 
-> [LOAD SKILL] §2 啟動瀏覽器測試前，必須讀取：
+## 2. Robotic QA & Visual Verification
+
+> [LOAD SKILL] 啟動瀏覽器測試前，必須讀取：
 > 1. `view_file .agents/skills/browser-testing/SKILL.md`
 > 2. `view_file .agents/skills/test-automation-strategy/SKILL.md`
 
-## 2. Robotic QA & Visual Verification
-
 - You MUST spawn the `browser_agent` for E2E visual testing.
 
-```
-[TEST OUTPUT GATE] Result reporting:
-├── ALL tests PASS → Output single confirmation line:
-│   「✅ E2E 測試全數通過 ({pass_count}/{total_count})」
-│   Generate walkthrough with screenshots. No verbose logs.
-├── ANY test FAIL → Output ONLY the failing snippet:
-│   「🔴 [TEST FAIL] {test_name}: {error_summary}」
-│   Log to memory card ## Known Issues → Chain to /04_fix.
-└── Output constraint: Maximum 5 lines of failure detail per test.
-```
-
-> [LOAD SKILL] §2.5 無障礙掃描前，必須讀取：
-> `view_file .agents/skills/a11y-testing/SKILL.md`
+[TEST OUTPUT GATE] 根據結果執行單一路徑：
+- IF (全部通過): 印出「✅ E2E 測試全數通過 ({pass_count}/{total_count})」並產出含截圖的 walkthrough。
+- IF (包含失敗): 印出「🔴 [TEST FAIL] {test_name}: {error_summary}」，並記錄至記憶卡 ## Known Issues，自動串聯 /04_fix。
+- CONSTRAINT: 錯誤訊息最多 5 行。不輸出冗長日誌。
 
 ## 2.5 Accessibility Scan (無障礙掃描 — 新增步驟)
+
+> [LOAD SKILL] 執行無障礙掃描前，必須讀取：
+> `view_file .agents/skills/a11y-testing/SKILL.md`
 
 - After visual testing, execute `a11y-testing` skill § 1 Scan Flow on each tested page.
 - Include accessibility scan results in the walkthrough artifact.

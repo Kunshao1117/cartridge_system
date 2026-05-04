@@ -66,6 +66,26 @@ After delegation produces code changes:
 - Server must be running and warmed up before spawning subagent
   （啟動代理前確保伺服器已運行）
 
+### Step 4: Structured Error Triage (結構化錯誤分類)
+
+When Auto-Arbitration Gate FAILS, classify the error before deciding next action:
+（自動仲裁閘門失敗時，先分類錯誤再決定下一步）
+
+```
+[ERROR TRIAGE] On Auto-Arbitration failure:
+├── TRANSIENT (暫時性): Network timeout, server not ready, rate limit, 429/503
+│   └── Action: Wait 3s with backoff, then retry (max 2 retries).
+│       Counts toward Circuit Breaker (Check 0 in _completion_gate).
+├── SEMANTIC (語意性): Wrong selector, element not found, assertion mismatch, logic error
+│   └── Action: Return structured error to Master Agent for re-planning.
+│       Include: { errorType: "SEMANTIC", selector: "...", expected: "...", actual: "..." }
+│       Does NOT count toward Circuit Breaker retry limit.
+└── INFRASTRUCTURE (基礎設施): Server crash, port conflict, OOM, ECONNREFUSED
+    └── Action: [HALT] Escalate to Director immediately.
+          「🔴 [INFRA HALT] 基礎設施異常：{error}。請總監確認環境狀態。」
+          Does NOT count toward Circuit Breaker retry limit.
+```
+
 ## Done When (驗證標準)
 
 - Browser subagent returned successfully with report

@@ -9,3 +9,9 @@ dist/
 .markdownlint.yaml
 .agents/logs/
 .vscodeignore
+.gitnexus/
+.claude/
+AGENTS.md
+CLAUDE.md
+.vscode/
+.vscodeignore

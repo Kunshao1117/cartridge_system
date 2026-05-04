@@ -70,7 +70,8 @@ $docs = Get-ChildItem -Path $ProjectRoot -Filter '*.md' -Recurse -ErrorAction Si
         $relativePath = $_.FullName.Substring($ProjectRoot.Length).TrimStart('\', '/')
         $excluded = $false
         foreach ($dir in $ExcludeDirs) {
-            if ($relativePath -like "$dir\*" -or $relativePath -like "$dir/*") {
+            $eDir = [regex]::Escape($dir)
+            if ($relativePath -match "(^|[\/])str([\/]|$)".Replace("str", $eDir)) {
                 $excluded = $true; break
             }
         }

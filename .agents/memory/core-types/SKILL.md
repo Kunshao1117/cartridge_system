@@ -2,11 +2,12 @@
 name: core-types
 description: |
   專案記憶：共用型別與設定模組。 Use when: 處理系統共用型別定義、設定工廠函式、預設參數時載入。
-last_updated: "2026-04-12T10:52:33+08:00"
-status: stale
+last_updated: '2026-04-12T12:43:19.822Z'
+status: stable
 staleness: 0
 scopePath: src/
 ---
+
 
 # Core Types & Config — 共用型別與設定記憶
 

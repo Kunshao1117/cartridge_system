@@ -3,10 +3,11 @@ name: _assets
 scopePath: null
 description: |
   專案記憶：靜態檔案與一般文檔收納。 Use when: 處理不需要業務邏輯追蹤的靜態圖檔、授權文件或更新日誌等。
-last_updated: "2026-04-12T11:54:44+08:00"
+last_updated: '2026-04-12T12:43:19.822Z'
 status: stable
 staleness: 0
 ---
+
 
 # Assets — 靜態收容
 

@@ -81,9 +81,20 @@ Record the result in `metadata.style` field.
 1. Append one row to `.agents/project_skills/_index.md` with the new skill's keywords
 2. Do NOT modify `.agents/skills/_index.md` — it is reserved for core framework skills
 
-### Step 5: Verify Symlink Resolution
+### Step 5: Symlink Registration (符號連結閉環掛載)
 
-1. Confirm discoverable via `.agents/skills/_project/{skill-name}/SKILL.md`
+1. After the skill directory is created under `.agents/project_skills/{skill-name}/`,
+   execute the following to create a flattened symlink under `skills/`:
+   ```powershell
+   $agentsRoot = Join-Path $workspace '.agents'
+   $linkPath   = Join-Path $agentsRoot "skills\project-${skillName}"
+   $targetPath = Join-Path $agentsRoot "project_skills\${skillName}"
+   if (-not (Test-Path $linkPath)) {
+       New-Item -ItemType SymbolicLink -Path $linkPath -Target $targetPath | Out-Null
+   }
+   ```
+2. Verify: `Test-Path` on `$linkPath\SKILL.md` must return `True`.
+3. This step is MANDATORY. A project skill without a symlink is considered **invisible** to the IDE and MUST NOT be marked as complete.
 
 ## 4. Format Compliance Rules
 

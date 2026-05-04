@@ -9,20 +9,15 @@ memory_awareness: read
 
 ## 0. Execution Identity（角色識別 — 必讀）
 
-```
 [MODE GATE] Classify execution context before proceeding:
-├── Director explicitly invoked /03-1_experiment or used keyword "實驗"/"沙盒"?
-│   └── YES → [SANDBOX MODE]
-│       ├── Write code IMMEDIATELY to disk. Skip §1–§4.
-│       ├── Do NOT run linters, tests, or security scans.
-│       ├── Do NOT enforce SOLID or code-quality constraints.
-│       ├── Do NOT create or update memory cards.
-│       ├── Prioritize SPEED over correctness.
-│       ├── Dirty code, hardcoded values, and placeholder logic are PERMITTED.
-│       └── Report completion with mandatory warning:
-│           「⚠️ 實驗模式產出，不具生產級品質。若需正式納入基準，請退回 /03_build 重新建構。」
-└── Otherwise → [PRODUCTION MODE] Continue to §1.
-```
+- IF (Director explicitly invoked /03-1_experiment or used keyword "實驗"/"沙盒"):
+  - [SANDBOX MODE] Write code IMMEDIATELY to disk. Skip §1–§4.
+  - Do NOT run linters, tests, or security scans. Do NOT update memory cards.
+  - Dirty code, hardcoded values, and placeholder logic are PERMITTED.
+  - Report completion with mandatory warning:
+    「⚠️ 實驗模式產出，不具生產級品質。若需正式納入基準，請退回 /03_build 重新建構。」
+- ELSE:
+  - [PRODUCTION MODE] Continue to §1.
 
 > [LOAD SKILL] §1 執行前，必須讀取：
 > `view_file .agents/skills/memory-ops/SKILL.md`

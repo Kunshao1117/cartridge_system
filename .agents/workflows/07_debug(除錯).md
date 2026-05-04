@@ -7,10 +7,10 @@ memory_awareness: read
 # [WORKFLOW: DEBUG (除錯)]
 
 
-> [LOAD SKILL] §0 必讀（任何除錯任務開始前）：
-> `view_file .agents/skills/memory-ops/SKILL.md`
-
 ## 0. Memory Recall (記憶載入)
+
+> [LOAD SKILL] 讀取記憶前，必須參考操作指引：
+> `view_file .agents/skills/memory-ops/SKILL.md`
 
 - Check the IDE-injected skill list for memory cards relevant to the failing module.
 - Load relevant memory card SKILL.md files — check `## Known Issues` to determine if this is a documented problem.
@@ -20,18 +20,18 @@ memory_awareness: read
 - **Absolute Ban**: DO NOT invent or assume bug causes.
 - You MUST actively use terminal tools (`cat`, `tail`, or read terminal IDs) to extract logs from the target process, browser console inputs, or the `/logs` directory based on the Director's description.
 
-> [LOAD SKILL] §1.5 觸發時，必須讀取：
-> 1. `view_file .agents/skills/delegation-strategy/SKILL.md`
-> 2. `view_file .agents/skills/code-diagnosis/SKILL.md`
-
 ## 1.5 CLI Code Diagnosis (CLI 程式碼診斷 — 可選步驟)
 
 > **Trigger**: Evaluate the `code-diagnosis` skill §1 trigger conditions. If ANY condition is met, execute this step. Otherwise, skip to §2.
 
 When triggered:
 
-1. Load `delegation-strategy` skill for the generic CLI delegation SOP (§3)
-2. Load `code-diagnosis` skill for the diagnostic prompt template (§2)
+> [LOAD SKILL] 啟動 CLI 診斷時才讀取：
+> 1. `view_file .agents/skills/delegation-strategy/SKILL.md`
+> 2. `view_file .agents/skills/code-diagnosis/SKILL.md`
+
+1. Execute the CLI delegation following `delegation-strategy` SOP.
+2. Construct prompt using `code-diagnosis` template.
 3. Construct the diagnosis prompt:
    - **fault_symptoms**: Summarize the evidence collected in §1 (stack traces, error messages, Director's description)
    - **suspect_modules**: List the memory modules most likely related to the fault

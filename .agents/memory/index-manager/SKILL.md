@@ -3,27 +3,18 @@ name: index-manager
 description: >
   專案記憶：記憶索引管理器模組。管理卡匣索引、檔案反向映射、離線偵測、未歸屬檔案池、Cache-First 持久化。Use when:
   處理卡匣索引、檔案反向映射、持久化讀寫時載入。
-last_updated: "2026-04-12T11:59:32+08:00"
-status: stale
+last_updated: '2026-04-12T12:43:19.822Z'
+status: stable
 staleness: 0
 metadata:
   author: antigravity
-  version: "2.0"
+  version: '2.0'
   origin: project
   memory_awareness: full
   tool_scope:
-    - "filesystem:write"
+    - 'filesystem:write'
 ---
 
-<!-- CARTRIDGE_SYSTEM_WARNING_START -->
-
-> [!CAUTION]
-> 🟠 **系統強制攔截**：此記憶已過期失真！
-> 追蹤檔案異動：`src/index-manager.ts`（2026-04-12T11:47:50+08:00）
-> AI 嚴禁基於此記憶施工，必須優先閱讀最新原始碼並更新此記憶卡。
-> staleness: 10 | threshold: 🟠 顯著過期
-
-<!-- CARTRIDGE_SYSTEM_WARNING_END -->
 
 # Cartridge Index Manager — 索引管理器記憶
 

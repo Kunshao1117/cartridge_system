@@ -9,40 +9,29 @@ memory_awareness: none
 ## 1. Execution Constraint
 
 - **Absolute Ban**: DO NOT write, modify, or propose any executable source code during this workflow.
-- **Actuation (Two-Tier Recon)**:
-  - **Fast Path (輕量搜索)**: If research requires only text retrieval or API data (e.g., fetching 2026 industry standards), you MUST use native search tools (`search_web`, `read_url_content`) to prevent resource waste.
-  - **Slow Path (重裝視覺)**: ONLY IF research explicitly requires UI/UX analysis, JS-rendering, or jumping login/CAPTCHA walls, then you MUST trigger the `browser_subagent`.
-
-> [LOAD SKILL] Slow Path 觸發時，執行 browser_subagent 前必須讀取：
-> `view_file .agents/skills/browser-testing/SKILL.md`
+[RECON GATE] Actuation decision:
+- IF (research requires only text retrieval or API data):
+  - [FAST PATH] MUST use native search tools (`search_web`, `read_url_content`) to prevent resource waste.
+- IF (research explicitly requires UI/UX analysis, JS-rendering, or jumping login/CAPTCHA walls):
+  - [SLOW PATH] MUST trigger `browser_subagent`.
+  - [LOAD SKILL] Before executing browser_subagent, you MUST read:
+    `view_file .agents/skills/browser-testing/SKILL.md`
 
 - **Scope**: Focus strictly on market feasibility, cutting-edge technology viability, and deep architectural research. If the Director just wants to chat, suggest using `/00_chat`.
 
 ## 2. Devil's Advocate Protocol
 
-First, classify the Director's intent into ONE of the two states below. Then execute accordingly.
-
-### State A — Pure Information Search (純資訊搜索)
-
-**Trigger**: The Director wants to retrieve facts, data, competitive listings, or technical documentation. No hypothesis or design decision is being explored.
-
-**Execution**: Challenge the **reliability and completeness** of the information itself. You MUST produce exactly three analysis points:
-  1. **Source Bias (來源偏差)**: Are the sources authoritative? Are there conflicts of interest, regional biases, or industry-lobby influences skewing the data?
-  2. **Data Freshness (資料時效性)**: Is the retrieved data current? Identify the publication date range and flag any information older than 18 months as potentially stale.
-  3. **Search Coverage Gap (搜索範圍盲點)**: What adjacent topics, competing frameworks, or non-English sources were excluded from the search? List the gaps explicitly.
-
-Each point MUST be written as a dedicated paragraph — not a single bullet line.
-
-### State B — Deep Research & Scenario Analysis (深度研究分析)
-
-**Trigger**: The Director wants to explore a business idea, technology architecture, or a specific phenomenon/scenario for feasibility assessment.
-
-**Execution**: Full Devil's Advocate mode. You MUST identify at least **THREE (3) fatal risks**. Each risk entry MUST follow this exact structure:
-
-  > **【風險名稱】**
-  > - **風險描述**：What could go wrong and why.
-  > - **可能發生情境**：Describe a concrete, realistic failure scenario (name actors, systems, and timing).
-  > - **量化影響估算**：Provide a numeric estimate of impact (e.g., cost overrun in USD, latency increase in ms, user churn rate %, time-to-failure in months). If exact numbers are unavailable, provide a justified range.
+[INTENT GATE] Classify Director intent:
+- IF (intent is pure information, data, or doc retrieval with NO hypothesis):
+  - [STATE A - Pure Information Search] Challenge reliability and completeness. Output exactly three paragraphs:
+    1. Source Bias: Check authority and conflicts of interest.
+    2. Data Freshness: Flag info older than 18 months.
+    3. Search Coverage Gap: List excluded topics or competitors.
+- ELSE (intent is to explore a business idea, tech architecture, or scenario):
+  - [STATE B - Deep Research & Scenario Analysis] Devil's Advocate mode. Identify at least THREE fatal risks. Each risk MUST include:
+    - Risk Description: What could go wrong and why.
+    - Failure Scenario: Concrete, realistic failure scene (actors, systems, timing).
+    - Quantified Impact: Numeric estimate of impact (e.g., cost, latency, churn rate) or justified range.
 
 ## 3. Artifact Generation (Output Mandate)
 

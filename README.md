@@ -2,8 +2,8 @@
 
 > **主動式 AI 記憶防禦引擎** — 自動偵測記憶卡過期、植入攔截警報，確保 AI 不讀取失效的上下文。
 
-[![version](https://img.shields.io/badge/version-2.0.0-blue)](./CHANGELOG.md)
-[![tests](https://img.shields.io/badge/tests-128%20passed-brightgreen)](#-執行測試)
+[![version](https://img.shields.io/badge/version-3.0.0-blue)](./CHANGELOG.md)
+[![tests](https://img.shields.io/badge/tests-94%20passed-brightgreen)](#-執行測試)
 [![license](https://img.shields.io/badge/license-MIT-green)](#)
 
 ---
@@ -35,11 +35,10 @@ Cartridge System 是一個為 [Antigravity 框架](https://github.com/Kunshao111
 | 🟢 **狀態列燈號** | VS Code 狀態列即時顯示記憶卡指標（五層等級：🟢🔵🟡🟠🔴）以及 👻 幽靈計數 |
 | 🌳 **TreeView 面板**| v2.0 新增記憶卡匣專屬側邊欄，樹狀可視化呈現所有健康指標與幽靈池 |
 | 🔍 **CodeLens 標記**| v2.0 新增編輯器頂部行內標記，即時顯示當前檔案所屬的記憶卡與過期狀態 |
-| 🛠️ **MCP 工具介面** | 提供四個標準化 AI 工具，支援跨專案動態路徑解析 |
+| 🛠️ **MCP 工具介面** | 提供四個標準化 AI 工具（純讀取 + 後設同步），支援跨專案動態路徑解析 |
 | 🌐 **跨平台相容** | 完整支援 Windows CRLF 與 Unix LF 行尾格式 |
 | 🛡️ **路徑安全防禦** | 雙層路徑驗證（Zod 格式守衛 + 語意守衛），阻擋路徑穿越攻擊 |
 | 🌲 **巢狀目錄掃描** | 支援最大 4 層深度的記憶卡樹狀結構，目錄結構即層級 |
-| 🔗 **巢狀建立支援** | MCP 工具支援 `parentModule` 參數，直接建立巢狀子卡 |
 | 📂 **獨立記憶目錄** | v0.6.0 起記憶卡存放於 `.agents/memory/`，與操作技能完全分離 |
 | 🗃️ **系統目錄隱藏** | 外掛啟動時自動將 `.cartridge/` 寫入 VS Code 工作區排除名單 (`files.exclude`)，保持檔案總管整潔 |
 
@@ -56,7 +55,7 @@ npm run build
 npm run package
 
 # 使用 Antigravity IDE CLI 安裝（注意：不可用 code 指令）
-antigravity --install-extension cartridge-system-2.0.0.vsix --force
+antigravity --install-extension cartridge-system-3.0.0.vsix --force
 ```
 
 ### 方法二：開發模式
@@ -100,9 +99,8 @@ Cartridge System 提供 MCP（Model Context Protocol）工具伺服器，供 AI 
 |----------|------|
 | `memory_list` | 列出專案中所有記憶卡匣與**未歸屬檔案清單**（含過期指數、健康等級、待處理異動） |
 | `memory_read` | 讀取特定記憶技能的完整 SKILL.md 內容（自動解析巢狀點分隔路徑） |
-| `memory_update` | ⚠️ 舊版介面（建議改用 `memory_commit`）。用完整內容整張替換指定模組的記憶技能內容 |
-| `memory_commit` | **推薦** — AI 用原生工具寫入 SKILL.md 後呼叫。自動完成：時間戳注入（+08:00）、staleness 歸零、索引同步（清除 pendingChanges、重新解析 trackedFiles、重建 fileMap）、結構驗證 |
 | `memory_status` | 查詢指定記憶卡的過期修復診斷：過期指數、異動檔案清單（含絕對路徑）及修復行動指引 |
+| `memory_commit` | **推薦** — AI 用原生工具寫入 SKILL.md 後呼叫。自動完成：時間戳注入（+08:00）、staleness 歸零、索引同步（清除 pendingChanges、重新解析 trackedFiles、重建 fileMap）、結構驗證 |
 
 ### 跨專案支援
 
@@ -129,15 +127,6 @@ memory_status({
   moduleName: 'dashboard-ui',
   projectRoot: 'D:\\bartender_map'
 })
-
-// 建立巢狀子卡
-memory_update({
-  moduleName: 'api-auth',
-  content: '---\nname: api-auth\n---\n# API Auth Module',
-  parentModule: 'api',
-  projectRoot: 'D:\\bartender_map'
-})
-// 檔案會建立在 .agents/memory/api/api-auth/SKILL.md
 ```
 
 ---
@@ -156,25 +145,24 @@ memory_update({
 ## 🧪 執行測試
 
 ```bash
-# 執行完整測試套件（120 個案例）
+# 執行完整測試套件
 npm test
 
 # 監聽模式（開發時使用）
 npm run test:watch
 ```
 
-測試涵蓋 8 個測試檔案（128 個案例）：
+測試涵蓋 7 個測試檔案（94 個案例）：
 
 | 測試模組 | 案例數 | 涵蓋範圍 |
 |----------|--------|----------|
-| 索引管理器 | 22 | 掃描、findOwner、getChildren、遞迴掃描驗證、resolveModulePath |
-| MCP 工具介面 | 46 | 正常流程、路徑穿越防禦、時間戳驗證、整張替換、過期狀態診斷、巢狀路徑解析、parentModule 巢狀建立、pendingChanges 清除、memory_commit 後設資料同步 |
+| 索引管理器 | 18 | 掃描、findOwner、getChildren、遞迴掃描驗證、resolveModulePath |
+| MCP 工具介面 | 35 | 正常流程、路徑穿越防禦、時間戳驗證、過期狀態診斷、巢狀路徑解析、memory_commit 後設資料同步 |
 | 過期分析器 | 11 | 過期等級四分支、三種事件計分、閾值觸發 |
 | 警報寫入器 | 9 | 冪等植入、條件式清除、狀態回復 |
 | 路徑安全驗證 | 8 | 絕對/相對路徑、穿越攻擊拒絕 |
 | 時間戳格式 | 3 | ISO 8601 格式、台灣時區後綴 |
 | 離線變動偵測 | 10 | 啟動校驗、目錄跳過、去重、異常處理 |
-| 規則注入器 | 11 | 偵測注入、雜湊比對、記憶卡護欄、**三方比對四象限決策、衝突策略** |
 
 ---
 
@@ -204,7 +192,7 @@ cartridge_system/
 │   │   ├── core-types/           # 共用型別與設定
 │   │   ├── index-manager/        # 索引管理器
 │   │   ├── extension/            # 外掛入口 ★ 父卡
-│   │   │   ├── injector/         # └ 注入器
+│   │   │   ├── injector/         # └ 注入器（v3.0 已廢除，保留歸檔）
 │   │   │   ├── watcher/          # └ 監聽引擎
 │   │   │   ├── analyzer/         # └ 過期分析器
 │   │   │   └── writer/           # └ 寫入器
@@ -213,7 +201,7 @@ cartridge_system/
 │   └── workflows/         # Antigravity 工作流程
 ├── dist/                  # 編譯輸出（tsup 打包）
 ├── CHANGELOG.md           # 更新紀錄
-└── package.json           # v0.9.0
+└── package.json           # v3.0.0
 ```
 
 ### 技術堆疊

@@ -8,9 +8,6 @@ memory_awareness: full
 # [WORKFLOW: FIX EXECUTE (修復執行)]
 
 
-> [LOAD SKILL] §2 修復寫入前，必須讀取：
-> `view_file .agents/skills/security-sre/SKILL.md`
-
 ## 1. Authorization Check
 
 - [ASSERT] Confirm the current conversation context contains explicit Director authorization from `04-1_fix_plan`.
@@ -18,6 +15,9 @@ memory_awareness: full
 - [ASSERT] Call `task_boundary` to switch to `EXECUTION` mode.
 
 ## 2. Physical Fix Execution
+
+> [LOAD SKILL] Before writing fix to disk, you MUST consult:
+> `view_file .agents/skills/security-sre/SKILL.md`
 
 - [EXECUTE] Apply the fix strictly as defined in `implementation_plan.md`. Modify only the target files and lines specified.
 - [FORBIDDEN] Do NOT touch any file outside the approved plan scope.
@@ -32,19 +32,13 @@ memory_awareness: full
 
 ## 4. Automated Re-Verification Loop
 
-```
 [FIX CIRCUIT BREAKER] Post-patch verification:
-├── Run regression tests on patched files.
-│   ├── PASS → Chain to /06_test silently.
-│   └── FAIL (regression detected) →
-│       ├── [SUDO] detected? → Bypass revert. Keep dirty patch. Warn Director.
-│       ├── Auto-revert patch (git checkout on affected files).
-│       ├── Attempt 1 → Re-analyze and re-patch.
-│       ├── Attempt 2 → Re-analyze and re-patch.
-│       └── Attempt 3+ → [HALT]
-│           「🔴 [FIX HALT] 修復導致回歸且自動修復失敗 (2/2)。已退版。請總監介入。」
-└── Gate cleared → /06_test.
-```
+- Run regression tests on patched files.
+- IF (Tests PASS): Chain to `/06_test` silently.
+- IF (Tests FAIL - regression detected):
+  - IF ([SUDO] detected in Director prompt): Bypass revert. Keep dirty patch. Warn Director.
+  - ELSE: Auto-revert patch (`git checkout` on affected files). Trigger auto-repair loop (max 2 attempts).
+  - IF (FAIL after 2 attempts): [HALT] Output exactly: 「🔴 [FIX HALT] 修復導致回歸且自動修復失敗 (2/2)。已退版。請總監介入。」
 
 ## COMPLETION GATE
 

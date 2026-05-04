@@ -1,6 +1,24 @@
 # 更新紀錄
 
+## [3.0.0] — 2026-05-04
+
+### 🔥 破壞性變更
+
+- **框架基礎注入機制移除** — 外掛安裝時不再自動注入 Antigravity 框架的基礎作業系統（Rules、Workflows、Skills 模板）。`CoreInjector` 類別、`src/templates/` 目錄、`.cartridge/injector.json` 狀態檔均已移除。Antigravity 框架的生命週期由獨立的安裝腳本（`install.ps1`）全權管理，與記憶卡管理工具解耦
+- **`memory_update` MCP 工具移除** — MCP API 正式確立「只讀 + 元資料同步」設計哲學。`memory_update` 工具（含整張替換功能）已全面移除，唯一的記憶卡寫入路徑為 `write_to_file → memory_commit` 兩步驟流程。若需建立新記憶卡，請直接使用 `write_to_file` 建立 SKILL.md 後呼叫 `memory_commit` 同步索引
+
+### 🧹 清理
+
+- **`chokidar` 依賴移除** — 從 `tsup.config.ts` 的 `noExternal` 清單移除（v2.0 已全面改用 VS Code 原生 FileSystemWatcher，chokidar 早已無實質作用）
+- **注入器測試移除** — 刪除 `src/tests/injector.test.ts`（11 個測試案例），MCP 工具測試刪除三個 `handleMemoryUpdate` describe 區塊（13 個測試案例）
+- **全套測試精簡** — 從 128 個案例調整為 **94 個案例**（7 個測試檔案），聚焦核心記憶卡管理功能
+
+### ✨ 設計哲學
+
+外掛職責自 v3.0.0 起明確定義為：**記憶卡匣的生命週期追蹤（檔案監聽、過期分析、UI 呈現）以及 AI 代理的 MCP 查詢介面**。框架安裝與記憶卡內容寫入均不在外掛管轄範圍內。
+
 ## [2.0.1] — 2026-04-12
+
 
 ### 🔧 修復
 

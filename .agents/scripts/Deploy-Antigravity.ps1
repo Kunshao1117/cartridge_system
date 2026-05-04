@@ -30,6 +30,28 @@ if (-Not (Test-Path -Path $Target)) {
 # 共用函式
 # ============================================================
 
+function Invoke-ProjectSkillBackfill {
+    <#
+    .SYNOPSIS 掃描 project_skills/，自動補建缺少的 skills/project-* 命名空間符號連結（冪等）
+    #>
+    param ([string]$AgentsRoot)
+    $skillsDir = Join-Path $AgentsRoot 'skills'
+    $projDir   = Join-Path $AgentsRoot 'project_skills'
+    if (-not (Test-Path $projDir)) { return }
+    $count = 0
+    Get-ChildItem $projDir -Directory | ForEach-Object {
+        $linkPath = Join-Path $skillsDir "project-$($_.Name)"
+        if (-not (Test-Path $linkPath)) {
+            New-Item -ItemType SymbolicLink -Path $linkPath -Target $_.FullName | Out-Null
+            Write-Host "[v] [Backfill] project-$($_.Name) 符號連結已建立"
+            $count++
+        }
+    }
+    if ($count -eq 0) {
+        Write-Host "[OK] 衍生技能符號連結皆為最新，無需補建。"
+    }
+}
+
 function Compare-AgentFile {
     <# 
     .SYNOPSIS 比對單一檔案：先看修改時間，再比 SHA256
@@ -79,7 +101,7 @@ function Get-UpgradeReport {
         if (-Not (Test-Path -Path $srcPath)) { continue }
 
         Get-ChildItem -Path $srcPath -File -Recurse | ForEach-Object {
-            $rel = $_.FullName.Substring($SourceRoot.Length + 1).Replace("\", "/")
+            $rel = $_.FullName.Substring($SourceRoot.Length).TrimStart('\', '/').Replace("\", "/")
             $tgtFile = Join-Path -Path $TargetRoot -ChildPath $rel
             $results += Compare-AgentFile -SourcePath $_.FullName -TargetPath $tgtFile -RelativePath $rel
         }
@@ -90,10 +112,10 @@ function Get-UpgradeReport {
     if (Test-Path -Path $srcSkills) {
         Get-ChildItem -Path $srcSkills -File -Recurse | Where-Object {
             # 排除受保護的符號連結目錄下的所有檔案
-            $relPath = $_.FullName.Substring($srcSkills.Length + 1)
+            $relPath = $_.FullName.Substring($srcSkills.Length).TrimStart('\', '/')
             -not ($relPath -match "^_memory[\\/]") -and -not ($relPath -match "^_project[\\/]")
         } | ForEach-Object {
-            $rel = $_.FullName.Substring($SourceRoot.Length + 1).Replace("\", "/")
+            $rel = $_.FullName.Substring($SourceRoot.Length).TrimStart('\', '/').Replace("\", "/")
             $tgtFile = Join-Path -Path $TargetRoot -ChildPath $rel
             $results += Compare-AgentFile -SourcePath $_.FullName -TargetPath $tgtFile -RelativePath $rel
         }
@@ -105,7 +127,7 @@ function Get-UpgradeReport {
         if (-Not (Test-Path -Path $tgtPath)) { continue }
 
         Get-ChildItem -Path $tgtPath -File -Recurse | ForEach-Object {
-            $rel = $_.FullName.Substring($TargetRoot.Length + 1).Replace("\", "/")
+            $rel = $_.FullName.Substring($TargetRoot.Length).TrimStart('\', '/').Replace("\", "/")
             $srcFile = Join-Path -Path $SourceRoot -ChildPath $rel
             if (-Not (Test-Path -Path $srcFile)) {
                 $results += [PSCustomObject]@{ Status = "ORPHAN"; Path = $rel }
@@ -113,14 +135,14 @@ function Get-UpgradeReport {
         }
     }
 
-    # 檢查 skills/ 中的孤兒（排除 _memory、_project 符號連結）
+    # 檢查 skills/ 中的孤兒（排除 _memory、_project 符號連結、project-* 命名空間連結）
     $tgtSkills = Join-Path -Path $TargetRoot -ChildPath "skills"
     if (Test-Path -Path $tgtSkills) {
         Get-ChildItem -Path $tgtSkills -File -Recurse | Where-Object {
-            $relPath = $_.FullName.Substring($tgtSkills.Length + 1)
-            -not ($relPath -match "^_memory[\\/]") -and -not ($relPath -match "^mem-") -and -not ($relPath -match "^_project[\\/]")
+            $relPath = $_.FullName.Substring($tgtSkills.Length).TrimStart('\', '/')
+            -not ($relPath -match "^_memory[\\/]") -and -not ($relPath -match "^mem-") -and -not ($relPath -match "^_project[\\/]") -and -not ($relPath -match "^project-")
         } | ForEach-Object {
-            $rel = $_.FullName.Substring($TargetRoot.Length + 1).Replace("\", "/")
+            $rel = $_.FullName.Substring($TargetRoot.Length).TrimStart('\', '/').Replace("\", "/")
             $srcFile = Join-Path -Path $SourceRoot -ChildPath $rel
             if (-Not (Test-Path -Path $srcFile)) {
                 $results += [PSCustomObject]@{ Status = "ORPHAN"; Path = $rel }
@@ -132,7 +154,7 @@ function Get-UpgradeReport {
     $tgtMemory = Join-Path -Path $TargetRoot -ChildPath "memory"
     if (Test-Path -Path $tgtMemory) {
         Get-ChildItem -Path $tgtMemory -Directory -Recurse | Where-Object { Test-Path (Join-Path $_.FullName "SKILL.md") } | ForEach-Object {
-            $rel = $_.FullName.Substring($tgtMemory.Length + 1).Replace("\", "/")
+            $rel = $_.FullName.Substring($tgtMemory.Length).TrimStart('\', '/').Replace("\", "/")
             $results += [PSCustomObject]@{ Status = "KEEP"; Path = "memory/$rel/" }
         }
     }
@@ -141,7 +163,7 @@ function Get-UpgradeReport {
     $tgtProject = Join-Path -Path $TargetRoot -ChildPath "project_skills"
     if (Test-Path -Path $tgtProject) {
         Get-ChildItem -Path $tgtProject -Directory -Recurse | Where-Object { Test-Path (Join-Path $_.FullName "SKILL.md") } | ForEach-Object {
-            $rel = $_.FullName.Substring($tgtProject.Length + 1).Replace("\", "/")
+            $rel = $_.FullName.Substring($tgtProject.Length).TrimStart('\', '/').Replace("\", "/")
             $results += [PSCustomObject]@{ Status = "KEEP"; Path = "project_skills/$rel/" }
         }
     }
@@ -149,7 +171,7 @@ function Get-UpgradeReport {
     # 過渡相容：掃描舊版 skills/mem-*（含巢狀，等待遷移）
     if (Test-Path -Path $tgtSkills) {
         Get-ChildItem -Path $tgtSkills -Directory -Recurse | Where-Object { $_.Name -like "mem-*" } | ForEach-Object {
-            $rel = $_.FullName.Substring($tgtSkills.Length + 1).Replace("\", "/")
+            $rel = $_.FullName.Substring($tgtSkills.Length).TrimStart('\', '/').Replace("\", "/")
             $results += [PSCustomObject]@{ Status = "MIGRATE"; Path = "skills/$rel/" }
         }
     }
@@ -388,12 +410,7 @@ if ($Mode -eq "Upgrade") {
         Write-Host "[v] 已建立 memory/ 目錄。"
     }
 
-    # 2. 確保目錄連結存在
-    $symlinkPath = Join-Path -Path (Join-Path -Path $targetDir -ChildPath "skills") -ChildPath "_memory"
-    if (-Not (Test-Path -Path $symlinkPath)) {
-        New-Item -ItemType Junction -Path $symlinkPath -Target $tgtMemory | Out-Null
-        Write-Host "[v] 已建立目錄連結: skills/_memory → memory/"
-    }
+    # (依總監指示，取消建立 skills/_memory 目錄連結)
 
     # 2b. 確保 project_skills/ 目錄存在
     $tgtProject = Join-Path -Path $targetDir -ChildPath "project_skills"
@@ -402,12 +419,11 @@ if ($Mode -eq "Upgrade") {
         Write-Host "[v] 已建立 project_skills/ 目錄。"
     }
 
-    # 2c. 確保 _project 目錄連結存在
-    $projectSymlink = Join-Path -Path (Join-Path -Path $targetDir -ChildPath "skills") -ChildPath "_project"
-    if (-Not (Test-Path -Path $projectSymlink)) {
-        New-Item -ItemType Junction -Path $projectSymlink -Target $tgtProject | Out-Null
-        Write-Host "[v] 已建立目錄連結: skills/_project → project_skills/"
-    }
+    # (依總監指示，取消建立 skills/_project 目錄連結)
+
+    # ---- 階段 C.5: 衍生技能命名空間連結 Backfill ----
+    Write-Host "[*] 掃描並補建衍生技能命名空間連結..."
+    Invoke-ProjectSkillBackfill -AgentsRoot $targetDir
 
     # 3. 命名合規掃描：修正殘留的 mem-* 目錄名稱（由深到淺）
     if (Test-Path -Path $tgtMemory) {
@@ -496,43 +512,45 @@ $tmpProject      = Join-Path $env:TEMP "ag_backup_project_$(Get-Random)"
 $existingMemory  = Join-Path $targetDir "memory"
 $existingProject = Join-Path $targetDir "project_skills"
 
-if (Test-Path $existingMemory)  {
-    Copy-Item $existingMemory  $tmpMemory  -Recurse -Force
-    Write-Host "[*] 已備份記憶卡到暫存目錄..."
-}
-if (Test-Path $existingProject) {
-    Copy-Item $existingProject $tmpProject -Recurse -Force
-    Write-Host "[*] 已備份衍生技能到暫存目錄..."
-}
-
-# 複製 .agents 生態系統 (在源頭直接阻斷特定目錄與連結的複製)
-New-Item -ItemType Directory -Force -Path $targetDir | Out-Null
-Get-ChildItem -Path $sourceDir | Where-Object { $_.Name -notin @("memory", "project_skills") } | ForEach-Object {
-    $srcItem = $_
-    $destPath = Join-Path -Path $targetDir -ChildPath $srcItem.Name
-    
-    if ($srcItem.Name -eq "skills" -and $srcItem.PSIsContainer) {
-        # 進入 skills 目錄內，專門排除 _memory 與 _project 這兩個連結
-        New-Item -ItemType Directory -Force -Path $destPath | Out-Null
-        Get-ChildItem -Path $srcItem.FullName | Where-Object { $_.Name -notin @("_memory", "_project") } | ForEach-Object {
-            Copy-Item -Path $_.FullName -Destination $destPath -Recurse -Force
-        }
-    } else {
-        # 其他正常資料夾 (如 rules, workflows) 直接複製
-        Copy-Item -Path $srcItem.FullName -Destination $targetDir -Recurse -Force
+try {
+    if (Test-Path $existingMemory)  {
+        Copy-Item $existingMemory  $tmpMemory  -Recurse -Force
+        Write-Host "[*] 已備份記憶卡到暫存目錄..."
     }
-}
+    if (Test-Path $existingProject) {
+        Copy-Item $existingProject $tmpProject -Recurse -Force
+        Write-Host "[*] 已備份衍生技能到暫存目錄..."
+    }
 
-# ── 還原受保護目錄 ──
-if (Test-Path $tmpMemory)  {
-    Copy-Item $tmpMemory  $existingMemory  -Recurse -Force
-    Remove-Item $tmpMemory  -Recurse -Force
-    Write-Host "[v] 專案記憶卡已完整保留並還原。"
-}
-if (Test-Path $tmpProject) {
-    Copy-Item $tmpProject $existingProject -Recurse -Force
-    Remove-Item $tmpProject -Recurse -Force
-    Write-Host "[v] 專案衍生技能已完整保留並還原。"
+    # 複製 .agents 生態系統 (在源頭直接阻斷特定目錄與連結的複製)
+    New-Item -ItemType Directory -Force -Path $targetDir | Out-Null
+    Get-ChildItem -Path $sourceDir | Where-Object { $_.Name -notin @("memory", "project_skills") } | ForEach-Object {
+        $srcItem = $_
+        $destPath = Join-Path -Path $targetDir -ChildPath $srcItem.Name
+        
+        if ($srcItem.Name -eq "skills" -and $srcItem.PSIsContainer) {
+            # 進入 skills 目錄內，專門排除 _memory 與 _project 這兩個連結
+            New-Item -ItemType Directory -Force -Path $destPath | Out-Null
+            Get-ChildItem -Path $srcItem.FullName | Where-Object { $_.Name -notin @("_memory", "_project") } | ForEach-Object {
+                Copy-Item -Path $_.FullName -Destination $destPath -Recurse -Force
+            }
+        } else {
+            # 其他正常資料夾 (如 rules, workflows) 直接複製
+            Copy-Item -Path $srcItem.FullName -Destination $targetDir -Recurse -Force
+        }
+    }
+} finally {
+    # ── 還原受保護目錄 ──
+    if (Test-Path $tmpMemory)  {
+        Copy-Item $tmpMemory  $existingMemory  -Recurse -Force
+        Remove-Item $tmpMemory  -Recurse -Force
+        Write-Host "[v] 專案記憶卡已完整保留並還原。"
+    }
+    if (Test-Path $tmpProject) {
+        Copy-Item $tmpProject $existingProject -Recurse -Force
+        Remove-Item $tmpProject -Recurse -Force
+        Write-Host "[v] 專案衍生技能已完整保留並還原。"
+    }
 }
 
 Write-Host "[v] 核心傳輸完成，正在初始化架構..."
@@ -543,13 +561,8 @@ if (-Not (Test-Path -Path $memoryDir)) {
     New-Item -ItemType Directory -Force -Path $memoryDir | Out-Null
 }
 
-# 建立符號連結 skills/_memory → memory/
 $skillsDir = Join-Path -Path $targetDir -ChildPath "skills"
-$symlinkPath = Join-Path -Path $skillsDir -ChildPath "_memory"
-if (-Not (Test-Path -Path $symlinkPath)) {
-    New-Item -ItemType Junction -Path $symlinkPath -Target $memoryDir | Out-Null
-}
-Write-Host "[v] 記憶目錄已建立，符號連結已設定。"
+Write-Host "[v] 記憶庫架構已配置。"
 
 # 建立專案衍生技能目錄
 $projectSkillDir = Join-Path -Path $targetDir -ChildPath "project_skills"
@@ -567,13 +580,12 @@ if (-Not (Test-Path -Path $projectIndexFile)) {
 "@
     Set-Content -Path $projectIndexFile -Value $indexTemplate -Encoding UTF8
 }
-# 建立符號連結 skills/_project → project_skills/
-$projectSymlink = Join-Path -Path $skillsDir -ChildPath "_project"
-if (-Not (Test-Path -Path $projectSymlink)) {
-    New-Item -ItemType Junction -Path $projectSymlink -Target $projectSkillDir | Out-Null
-}
-Write-Host "[v] 專案衍生技能目錄已建立，符號連結已設定。"
+Write-Host "[v] 專案衍生技能基礎目錄已建立。"
 Write-Host "[v] 專案記憶系統已就緒，可執行 /02_blueprint 初始化。"
+
+# 衍生技能命名空間連結 Backfill（Fresh 模式還原衍生技能後補建）
+Write-Host "[*] 掃描並補建衍生技能命名空間連結..."
+Invoke-ProjectSkillBackfill -AgentsRoot $targetDir
 
 # 清理：移除舊版 cartridges 目錄
 $cartridgeDir = Join-Path -Path $targetDir -ChildPath "cartridges"
@@ -585,15 +597,16 @@ if (Test-Path -Path $cartridgeDir) {
 # 驗證部署
 if (Test-Path -Path $skillsDir) {
     $totalSkills = (Get-ChildItem -Path $skillsDir -Directory | Where-Object { 
-        ($_.Name -ne "_memory") -and ($_.Name -ne "_project") -and (Test-Path (Join-Path $_.FullName "SKILL.md")) 
+        ($_.Name -ne "_memory") -and ($_.Name -ne "_project") -and ($_.Name -notlike "project-*") -and (Test-Path (Join-Path $_.FullName "SKILL.md")) 
     }).Count
+    $linkedSkills = (Get-ChildItem -Path $skillsDir -Directory | Where-Object { $_.Name -like "project-*" }).Count
     $memCards = if (Test-Path -Path $memoryDir) {
         (Get-ChildItem -Path $memoryDir -Directory -Recurse | Where-Object { Test-Path (Join-Path $_.FullName "SKILL.md") }).Count
     } else { 0 }
     $projectSkills = if (Test-Path -Path $projectSkillDir) {
         (Get-ChildItem -Path $projectSkillDir -Directory -Recurse | Where-Object { Test-Path (Join-Path $_.FullName "SKILL.md") }).Count
     } else { 0 }
-    Write-Host "[v] 技能系統已部署: $totalSkills 個核心技能 + $projectSkills 個專案衍生技能 + $memCards 個專案記憶。"
+    Write-Host "[v] 技能系統已部署: $totalSkills 個核心技能 + $projectSkills 個專案衍生技能（$linkedSkills 個已掛載符號連結）+ $memCards 個專案記憶。"
 } else {
     Write-Host "[!] 警告: 部署的 .agents 資料夾中找不到技能目錄。"
 }
@@ -603,18 +616,21 @@ $versionFile = Join-Path -Path $targetDir -ChildPath "VERSION"
 Set-Content -Path $versionFile -Value $sourceVersion -NoNewline
 Write-Host "[v] 版本 v$sourceVersion 已寫入。"
 
-# Git 排除：確保腳本工具目錄不進版控
+# Git 排除：確保腳本工具與日誌目錄不進版控
 $gitignorePath = Join-Path -Path $Target -ChildPath ".gitignore"
-$excludeLine = ".agents/scripts/"
-if (Test-Path -Path $gitignorePath) {
-    $giContent = Get-Content -Path $gitignorePath -Raw
-    if ($giContent -notmatch [regex]::Escape($excludeLine)) {
-        Add-Content -Path $gitignorePath -Value "`n# Antigravity 框架工具腳本（自動產生）`n$excludeLine"
-        Write-Host "[v] 已追加 .gitignore 排除: $excludeLine"
+$excludeLines = @(".agents/scripts/", ".agents/logs/")
+
+if (-Not (Test-Path -Path $gitignorePath)) {
+    Set-Content -Path $gitignorePath -Value "# Antigravity 框架自動排除項目"
+    Write-Host "[v] 已建立 .gitignore"
+}
+
+$giContent = Get-Content -Path $gitignorePath -Raw
+foreach ($line in $excludeLines) {
+    if ($giContent -notmatch [regex]::Escape($line)) {
+        Add-Content -Path $gitignorePath -Value $line
+        Write-Host "[v] 已追加 .gitignore 排除: $line"
     }
-} else {
-    Set-Content -Path $gitignorePath -Value "# Antigravity 框架工具腳本`n$excludeLine"
-    Write-Host "[v] 已建立 .gitignore 並排除: $excludeLine"
 }
 
 Write-Host "-----------------------------------------------"

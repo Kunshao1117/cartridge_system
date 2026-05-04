@@ -14,7 +14,7 @@
 import * as vscode from "vscode";
 import path from "node:path";
 import { createConfig } from "./config";
-import { CoreInjector } from "./injector";
+
 import { CartridgeIndexManager } from "./index-manager";
 import { StalenessAnalyzer } from "./analyzer";
 import { MemoryWriter } from "./writer";
@@ -234,9 +234,7 @@ export async function activate(
     statusBar = new CartridgeStatusBar(context);
     statusBar.show("初始化中...");
 
-    const injector = new CoreInjector(config);
-    await injector.inject();
-    vscode.window.setStatusBarMessage(injector.formatReport(), 5000);
+    // v3.0: 框架基礎注入機制已移除，外掛不再管理 .agents/ 的框架結構
 
     // Gitignore 排除引擎初始化
     gitignoreFilter = new GitignoreFilter(projectRoot);

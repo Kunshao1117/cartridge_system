@@ -8,19 +8,17 @@ description: 單純前置掃描與狀態盤點，列出各項結果
 
 [CONSTRAINT] YOU MUST READ THIS EXECUTABLE SCRIPT STRICTLY. DO NOT AUTO-COMPLETE. DO NOT GUESS.
 
-> [LOAD SKILL] 掃描前，必須讀取：
-> `view_file .agents/skills/memory-ops/SKILL.md`
-
 ## 1. REPOSITORY_STATUS_CHECK
 
-[EXECUTE]
-Run: `pwsh .agents/scripts/Invoke-DocScan.ps1 -ProjectRoot {project_root} -AgentsDir {agents_dir}`
+[EXECUTE] Run: `pwsh .agents/scripts/Invoke-DocScan.ps1 -ProjectRoot {project_root} -AgentsDir {agents_dir}`
 
 ## 2. MEMORY_STALENESS_DETECTION
 
-[EXECUTE]
-Compare `git diff --name-only` against tracked files in Memory System.
-Analyze `staleness` count for affected memory cards.
+> [LOAD SKILL] 執行過期偵測前，必須讀取：
+> `view_file .agents/skills/memory-ops/SKILL.md`
+
+[EXECUTE] Compare `git diff --name-only` against tracked files in Memory System.
+[EXECUTE] Analyze `staleness` count for affected memory cards.
 
 ## 3. TERMINATION_POINT
 

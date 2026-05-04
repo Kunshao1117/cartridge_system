@@ -15,16 +15,6 @@ metadata:
     - "filesystem:read"
 ---
 
-<!-- CARTRIDGE_SYSTEM_WARNING_START -->
-
-> [!CAUTION]
-> 🟠 **系統強制攔截**：此記憶已過期失真！
-> 追蹤檔案異動：`src/gitignore-filter.ts`（2026-04-12T11:47:50+08:00）
-> AI 嚴禁基於此記憶施工，必須優先閱讀最新原始碼並更新此記憶卡。
-> staleness: 10 | threshold: 🟠 顯著過期
-
-<!-- CARTRIDGE_SYSTEM_WARNING_END -->
-
 # GitignoreFilter — Gitignore 排除引擎記憶
 
 ## Tracked Files

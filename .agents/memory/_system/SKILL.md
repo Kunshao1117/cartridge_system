@@ -2,20 +2,17 @@
 name: _system
 description: |
   專案記憶：系統技術堆疊與部署設定。 Use when: 確認技術選型、環境設定、部署組態時載入。
-last_updated: "2026-04-12T11:54:44+08:00"
-status: stale
+last_updated: '2026-05-04T22:26:29+08:00'
+status: stable
 staleness: 0
+metadata:
+  author: antigravity
+  version: '3.0'
+  origin: project
+  memory_awareness: full
+  tool_scope:
+    - 'filesystem:read'
 ---
-
-<!-- CARTRIDGE_SYSTEM_WARNING_START -->
-
-> [!CAUTION]
-> 🟠 **系統強制攔截**：此記憶已過期失真！
-> 追蹤檔案異動：`package.json`（2026-04-09T18:59:42+08:00）
-> AI 嚴禁基於此記憶施工，必須優先閱讀最新原始碼並更新此記憶卡。
-> staleness: 10 | threshold: 🟠 顯著過期
-
-<!-- CARTRIDGE_SYSTEM_WARNING_END -->
 
 # System — 系統記憶
 
@@ -72,20 +69,18 @@ staleness: 0
 
 ## Config Files
 
-- `package.json` — VS Code Extension 元數據（含 activationEvents / contributes），當前版本 **2.0.0**
+- `package.json` — VS Code Extension 元數據（含 activationEvents / contributes），當前版本 **3.0.0**
 - `tsconfig.json` — CommonJS + node 模組解析
-- `tsup.config.ts` — entry: extension.ts / format: cjs / external: vscode / noExternal: gray-matter / **onSuccess: 複製範本目錄**
+- `tsup.config.ts` — entry: extension.ts / format: cjs / external: vscode / noExternal: gray-matter, ignore（v3.0 已移除 onSuccess 範本複製邏輯）
 - `eslint.config.js` — ESLint v9 Flat Config（CJS 格式，@typescript-eslint）
 - `.vscodeignore` — 打包排除清單（含 .agents/ 排除）
-- `cartridge_index.json` — 已遷移，由 `.cartridge/index.json` 取代
 - `.cartridge/index.json` — 執行期產生（索引檔）
-- `.cartridge/injector.json` — 執行期產生（注入器狀態檔）
 
 ## Key Decisions
 
-### D11
+### D12
 
-D11: tsup `onSuccess` hook 負責在建置完成後自動複製 `src/templates/` 至 `dist/templates/`，確保注入器的靜態範本隨外掛打包
+D12: v3.0.0 **[重大]** 外掛職責純化 — 移除框架基礎注入機制（`CoreInjector`、`src/templates/`、`tsup onSuccess` 複製邏輯、`.cartridge/injector.json` 狀態檔）。外掛的唯一職責聚焦於記憶卡匣的生命週期追蹤（檔案監聽、過期分析、UI 呈現）以及 AI 代理的 MCP 介面。Antigravity 框架的安裝由獨立腳本（install.ps1）全權管理。`chokidar` 亦一並從 noExternal 清單移除（早在 v2.0 已廢用）。
 
 ## Known Issues
 
@@ -99,6 +94,7 @@ D11: tsup `onSuccess` hook 負責在建置完成後自動複製 `src/templates/`
 - L04: v0.9.0 (2026-04-02) — 三合一架構重構：移除 patch/append 棄用模式、索引檔搬遷至 `.cartridge/`、注入器三方比對覆蓋機制。
 - L05: 最新的系統已全面進入雙子星架構，確保前端 IDE UI 與後端 MCP 邏輯絕對隔離。全專案具備離線與未歸屬邊緣檔案偵測能力。
 - L06: v2.0.0 (2026-04-12) — 次世代架構升級：棄用 chokidar 改用 VS Code 原生 FileSystemWatcher + debounceMap；Cache-First I/O 機制（isDirty + flushIfDirty + 5 分鐘安全心跳）；背景化幽靈掃描；新增 TreeView 側邊欄 + CodeLens 行內標記 + 智慧歸屬推薦引擎。
+- L07: v3.0.0 (2026-05-04) — 職責純化：移除框架基礎注入機制，外掛聚焦記憶卡匣管理核心功能。
 
 ## Applicable Skills
 

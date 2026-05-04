@@ -69,14 +69,6 @@ export const memoryStatusSchema = z.object({
   projectRoot: projectRootField,
 });
 
-/** memory_update 工具參數驗證 Schema */
-export const memoryUpdateSchema = z.object({
-  moduleName: z.string().min(1),
-  content: z.string().min(1),
-  parentModule: z.string().optional(),
-  projectRoot: projectRootField,
-});
-
 /** memory_commit 工具參數驗證 Schema */
 export const memoryCommitSchema = z.object({
   moduleName: z.string().min(1),
@@ -558,121 +550,6 @@ export async function handleMemoryStatus(
         isError: true,
       };
     }
-  }
-}
-
-/**
- * memory_update — 更新指定記憶卡匣的 SKILL.md，自動更新時間戳記與 staleness
- *
- * 整張替換：用 content 替換完整 SKILL.md
- * ⚠️ 建議使用 write_to_file → memory_commit 的新流程
- */
-export async function handleMemoryUpdate(
-  args: unknown,
-): Promise<McpToolResult> {
-  const parsed = memoryUpdateSchema.safeParse(args);
-  if (!parsed.success) {
-    return {
-      content: [
-        {
-          type: "text",
-          text: "Validation Error: moduleName, content and projectRoot are required (projectRoot must be absolute path without ..)",
-        },
-      ],
-      isError: true,
-    };
-  }
-
-  // 路徑安全二次驗證
-  try {
-    validateProjectRoot(parsed.data.projectRoot);
-  } catch (e: unknown) {
-    const msg = e instanceof Error ? e.message : String(e);
-    return {
-      content: [{ type: "text", text: `Path Validation Error: ${msg}` }],
-      isError: true,
-    };
-  }
-
-  try {
-    const isoLocal = getTaiwanISO();
-    const resolvedPath = await resolveSkillPath(
-      parsed.data.projectRoot,
-      parsed.data.moduleName,
-    );
-    // 決定檔案路徑：已存在 → 巢狀新建 → 根層新建
-    let filePath: string;
-    if (resolvedPath) {
-      filePath = resolvedPath;
-    } else if (parsed.data.parentModule) {
-      // 巢狀建立：放到父卡目錄下
-      const parentPath = await resolveSkillPath(
-        parsed.data.projectRoot,
-        parsed.data.parentModule,
-      );
-      const parentDir = parentPath
-        ? path.dirname(parentPath)
-        : path.join(
-            parsed.data.projectRoot,
-            ".agents",
-            "skills",
-            parsed.data.parentModule,
-          );
-      filePath = path.join(parentDir, parsed.data.moduleName, "SKILL.md");
-    } else {
-      // 根層建立（v4.0：建在 memory/ 目錄下）
-      filePath = path.join(
-        parsed.data.projectRoot,
-        ".agents",
-        "memory",
-        parsed.data.moduleName,
-        "SKILL.md",
-      );
-    }
-
-    // 整張替換寫入（修復 #4：清除殘留的警報區塊）
-    let finalContent = updateFrontmatterFields(parsed.data.content, {
-      last_updated: isoLocal,
-      staleness: 0,
-    });
-    const { data: fm, content: bd } = matter(finalContent);
-    fm.status = "stable";
-    finalContent = matter.stringify(stripWarningBlock(bd), fm);
-
-    await fs.writeFile(filePath, finalContent, "utf-8");
-
-    // 清除索引檔中對應模組的 pendingChanges（graceful，失敗不影響更新結果）
-    try {
-      const indexPath = path.join(
-        parsed.data.projectRoot,
-        ".cartridge",
-        "index.json",
-      );
-      const indexRaw = await fs.readFile(indexPath, "utf-8");
-      const index = JSON.parse(indexRaw);
-      if (index.cartridges?.[parsed.data.moduleName]) {
-        index.cartridges[parsed.data.moduleName].pendingChanges = [];
-        index.cartridges[parsed.data.moduleName].staleness = 0;
-        await fs.writeFile(indexPath, JSON.stringify(index, null, 2), "utf-8");
-      }
-    } catch {
-      // 索引檔不存在或讀寫失敗 — 靜默忽略，不影響更新結果
-    }
-
-    return {
-      content: [
-        {
-          type: "text",
-          text: `Successfully updated ${parsed.data.moduleName}`,
-        },
-      ],
-    };
-  } catch (e: unknown) {
-    const msg = e instanceof Error ? e.message : String(e);
-    return {
-      content: [{ type: "text", text: `Error: ${msg}` }],
-      isError: true,
-    };
   }
 }
 

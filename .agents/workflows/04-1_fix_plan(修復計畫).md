@@ -7,10 +7,11 @@ memory_awareness: full
 # [WORKFLOW: FIX PLAN (修復計畫)]
 
 
-> [LOAD SKILL] §0 執行前，必須讀取：
+## 0. Memory Recall
+
+> [LOAD SKILL] Before reading memory, you MUST consult:
 > `view_file .agents/skills/memory-ops/SKILL.md`
 
-## 0. Memory Recall
 - Check the IDE-injected skill list for memory cards relevant to the target modules.
 - Load relevant memory card SKILL.md files — match against `## Known Issues` (the fix may relate to a previously documented issue) and check `## Relations` for cascading impact.
 

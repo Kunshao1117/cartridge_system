@@ -77,3 +77,10 @@ All workflows that modify physical project source code MUST follow this lifecycl
 
 - **Design-First Principle**: Do NOT write in engineering language and then translate. Design Director-facing output in the Director's language FROM THE START.
 - **Cross-Lingual Reasoning Discipline (跨語系思維紀律)**: FIRST non-trivial Chinese input in a NEW conversation → MUST trigger Cold Start (`view_file` on SKILL.md FIRST). See `01_cross_lingual_guard.md` (always_on) for the PRE-RESPONSE GATE and full protocol.
+
+## 6. Zero-Trust Internal Knowledge (零信任內部知識與版本錨定)
+
+- **Epistemological Constraint (認識論限制)**: The Agent MUST assume its internal training weights regarding third-party frameworks and APIs are OUTDATED and UNTRUSTED. Do NOT rely on memory (e.g., 2024/2025 syntax) to generate code for modern frameworks.
+- **Grounding Protocol (強制接地檢索)**: Before writing code or architecture plans involving external frameworks (e.g., Next.js, React, Supabase), the Agent MUST unconditionally execute an external retrieval step (e.g., using `context7-docs` or `search_web`) to override its internal memory.
+- **Version Anchoring (版本錨定優先)**: The primary search filter MUST be the EXACT major version of the framework. The Agent MUST consult `tech-stack-protocol` or project memory to extract the exact version (e.g., "Next.js 15") and inject it into the search query.
+- **Temporal Fallback (時間錨定備用)**: If no exact version is specified in the project, the Agent MUST extract the current year from the system prompt's `The current local time is:` (e.g., 2026) and append it to the search query (e.g., `Next.js App Router best practices 2026`) to force retrieval of the latest stable information.

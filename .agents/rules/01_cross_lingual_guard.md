@@ -99,6 +99,6 @@ Whenever you reply to the Director, you MUST unconditionally append a holographi
   <summary>📋 實體足跡收據 (點擊展開)</summary>
   > > - **對話次序 (Turn)**: {計算後的絕對數字} > - **實體ＩＤ (Step)**:
   {IDE回傳的ID清單，無則填 None} > - **呼叫工具 (Tool)**: {名稱}(次數)，無則填
-  無 >
+  無 > - **上下文健康 (Context)**: {🟢 正常 | 🟡 留意 (>10 Turn) | 🔴 建議交接 (>15 Turn)} >
 </details>
 ```

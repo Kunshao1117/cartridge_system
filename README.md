@@ -2,7 +2,7 @@
 
 > **現實感知 AI 記憶防禦引擎** — 自動偵測記憶卡過期、幽靈檔案、跨模組依賴傳播，確保 AI 不讀取失效的上下文。
 
-[![version](https://img.shields.io/badge/version-4.0.0-blue)](./CHANGELOG.md)
+[![version](https://img.shields.io/badge/version-4.0.1-blue)](./CHANGELOG.md)
 [![tests](https://img.shields.io/badge/tests-106%20passed-brightgreen)](#-執行測試)
 [![license](https://img.shields.io/badge/license-MIT-green)](#)
 
@@ -18,7 +18,7 @@ Cartridge System 是一個為 [Antigravity 框架](https://github.com/Kunshao111
 
 1. **全域追蹤** — 直接於根目錄層級架設雷達，整合原生 `.gitignore` 引擎，感知專案中每一個新生檔案。
 2. **計算過期指數** — 使用衰退演算法計算每張記憶卡的「失效程度」
-3. **幽靈偵測** — 已追蹤但被刪除的檔案自動標記為 💀 幽靈，提醒 AI 清理追蹤清單
+3. **幽靈偵測** — 已追蹤但被刪除的檔案自動標記為 💀 幽靈，狀態列懸浮報告即時顯示幽靈摘要，提醒 AI 清理追蹤清單
 4. **依賴傳播** — 自動分析卡匣間 import 依賴，當上游過期時向下游卡匣傳播間接過期指數
 5. **未歸屬提示** — 沒有歸屬的孤兒檔案將展示在前端狀態列，透過 👻 提示通知您建立/指派到對應技能。
 6. **警報植入** — 在過期的記憶技能頂部自動插入攔截警告，阻止 AI 讀取舊資料

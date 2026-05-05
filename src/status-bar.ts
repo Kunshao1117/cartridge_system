@@ -108,6 +108,17 @@ export class CartridgeStatusBar {
       }
     }
 
+    // 💀 幽靈檔案摘要
+    const ghostEntries = Object.entries(index.cartridges).filter(
+      ([, c]) => (c.ghostFiles?.length ?? 0) > 0,
+    );
+    if (ghostEntries.length > 0) {
+      lines.push(``, `💀 幽靈檔案 (需清理):`);
+      for (const [id, c] of ghostEntries) {
+        lines.push(`  • ${id}: ${c.ghostFiles!.length} 個幽靈`);
+      }
+    }
+
     lines.push(``, `點擊查看完整健康報告`);
     return lines.join("\n");
   }

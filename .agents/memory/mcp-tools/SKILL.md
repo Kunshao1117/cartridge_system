@@ -3,8 +3,8 @@ name: mcp-tools
 description: |
   專案記憶：MCP 工具介面模組（第三階段）。 Use when: 處理MCP伺服器註冊、工具路由、AI工具呼叫介面時載入。
 last_updated: '2026-05-06T07:05:44+08:00'
-status: stable
-staleness: 0
+status: stale
+staleness: 10
 dependencies:
   - index-manager
   - core-types
@@ -17,6 +17,15 @@ metadata:
     - 'filesystem:read'
     - 'filesystem:write'
 ---
+<!-- CARTRIDGE_SYSTEM_WARNING_START -->
+
+> [!CAUTION]
+> 🟠 **系統強制攔截**：此記憶已過期失真！
+> 追蹤檔案異動：`src/mcp-handlers.ts`（2026-05-06T07:46:55+08:00）
+> AI 嚴禁基於此記憶施工，必須優先閱讀最新原始碼並更新此記憶卡。
+> staleness: 10 | threshold: 🟠 顯著過期
+
+<!-- CARTRIDGE_SYSTEM_WARNING_END -->
 
 # MCP Tool Interface — 工具介面記憶（v4.0）
 

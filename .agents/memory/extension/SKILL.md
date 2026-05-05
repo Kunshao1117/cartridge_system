@@ -4,9 +4,18 @@ description: >
   專案記憶：VS Code 外掛入口與 UI 模組。 Use when:
   處理外掛啟動生命週期、指令註冊、狀態列/TreeView/CodeLens/智慧歸屬等 UI 更新時載入。
 last_updated: '2026-05-06T06:30:26+08:00'
-staleness: 0
-status: stable
+staleness: 10
+status: stale
 ---
+<!-- CARTRIDGE_SYSTEM_WARNING_START -->
+
+> [!CAUTION]
+> 🟠 **系統強制攔截**：此記憶已過期失真！
+> 追蹤檔案異動：`src/status-bar.ts`（2026-05-06T07:46:55+08:00）
+> AI 嚴禁基於此記憶施工，必須優先閱讀最新原始碼並更新此記憶卡。
+> staleness: 10 | threshold: 🟠 顯著過期
+
+<!-- CARTRIDGE_SYSTEM_WARNING_END -->
 
 # Extension & UI Layer — 外掛入口記憶
 

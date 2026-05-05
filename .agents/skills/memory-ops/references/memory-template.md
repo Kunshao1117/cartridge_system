@@ -8,6 +8,8 @@
 ---
 name: {module}
 scopePath: path/to/owned/directory/
+dependencies:               # Optional: cartridges this module depends on (auto-inferred by plugin; AI may supplement)
+  - core-types
 description: >
   專案記憶：{中文模組描述}。
   Use when: {何時應該載入此記憶}。
@@ -18,6 +20,10 @@ staleness: 0
 ```
 
 > **Note**: `description` remains in Traditional Chinese（description 欄位保持繁體中文，供 IDE 觸發匹配）.
+
+> **Note (v4.0)**: The `dependencies` field is auto-inferred by the plugin via import scanning.
+> Manually declare any conceptual dependencies the plugin cannot detect from imports.
+> This field is **Optional** — existing cards are unaffected.
 
 ## Markdown Body (Standard Sections)
 

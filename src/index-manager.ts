@@ -139,6 +139,9 @@ export class CartridgeIndexManager {
       untrackedFiles: existingUntracked,
     };
 
+    // 自動推導卡匣間依賴關係
+    this.buildAndMergeDependencies();
+
     return this.index;
   }
 
@@ -190,6 +193,9 @@ export class CartridgeIndexManager {
         staleness: (frontmatter.staleness as number) ?? 0,
         lastUpdated: (frontmatter.last_updated as string) ?? "",
         pendingChanges: existingEntry?.pendingChanges ?? [],
+        ghostFiles: existingEntry?.ghostFiles ?? [],
+        dependencies: (frontmatter.dependencies as string[]) ?? [],
+        indirectStaleness: 0,
         depth,
         parent: parentId,
       };
@@ -298,6 +304,86 @@ export class CartridgeIndexManager {
   }
 
   /**
+   * 將已追蹤但已刪除的檔案標記為幽靈
+   */
+  markGhostFile(cartridgeId: string, filePath: string): void {
+    const entry = this.index.cartridges[cartridgeId];
+    if (!entry) return;
+    if (!entry.ghostFiles) entry.ghostFiles = [];
+    if (!entry.ghostFiles.includes(filePath)) {
+      entry.ghostFiles.push(filePath);
+    }
+  }
+
+  /**
+   * 清除指定卡匣的幽靈檔案標記（記憶卡同步後呼叫）
+   */
+  clearGhostFiles(cartridgeId: string): void {
+    const entry = this.index.cartridges[cartridgeId];
+    if (entry) {
+      entry.ghostFiles = [];
+    }
+  }
+
+  /**
+   * 驗證所有追蹤檔案的磁碟存在性，標記不存在的為幽靈
+   * 由啟動掃描或手動指令觸發
+   */
+  validateTrackedFiles(): { cartridgeId: string; ghostFile: string }[] {
+    const results: { cartridgeId: string; ghostFile: string }[] = [];
+    for (const [cartridgeId, entry] of Object.entries(this.index.cartridges)) {
+      entry.ghostFiles = [];
+      for (const trackedFile of entry.trackedFiles) {
+        if (trackedFile.endsWith("/")) continue;
+        const absPath = path.resolve(this.config.projectRoot, trackedFile);
+        if (!fs.existsSync(absPath)) {
+          this.markGhostFile(cartridgeId, trackedFile);
+          results.push({ cartridgeId, ghostFile: trackedFile });
+        }
+      }
+    }
+    return results;
+  }
+
+  /**
+   * 自動推導並合併卡匣間依賴關係
+   * 1. 使用 import 掃描 + fileMap 交叉比對
+   * 2. 合併 frontmatter 中 AI 手動宣告的依賴
+   * 3. 計算間接過期傳播
+   */
+  buildAndMergeDependencies(): void {
+    // 動態匯入避免頂層循環依賴
+    const { buildDependencyGraph, propagateStaleness } = require("./dependency-propagator.js") as {
+      buildDependencyGraph: (index: CartridgeIndex, projectRoot: string) => Map<string, string[]>;
+      propagateStaleness: (index: CartridgeIndex, graph: Map<string, string[]>, maxDepth: number) => Map<string, number>;
+    };
+
+    const graph = buildDependencyGraph(this.index, this.config.projectRoot);
+
+    // 合併自動推導 + 手動宣告的依賴
+    for (const [cartridgeId, autoDeps] of graph.entries()) {
+      const entry = this.index.cartridges[cartridgeId];
+      if (!entry) continue;
+      const manual = entry.dependencies ?? [];
+      entry.dependencies = [...new Set([...autoDeps, ...manual])];
+    }
+
+    // 計算間接過期傳播
+    const indirectScores = propagateStaleness(
+      this.index,
+      graph,
+      this.config.dependencyDepth,
+    );
+
+    for (const [cartridgeId, score] of indirectScores.entries()) {
+      const entry = this.index.cartridges[cartridgeId];
+      if (entry) {
+        entry.indirectStaleness = score;
+      }
+    }
+  }
+
+  /**
    * 啟動時偵測停機期間遺漏的檔案變動
    * 比對每個追蹤檔案的修改時間（mtime）與記憶卡的 lastUpdated，
    * 若檔案比記憶卡還新，則補記 pendingChange 並更新 staleness
@@ -320,8 +406,9 @@ export class CartridgeIndexManager {
             this.addPendingChange(cartridgeId, trackedFile, "change");
           }
         } catch {
-          // 檔案不存在 — 記錄為刪除事件，觸發過期計算
+          // 檔案不存在 — 記錄為刪除事件並標記為幽靈
           this.addPendingChange(cartridgeId, trackedFile, "unlink");
+          this.markGhostFile(cartridgeId, trackedFile);
         }
       }
 

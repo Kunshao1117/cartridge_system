@@ -7,7 +7,7 @@ description: >
   DO NOT use when: 決定系統層級架構拓樸、新建模組或拆分卡匣（用 memory-arch 技能）。
 metadata:
   author: antigravity
-  version: "2.1"
+  version: "2.2"
   origin: framework
   memory_awareness: full
   tool_scope: ["filesystem:write", "mcp:cartridge-system"]
@@ -41,6 +41,11 @@ Need to load memory?
     └── Call memory_read(moduleName) → returns full SKILL.md content
 ```
 
+> **Ghost Awareness (v4.0)**: `memory_list` now returns a `ghostFilesCount` field per module.
+> If `ghostFilesCount > 0`, tracked files have been deleted from disk but remain registered in the cartridge.
+> Prioritize these modules — after reading the card, remove deleted paths from `## Tracked Files`,
+> then call `memory_commit` to synchronize.
+
 ## 3. Repairing Stale Memory (過期修復)
 
 When a memory cartridge has staleness > 0, you **MUST NOT** simply call `memory_update` to reset staleness. Follow this repair procedure:
@@ -57,6 +62,11 @@ Stale memory card detected?
 │   ⇒ Read existing memory content
 ├── Step 4: Compare source code changes vs existing memory
 │   ⇒ Produce updated memory content (update decisions/known issues/lessons sections)
+├── Step 4.5: Check ghostFiles (v4.0)
+│   ⇒ Call memory_status; if ghostFiles array is non-empty
+│   ⇒ Confirm these files have been removed from the project
+│   ⇒ Remove corresponding paths from the ## Tracked Files section
+│   ⇒ If ALL tracked files in the module are ghosts, consider retiring the entire memory card
 ├── Step 5: Use write_to_file to write the updated SKILL.md
 │   ⇒ Full content including updated sections
 └── Step 6: Call memory_commit(moduleName, projectRoot)
@@ -70,6 +80,11 @@ Stale memory card detected?
 After modifying source files tracked by a memory skill, you **MUST** update the corresponding memory card.
 
 ### Mandatory Flow (強制流程 — 不可略過)
+
+> **Indirect Staleness Awareness (v4.0)**: `memory_list` now returns an `indirectStaleness` field per module.
+> If `indirectStaleness > 0`, an upstream dependency cartridge has gone stale.
+> Call `memory_deps(moduleName)` to inspect upstream cartridges and confirm whether upstream changes
+> affect this module's Key Decisions or Known Issues before deciding to update.
 
 ```
 Need to update memory?

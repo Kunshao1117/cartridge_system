@@ -6,7 +6,7 @@ description: >
   DO NOT use when: 純更新記憶卡內容或修復過期指數（用 memory-ops）。
 metadata:
   author: antigravity
-  version: "1.0"
+  version: "1.1"
   origin: framework
   memory_awareness: none
   tool_scope: ["filesystem:write", "mcp:cartridge-system"]
@@ -23,6 +23,10 @@ New module identified by /02_blueprint or /08_audit?
 ├── Step 3: Create SKILL.md using template → see references/memory-template.md
 │   ⇒ frontmatter: name, description (MUST include Chinese keywords), scopePath
 │   ⇒ body: Tracked Files, Key Decisions, Known Issues, Module Lessons, Relations, Applicable Skills
+├── Step 3.5: Dependency Assessment (v4.0)
+│   ⇒ Check whether this module's source files import files owned by other memory cards
+│   ⇒ If yes, add a `dependencies` field to the frontmatter listing those card names
+│   ⇒ The plugin will auto-populate on next scan, but manual declaration accelerates initial awareness
 └── Step 4: Call memory_commit(moduleName, projectRoot)
     ⇒ Registers card in index + validates structure
 ```

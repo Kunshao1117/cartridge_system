@@ -26,6 +26,12 @@ export interface CartridgeEntry {
   depth: number;
   /** 父記憶卡名稱（從目錄結構推導，非手動設定） */
   parent: string | null;
+  /** 已追蹤但磁碟上不存在的幽靈檔案清單（由插件自動偵測） */
+  ghostFiles: string[];
+  /** 此卡匣依賴的其他卡匣 ID（系統自動推導 + AI 手動補充） */
+  dependencies: string[];
+  /** 因上游依賴過期而傳播的間接過期指數 */
+  indirectStaleness: number;
 }
 
 /** 待處理的異動紀錄 */
@@ -107,6 +113,8 @@ export interface CartridgeConfig {
     fileAdded: number;
     dailyDecay: number;
   };
+  /** 依賴過期傳播最大深度（預設 2） */
+  dependencyDepth: number;
 }
 
 /** 注入器衝突處理策略 */

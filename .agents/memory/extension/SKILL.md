@@ -3,11 +3,10 @@ name: extension
 description: >
   專案記憶：VS Code 外掛入口與 UI 模組。 Use when:
   處理外掛啟動生命週期、指令註冊、狀態列/TreeView/CodeLens/智慧歸屬等 UI 更新時載入。
-last_updated: '2026-04-12T12:43:19.822Z'
+last_updated: '2026-05-06T06:30:26+08:00'
 staleness: 0
 status: stable
 ---
-
 
 # Extension & UI Layer — 外掛入口記憶
 

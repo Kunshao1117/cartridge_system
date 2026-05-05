@@ -2,7 +2,7 @@
 name: watcher
 description: |
   專案記憶：檔案監聯引擎模組。 Use when: 處理檔案監聽、原生Watcher設定、監聽生命週期管理時載入。
-last_updated: '2026-04-12T12:43:19.822Z'
+last_updated: '2026-05-06T06:28:49+08:00'
 staleness: 0
 status: stable
 ---
@@ -25,6 +25,7 @@ status: stable
 - D07: `.gitignore` 的儲存事件（`change`）被捕捉時，主動呼叫 `indexManager.refilterUntrackedFiles` 更新幽靈池
 - D08: v2.0 移除了舊版的 `scopePath` 監聽殘留，將所有幽靈事件完整打入未歸屬檔案池
 - D09: (2026-04-12) 修復 v2.0 重構遺漏，將 `MemoryWriter` 重新注入並完整呼叫 `markDirty()` 與 `checkAndCleanWarning()`，確保記憶變更時 TreeView/StatusBar/CodeLens 即時聯動並自動移除 Markdown 警報。
+- D10: v4.0 幽靈即時標記 — `handleEvent()` 在偵測到已追蹤檔案的 `unlink` 事件時，除了觸發過期分析，同步呼叫 `indexManager.markGhostFile()`，確保即時監聽路徑與啟動掃描路徑的幽靈標記一致。
 
 ## Known Issues
 
@@ -35,6 +36,7 @@ status: stable
 - D01: watcher 與 UI 層必須透過 callback hook 解耦
 - D02: 原生 FileSystemWatcher 沒有明確的 `ready` 事件，這對測試與啟動時序控制時會有差異，需仰賴 `setTimeout` 或明確的狀態等待。
 - D03: 取代 chokidar 帶來極大的穩定性提昇與包容積減少，但也代表此模組從此高度耦合於 vscode API。
+- L04: (2026-05-06) 幽靈標記必須在分析器 processFileEvent() 呼叫之後執行（即過期指數先更新），確保事件處理順序不影響過期計算邏輯。
 
 ## Relations
 

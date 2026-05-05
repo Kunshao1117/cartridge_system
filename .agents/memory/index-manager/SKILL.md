@@ -3,12 +3,14 @@ name: index-manager
 description: >
   專案記憶：記憶索引管理器模組。管理卡匣索引、檔案反向映射、離線偵測、未歸屬檔案池、Cache-First 持久化。Use when:
   處理卡匣索引、檔案反向映射、持久化讀寫時載入。
-last_updated: '2026-04-12T12:43:19.822Z'
+last_updated: '2026-05-06T07:05:44+08:00'
 status: stable
 staleness: 0
+dependencies:
+  - core-types
 metadata:
   author: antigravity
-  version: '2.0'
+  version: '3.0'
   origin: project
   memory_awareness: full
   tool_scope:
@@ -48,6 +50,11 @@ metadata:
 - D20: v2.0 onChanged callback hook — 由 extension.ts 注入，MCP Server 可安全忽略（因 MCP 端不依賴 vscode API）
 - D21: v2.0 detectUntrackedFiles 簽名變更 — 不再內部呼叫 scanDirectory，改為接受外部傳入的 `allFiles: string[]` 參數，保持模組不依賴 vscode API
 - D22: v2.0 persist() 保留 public — MCP Server 的 memory_commit 需要在明確保存時機直接呼叫
+- D23: v4.0 幽靈追蹤偵測 — CartridgeEntry 新增 ghostFiles: string[] 欄位，記錄已追蹤但磁碟不存在的檔案
+- D24: v4.0 markGhostFile() — 將已追蹤但已刪除的檔案標記為幽靈，支援去重
+- D25: v4.0 clearGhostFiles() — memory_commit 後自動清除幽靈標記，確保同步後狀態乾淨
+- D26: v4.0 validateTrackedFiles() — 全量磁碟存在性驗證，由啟動掃描或手動指令觸發，標記所有幽靈檔案
+- D27: v4.0 detectMissedChanges() catch 區塊 — 除了記錄 unlink pendingChange，也同步呼叫 markGhostFile，確保啟動偵測與即時監聽的幽靈標記一致
 
 ## Key Decisions Addendum
 
@@ -61,10 +68,11 @@ metadata:
 ## Module Lessons
 
 - D05: 測試 detectMissedChanges() 時需 mock node:fs 的 statSync 來控制 mtimeMs 回傳值
-- D13: 新增必要欄位時，所有測試的 fixture 物件也必須同步更新
+- D13: 新增必要欄位時，所有測試的 fixture 物件也必須同步更新（v4.0 新增 ghostFiles 欄位即觸發此模式）
 - D18: v1.0 scopePath 技術債教訓 — findOwner() 的最長前綴匹配會靠靜呑噥全部 scopePath 範圍內的新檔案，阻既幽靈池又封死過期計分。已全面移除。
 - D19: 幽靈檔案池 (Untracked Files Pool) 被證實為極為重要之機制，讓索引不只管「已追蹤檔案」，更能幫助總監主動抓出落單的實作程式碼，徹底消滅盲區。
 - L05: (2026-04-12) v2.0 EventEmitter 不可放 index-manager 內部，因其同時被 MCP Server 引用。改用 callback hook 確保跨環境安全。
+- L06: (2026-05-06) ghostFiles 欄位以 Optional-safe 方式初始化（`existingEntry?.ghostFiles ?? []`），確保舊索引向後相容。
 
 ## Relations
 

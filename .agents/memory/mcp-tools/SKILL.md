@@ -2,12 +2,15 @@
 name: mcp-tools
 description: |
   專案記憶：MCP 工具介面模組（第三階段）。 Use when: 處理MCP伺服器註冊、工具路由、AI工具呼叫介面時載入。
-last_updated: '2026-05-04T22:35:27+08:00'
+last_updated: '2026-05-06T07:05:44+08:00'
 status: stable
 staleness: 0
+dependencies:
+  - index-manager
+  - core-types
 metadata:
   author: antigravity
-  version: '3.0'
+  version: '4.0'
   origin: project
   memory_awareness: full
   tool_scope:
@@ -15,10 +18,10 @@ metadata:
     - 'filesystem:write'
 ---
 
-# MCP Tool Interface — 工具介面記憶（第三階段）
+# MCP Tool Interface — 工具介面記憶（v4.0）
 
 > 本模組提供標準化 AI 呼叫工具，支援跨專案動態路徑解析。
-> v3.0 設計哲學：**MCP 只讀 + 元資料同步，內容寫入完全由 AI 原生工具負責。**
+> v4.0 設計哲學：**MCP 只讀 + 元資料同步，內容寫入完全由 AI 原生工具負責。幽靈感知輸出擴展。**
 
 ## Tracked Files
 
@@ -47,6 +50,9 @@ metadata:
 - D26: 職責分離重構 — 新增 `memory_commit` 工具，將記憶卡更新拆為兩步驟：(1) AI 用原生工具寫入 SKILL.md 內容；(2) 呼叫 memory_commit 完成後設資料同步。memory_update 的 patch/append 模式標記為已棄用。
 - D28: memory_commit 與 memory_update 作業結束前，新增 `stripWarningBlock()` 手續自動拔除過期 Markdown 警報。
 - D29: v3.0.0 **[重大]** MCP 工具集職責純化 — 正式移除 `memory_update` 工具（含 `memoryUpdateSchema`、`handleMemoryUpdate` 函式及 13 個對應測試）。MCP API 確立「只讀 + 元資料同步」設計哲學：`memory_list`/`memory_read`/`memory_status` 為純讀取工具，`memory_commit` 為唯一的後設資料同步工具，內容寫入完全由 AI 原生工具（`write_to_file` / `replace_file_content`）負責。測試總數：105 → 94 個。
+- D30: v4.0 幽靈感知輸出 — `memory_list` 新增 `ghostFilesCount` 欄位；`memory_status` 新增 `ghostFiles` 陣列與幽靈清理行動指引；`memory_commit` 執行後自動清除 `ghostFiles = []`。
+- D31: v4.0 `memory_deps` 工具預留 — 工具定義與路由已在 mcp-server.ts 完整註冊，handler 回傳 v4.1 待實作提示。框架規範中引用此工具的 AI 不會因找不到工具而報錯。
+- D32: v4.0 版本號升至 4.0.0。
 
 ## Known Issues
 
@@ -63,6 +69,7 @@ metadata:
 - D11: `gray-matter` 的 `matter.stringify(content, frontmatter)` 會自動處理 YAML 序列化。
 - D28: memory_commit 的二步流被證實為唯一穩定路徑。已全面廢除 MCP 的 append 與 patch 實務。
 - D26: handleMemoryCommit 從 index-manager.ts 匯入 parseTrackedFiles() 來重新解析追蹤檔案清單，確保索引與 SKILL.md 內容同步。
+- L07: (2026-05-06) handleMemoryDeps 在 P0 階段作為 placeholder 存在，其 Zod schema 命名為 memoryDepsSchema，使用 projectRootField 共用驗證器，確保與其他工具的安全標準一致。
 
 ## Relations
 

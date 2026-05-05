@@ -109,18 +109,23 @@ export class CartridgeTreeProvider implements vscode.TreeDataProvider<CartridgeT
     const entry = index.cartridges[id];
     if (entry) {
       for (const f of entry.trackedFiles) {
+        const isGhost = entry.ghostFiles?.includes(f) ?? false;
         const item = new CartridgeTreeItem(
-          path.basename(f),
+          isGhost ? `💀 ${path.basename(f)}` : path.basename(f),
           "file",
           vscode.TreeItemCollapsibleState.None,
           { filePath: f },
         );
-        item.command = {
-          command: "vscode.open",
-          title: "開啟檔案",
-          arguments: [vscode.Uri.file(path.resolve(this.projectRoot, f))],
-        };
-        item.tooltip = f;
+        if (isGhost) {
+          item.tooltip = `⚠️ 此檔案已從磁碟刪除，但仍登記在記憶卡追蹤清單中`;
+        } else {
+          item.command = {
+            command: "vscode.open",
+            title: "開啟檔案",
+            arguments: [vscode.Uri.file(path.resolve(this.projectRoot, f))],
+          };
+          item.tooltip = f;
+        }
         items.push(item);
       }
     }

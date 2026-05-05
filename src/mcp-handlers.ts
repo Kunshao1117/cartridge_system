@@ -263,6 +263,9 @@ export async function handleMemoryList(args: unknown): Promise<McpToolResult> {
           depth: entry.depth ?? 1,
           parent: entry.parent ?? null,
           trackedFilesCount: trackedCount,
+          ghostFilesCount: entry.ghostFiles?.length ?? 0,
+          dependencyCount: entry.dependencies?.length ?? 0,
+          indirectStaleness: entry.indirectStaleness ?? 0,
           splitSuggestion:
             trackedCount > 8
               ? `此模組追蹤了 ${trackedCount} 個檔案，建議考慮拆分為子模組以提升維護性。`
@@ -489,6 +492,15 @@ export async function handleMemoryStatus(
       actionRequired = `此記憶卡已過期（staleness: ${entry.staleness}），但無已記錄的異動檔案。請手動檢查追蹤檔案清單中的原始碼。`;
     }
 
+    // 幽靈檔案行動指引
+    const ghostFiles: string[] = entry.ghostFiles ?? [];
+    if (ghostFiles.length > 0) {
+      const ghostList = ghostFiles.map((g: string) => `- ${g}`).join("\n");
+      actionRequired += actionRequired
+        ? `\n\n此外，以下追蹤檔案已不存在於磁碟（幽靈檔案）：\n${ghostList}\n請從 ## Tracked Files 中移除這些路徑。`
+        : `以下追蹤檔案已不存在於磁碟（幽靈檔案）：\n${ghostList}\n請從 ## Tracked Files 中移除這些路徑，然後呼叫 memory_commit。`;
+    }
+
     const status = {
       module: moduleName,
       staleness: entry.staleness ?? 0,
@@ -496,6 +508,7 @@ export async function handleMemoryStatus(
       lastUpdated: entry.lastUpdated ?? "",
       trackedFiles: entry.trackedFiles ?? [],
       pendingChanges,
+      ghostFiles,
       actionRequired,
     };
 
@@ -665,6 +678,7 @@ export async function handleMemoryCommit(
         index.cartridges[moduleName].pendingChanges = [];
         index.cartridges[moduleName].staleness = 0;
         index.cartridges[moduleName].lastUpdated = isoLocal;
+        index.cartridges[moduleName].ghostFiles = [];
 
         // 重新解析 trackedFiles
         const trackedFiles = parseTrackedFiles(body);
@@ -714,3 +728,93 @@ export async function handleMemoryCommit(
     };
   }
 }
+
+/** memory_deps 工具參數驗證 Schema */
+export const memoryDepsSchema = z.object({
+  moduleName: z.string().min(1),
+  projectRoot: projectRootField,
+});
+
+/**
+ * memory_deps — 查詢卡匣依賴拓樸（v4.1 完整實作）
+ */
+export async function handleMemoryDeps(args: unknown): Promise<McpToolResult> {
+  const parsed = memoryDepsSchema.safeParse(args);
+  if (!parsed.success) {
+    return {
+      content: [
+        {
+          type: "text",
+          text: "Validation Error: moduleName and projectRoot are required (projectRoot must be absolute path without ..)",
+        },
+      ],
+      isError: true,
+    };
+  }
+
+  const { moduleName, projectRoot } = parsed.data;
+
+  try {
+    const normalizedPath = validateProjectRoot(projectRoot);
+
+    // 動態匯入避免頂層循環依賴
+    const { createConfig } = await import("./config.js");
+    const { CartridgeIndexManager } = await import("./index-manager.js");
+
+    const config = createConfig(normalizedPath);
+    const manager = new CartridgeIndexManager(config);
+    await manager.scan();
+
+    const index = manager.getIndex();
+    const entry = index.cartridges[moduleName];
+    if (!entry) {
+      return {
+        content: [
+          {
+            type: "text",
+            text: `Error: Module "${moduleName}" not found in index`,
+          },
+        ],
+        isError: true,
+      };
+    }
+
+    // 建構依賴圖
+    const {
+      buildDependencyGraph,
+      buildReverseDependencyGraph,
+      detectCycles,
+    } = await import("./dependency-propagator.js");
+    const graph = buildDependencyGraph(index, normalizedPath);
+    const reverseGraph = buildReverseDependencyGraph(graph);
+
+    const dependencies = graph.get(moduleName) ?? [];
+    const dependents = reverseGraph.get(moduleName) ?? [];
+    const cycles = detectCycles(graph).filter((c: string[]) =>
+      c.includes(moduleName),
+    );
+
+    const result = {
+      module: moduleName,
+      dependencies,
+      dependents,
+      indirectStaleness: entry.indirectStaleness ?? 0,
+      cycles: cycles.length > 0 ? cycles : undefined,
+      cycleWarning:
+        cycles.length > 0
+          ? `⚠️ 偵測到循環依賴：${cycles.map((c: string[]) => c.join(" → ")).join("; ")}`
+          : undefined,
+    };
+
+    return {
+      content: [{ type: "text", text: JSON.stringify(result, null, 2) }],
+    };
+  } catch (e: unknown) {
+    const msg = e instanceof Error ? e.message : String(e);
+    return {
+      content: [{ type: "text", text: `Error: ${msg}` }],
+      isError: true,
+    };
+  }
+}
+

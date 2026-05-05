@@ -34,6 +34,9 @@ const DEFAULT_SCORING = {
   dailyDecay: 1,
 };
 
+/** 依賴過期傳播最大深度預設值 */
+const DEFAULT_DEPENDENCY_DEPTH = 2;
+
 /**
  * 建立外掛設定
  * @param projectRoot - 專案根目錄的絕對路徑
@@ -58,6 +61,7 @@ export function createConfig(
       ...DEFAULT_SCORING,
       ...overrides?.scoring,
     },
+    dependencyDepth: overrides?.dependencyDepth ?? DEFAULT_DEPENDENCY_DEPTH,
   };
 }
 

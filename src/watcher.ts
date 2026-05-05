@@ -145,6 +145,12 @@ export class CartridgeWatcher {
     if (affected.length > 0) {
       console.log(`[監聽引擎] 偵測到異動: ${eventType} ${relPath}`);
       await this.analyzer.processFileEvent(relPath, eventType);
+      // 刪除事件 → 標記幽靈檔案
+      if (eventType === "unlink") {
+        for (const cartridgeId of affected) {
+          this.indexManager.markGhostFile(cartridgeId, relPath);
+        }
+      }
       this.onUpdate?.();
       return;
     }

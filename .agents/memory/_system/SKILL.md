@@ -3,8 +3,8 @@ name: _system
 description: |
   專案記憶：系統技術堆疊與部署設定。 Use when: 確認技術選型、環境設定、部署組態時載入。
 last_updated: '2026-05-04T22:26:29+08:00'
-status: stable
-staleness: 0
+status: stale
+staleness: 10
 metadata:
   author: antigravity
   version: '3.0'
@@ -13,6 +13,15 @@ metadata:
   tool_scope:
     - 'filesystem:read'
 ---
+<!-- CARTRIDGE_SYSTEM_WARNING_START -->
+
+> [!CAUTION]
+> 🟠 **系統強制攔截**：此記憶已過期失真！
+> 追蹤檔案異動：`package.json`（2026-05-06T04:37:11+08:00）
+> AI 嚴禁基於此記憶施工，必須優先閱讀最新原始碼並更新此記憶卡。
+> staleness: 10 | threshold: 🟠 顯著過期
+
+<!-- CARTRIDGE_SYSTEM_WARNING_END -->
 
 # System — 系統記憶
 

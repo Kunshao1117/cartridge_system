@@ -9,12 +9,13 @@ import {
   handleMemoryRead,
   handleMemoryStatus,
   handleMemoryCommit,
+  handleMemoryDeps,
 } from "./mcp-handlers.js";
 
 const server = new Server(
   {
     name: "cartridge-system",
-    version: "0.1.0",
+    version: "4.0.0",
   },
   {
     capabilities: {
@@ -96,13 +97,32 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
           required: ["moduleName", "projectRoot"],
         },
       },
+      {
+        name: "memory_deps",
+        description:
+          "查詢指定記憶卡匣的依賴拓樹。回傳上游依賴（此卡依賴誰）、下游被依賴者（誰依賴此卡）、間接過期指數。用於判斷跨模組過期傳播影響。",
+        inputSchema: {
+          type: "object",
+          properties: {
+            moduleName: {
+              type: "string",
+              description: "記憶卡匣名稱",
+            },
+            projectRoot: {
+              type: "string",
+              description: "目標專案的根目錄絕對路徑",
+            },
+          },
+          required: ["moduleName", "projectRoot"],
+        },
+      },
     ],
   };
 });
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
 server.setRequestHandler(
   CallToolRequestSchema,
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   async (request): Promise<any> => {
     const { name, arguments: args } = request.params;
 
@@ -120,6 +140,10 @@ server.setRequestHandler(
 
     if (name === "memory_commit") {
       return handleMemoryCommit(args);
+    }
+
+    if (name === "memory_deps") {
+      return handleMemoryDeps(args);
     }
 
     return {

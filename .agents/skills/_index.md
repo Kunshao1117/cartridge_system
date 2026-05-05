@@ -29,3 +29,12 @@
 | live docs, framework query, Context7, API docs                               | 即時文件、框架查詢、Context7、API 文件           | context7-docs            | context7           |
 | CI test quality, flaky test, test framework, trunk uploads                    | CI 測試品質、不穩定測試、測試框架偵測、測試上傳   | trunk-ops                | trunk              |
 | health audit, security scan, API integrity, test coverage gap, audit engine   | 健檢引擎、安全架構審查、API 完整性、測試覆蓋缺口   | audit-engine             | —                  |
+| gitnexus CLI, index repo, analyze codebase, generate wiki                      | 索引倉庫、分析代碼庫、生成 Wiki                  | gitnexus-cli             | gitnexus           |
+| debugging, trace bug, error origin, why failing                                | 偵錯、追蹤錯誤、找出原因                         | gitnexus-debugging       | gitnexus           |
+| explore code, how does X work, architecture, execution flow                    | 探索代碼、理解架構、執行流程                     | gitnexus-exploring       | gitnexus           |
+| GitNexus guide, available tools, knowledge graph, MCP resources                | GitNexus 指南、工具清單、知識圖譜                | gitnexus-guide           | gitnexus           |
+| impact analysis, what breaks, safe to change, dependencies                     | 影響分析、安全性評估、依賴追蹤                   | gitnexus-impact-analysis | gitnexus           |
+| refactoring, rename, extract, move, restructure safely                         | 重構、改名、抽取、安全移動代碼                   | gitnexus-refactoring     | gitnexus           |
+| memory topology, card splitting, layer resolution, architecture                | 記憶卡架構、層級拓樸、拆分規則                   | memory-arch              | cartridge-system   |
+| supabase, database, auth, edge functions, storage, realtime                    | Supabase 整合、資料庫、Auth、邊緣函式           | supabase                 | supabase           |
+| postgres best practices, query optimization, schema, indexes                   | Postgres 最佳化、查詢優化、索引設計              | supabase-postgres-best-practices | supabase    |

@@ -3,9 +3,9 @@ name: index-manager
 description: >
   專案記憶：記憶索引管理器模組。管理卡匣索引、檔案反向映射、離線偵測、未歸屬檔案池、Cache-First 持久化。Use when:
   處理卡匣索引、檔案反向映射、持久化讀寫時載入。
-last_updated: '2026-05-06T07:05:44+08:00'
-status: stale
-staleness: 10
+last_updated: '2026-05-06T08:16:45+08:00'
+status: stable
+staleness: 0
 dependencies:
   - core-types
 metadata:
@@ -16,15 +16,6 @@ metadata:
   tool_scope:
     - 'filesystem:write'
 ---
-<!-- CARTRIDGE_SYSTEM_WARNING_START -->
-
-> [!CAUTION]
-> 🟠 **系統強制攔截**：此記憶已過期失真！
-> 追蹤檔案異動：`src/index-manager.ts`（2026-05-06T07:46:55+08:00）
-> AI 嚴禁基於此記憶施工，必須優先閱讀最新原始碼並更新此記憶卡。
-> staleness: 10 | threshold: 🟠 顯著過期
-
-<!-- CARTRIDGE_SYSTEM_WARNING_END -->
 
 # Cartridge Index Manager — 索引管理器記憶
 
@@ -63,6 +54,7 @@ metadata:
 - D25: v4.0 clearGhostFiles() — memory_commit 後自動清除幽靈標記，確保同步後狀態乾淨
 - D26: v4.0 validateTrackedFiles() — 全量磁碟存在性驗證，由啟動掃描或手動指令觸發，標記所有幽靈檔案
 - D27: v4.0 detectMissedChanges() catch 區塊 — 除了記錄 unlink pendingChange，也同步呼叫 markGhostFile，確保啟動偵測與即時監聽的幽靈標記一致
+- D28: v4.0 依賴推導同步載入 — `buildAndMergeDependencies()` 使用 `require()` 同步載入 `dependency-propagator.js`（而非 `await import()`），因為此方法需在 scan() 流程中保持同步一致性。與 mcp-handlers.ts 中 `handleMemoryDeps` 的非同步 `import()` 形成互補設計。
 
 ## Key Decisions Addendum
 

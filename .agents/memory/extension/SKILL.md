@@ -3,19 +3,10 @@ name: extension
 description: >
   專案記憶：VS Code 外掛入口與 UI 模組。 Use when:
   處理外掛啟動生命週期、指令註冊、狀態列/TreeView/CodeLens/智慧歸屬等 UI 更新時載入。
-last_updated: '2026-05-06T06:30:26+08:00'
-staleness: 10
-status: stale
+last_updated: '2026-05-06T08:16:50+08:00'
+staleness: 0
+status: stable
 ---
-<!-- CARTRIDGE_SYSTEM_WARNING_START -->
-
-> [!CAUTION]
-> 🟠 **系統強制攔截**：此記憶已過期失真！
-> 追蹤檔案異動：`src/status-bar.ts`（2026-05-06T07:46:55+08:00）
-> AI 嚴禁基於此記憶施工，必須優先閱讀最新原始碼並更新此記憶卡。
-> staleness: 10 | threshold: 🟠 顯著過期
-
-<!-- CARTRIDGE_SYSTEM_WARNING_END -->
 
 # Extension & UI Layer — 外掛入口記憶
 
@@ -58,6 +49,7 @@ status: stale
 - D25: v2.0 deactivate 增加 clearInterval、flushIfDirty、treeProvider.dispose()、codeLensProvider.dispose() 完整資源釋放
 - D26: v2.0 indexManager.onChanged callback hook 連動 UI 三兄弟（StatusBar + TreeView + CodeLens）即時刷新
 - D27: (2026-04-12) 補全啟動時的 `detectMissedChanges` 流程，針對過期卡匣不僅更新 RAM 內 `staleness`，也會主動呼叫 `writer.injectWarning()` 植入警報區塊，修正了啟動無法顯示警報區塊的遺漏。
+- D28: v4.0.1 狀態列 Tooltip 幽靈感知 — `status-bar.ts` 的 `buildTooltip()` 方法新增 `💀 幽靈檔案 (需清理)` 摘要區塊。遍歷 `index.cartridges` 過濾 `ghostFiles.length > 0` 的條目，列出受影響的記憶卡名稱與幽靈數量。修復了 TreeView 有 💀 圖示但 Tooltip 無顯示的設計缺口。
 
 ## Known Issues
 

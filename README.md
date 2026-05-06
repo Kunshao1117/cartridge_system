@@ -59,7 +59,7 @@ npm run build
 npm run package
 
 # 使用 Antigravity IDE CLI 安裝（注意：不可用 code 指令）
-antigravity --install-extension cartridge-system-4.0.0.vsix --force
+antigravity --install-extension cartridge-system-4.0.1.vsix --force
 ```
 
 ### 方法二：開發模式
@@ -150,6 +150,8 @@ memory_commit({
 |------|------|
 | `記憶卡匣：重新掃描索引` | 強制重新讀取所有記憶技能，重建監聽清單 |
 | `記憶卡匣：查看健康報告` | 在輸出面板顯示所有記憶卡的詳細狀態 |
+| `記憶卡匣：重新掃描未歸屬檔案` | 清空並重新掃描全專案的未歸屬幽靈檔案 |
+| `記憶卡匣：歸屬到記憶卡…` | 透過 QuickPick 介面將當前檔案或選定檔案一鍵歸檔至目標記憶卡 |
 
 ---
 
@@ -168,14 +170,14 @@ npm run test:watch
 | 測試模組 | 案例數 | 涵蓋範圍 |
 |----------|--------|----------|
 | 索引管理器 | 18 | 掃描、addPendingChange 去重、getChildren、resolveModulePath |
-| MCP 工具介面 | 62 | 正常流程、路徑穿越防禦、時間戳驗證、過期狀態診斷、memory_commit 後設同步 |
+| MCP 工具介面 | 35 | 正常流程、路徑穿越防禦、時間戳驗證、過期狀態診斷、memory_commit 後設同步 |
 | 過期分析器 | 11 | 過期等級四分支、三種事件計分、閾值觸發 |
 | 路徑安全驗證 | 8 | 絕對/相對路徑、穿越攻擊拒絕 |
 | 時間戳格式 | 3 | ISO 8601 格式、台灣時區後綴 |
 | 離線變動偵測 | 10 | 啟動校驗、目錄跳過、去重、幽靈標記 |
 | 警報寫入器 | 9 | 冪等植入、條件式清除、狀態回復 |
-| **import 掃描器** | **5** | **ES/動態/CJS 語法擷取、去重、node_modules 過濾** |
-| **依賴傳播引擎** | **8** | **反向圖建構、BFS 傳播深度、循環偵測** |
+| import 掃描器 | 5 | ES/動態/CJS 語法擷取、去重、node_modules 過濾 |
+| 依賴傳播引擎 | 7 | 反向圖建構、BFS 傳播深度、循環偵測 |
 
 ---
 
@@ -196,6 +198,7 @@ cartridge_system/
 │   ├── treeview-provider.ts  # 🌲 TreeView 側邊欄（含幽靈 💀 視覺化）
 │   ├── codelens-provider.ts  # 🔍 CodeLens 行內狀態標記
 │   ├── smart-owner.ts        # 🧠 智慧歸屬推薦引擎
+│   ├── gitignore-filter.ts   # .gitignore 排除引擎（ignore 套件封裝）
 │   ├── config.ts             # 外掛設定（閾值、計分、依賴深度）
 │   ├── path-guard.ts         # 路徑安全驗證（雙層防禦）
 │   ├── timestamp.ts          # 時間戳生成（Intl API）
@@ -215,7 +218,7 @@ cartridge_system/
 │   └── workflows/            # Antigravity 工作流程
 ├── dist/                     # 編譯輸出（tsup 打包）
 ├── CHANGELOG.md              # 更新紀錄
-└── package.json              # v4.0.0
+└── package.json              # v4.0.1
 ```
 
 ### 技術堆疊

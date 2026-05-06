@@ -2,19 +2,17 @@
 name: analyzer
 description: |
   專案記憶：過期分析器模組。 Use when: 處理過期指數計算、衰退演算法、異動事件處理時載入。
-last_updated: '2026-04-12T12:07:42+08:00'
-status: stale
-staleness: 10
+last_updated: '2026-05-06T08:18:12+08:00'
+status: stable
+staleness: 0
+metadata:
+  author: antigravity
+  version: '2.0'
+  origin: project
+  memory_awareness: full
+  tool_scope:
+    - 'filesystem:read'
 ---
-<!-- CARTRIDGE_SYSTEM_WARNING_START -->
-
-> [!CAUTION]
-> 🟠 **系統強制攔截**：此記憶已過期失真！
-> 追蹤檔案異動：`src/tests/analyzer.test.ts`（2026-05-06T07:46:55+08:00）
-> AI 嚴禁基於此記憶施工，必須優先閱讀最新原始碼並更新此記憶卡。
-> staleness: 10 | threshold: 🟠 顯著過期
-
-<!-- CARTRIDGE_SYSTEM_WARNING_END -->
 
 # Staleness Analyzer — 過期分析器記憶
 
@@ -32,6 +30,7 @@ staleness: 10
 - D05: getStalenessLevel() 公開函式供其他模組共用
 - D06: v2.0 解除 I/O 耦合，將原有的 `persist()` 呼叫全部改為 `markDirty()`，由全域 Cache-First 負責後續保存
 - D07: processFileEvent() 中不需再 spy mock fs，只需驗證 writer 與 markDirty 被正確呼叫
+- D08: v4.0 測試 fixture 規範 — 所有 `CartridgeEntry` 測試 fixture 必須包含 `ghostFiles: []`、`dependencies: []`、`indirectStaleness: 0` 三個必要欄位，否則會觸發 TypeScript 型別錯誤。
 
 ## Known Issues
 
@@ -40,6 +39,7 @@ staleness: 10
 ## Module Lessons
 
 - D01: StalenessAnalyzer 測試可直接 stub MemoryWriter 介面（vi.fn()），不需要 mock fs，測試語義最清晰
+- L02: (2026-05-06) v4.0 新增 ghostFiles/dependencies/indirectStaleness 欄位後，所有測試檔的 CartridgeEntry fixture 必須同步更新，這是跨測試檔的隱性耦合點。
 
 ## Relations
 

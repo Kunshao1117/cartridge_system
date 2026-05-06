@@ -2,9 +2,9 @@
 name: mcp-tools
 description: |
   專案記憶：MCP 工具介面模組（第三階段）。 Use when: 處理MCP伺服器註冊、工具路由、AI工具呼叫介面時載入。
-last_updated: '2026-05-06T07:05:44+08:00'
-status: stale
-staleness: 10
+last_updated: '2026-05-06T08:16:45+08:00'
+status: stable
+staleness: 0
 dependencies:
   - index-manager
   - core-types
@@ -17,15 +17,6 @@ metadata:
     - 'filesystem:read'
     - 'filesystem:write'
 ---
-<!-- CARTRIDGE_SYSTEM_WARNING_START -->
-
-> [!CAUTION]
-> 🟠 **系統強制攔截**：此記憶已過期失真！
-> 追蹤檔案異動：`src/mcp-handlers.ts`（2026-05-06T07:46:55+08:00）
-> AI 嚴禁基於此記憶施工，必須優先閱讀最新原始碼並更新此記憶卡。
-> staleness: 10 | threshold: 🟠 顯著過期
-
-<!-- CARTRIDGE_SYSTEM_WARNING_END -->
 
 # MCP Tool Interface — 工具介面記憶（v4.0）
 
@@ -60,8 +51,10 @@ metadata:
 - D28: memory_commit 與 memory_update 作業結束前，新增 `stripWarningBlock()` 手續自動拔除過期 Markdown 警報。
 - D29: v3.0.0 **[重大]** MCP 工具集職責純化 — 正式移除 `memory_update` 工具（含 `memoryUpdateSchema`、`handleMemoryUpdate` 函式及 13 個對應測試）。MCP API 確立「只讀 + 元資料同步」設計哲學：`memory_list`/`memory_read`/`memory_status` 為純讀取工具，`memory_commit` 為唯一的後設資料同步工具，內容寫入完全由 AI 原生工具（`write_to_file` / `replace_file_content`）負責。測試總數：105 → 94 個。
 - D30: v4.0 幽靈感知輸出 — `memory_list` 新增 `ghostFilesCount` 欄位；`memory_status` 新增 `ghostFiles` 陣列與幽靈清理行動指引；`memory_commit` 執行後自動清除 `ghostFiles = []`。
-- D31: v4.0 `memory_deps` 工具預留 — 工具定義與路由已在 mcp-server.ts 完整註冊，handler 回傳 v4.1 待實作提示。框架規範中引用此工具的 AI 不會因找不到工具而報錯。
+- D31: v4.0 `memory_deps` 工具正式上線 — 工具定義、路由、handler 完整實作。回傳結構包含 `dependencies`（上游依賴）、`dependents`（下游被依賴者）、`indirectStaleness`（間接過期指數）、`cycles`（循環依賴偵測結果）及 `cycleWarning`（循環警告文字）。
 - D32: v4.0 版本號升至 4.0.0。
+- D33: v4.0 `handleMemoryDeps` 使用 `await import()` 動態載入 `config.js`、`index-manager.js`、`dependency-propagator.js` 三個模組，避免頂層循環依賴。handler 內部執行 `manager.scan()` 重建索引後再查詢依賴圖。
+- D34: v4.0 `handleMemoryDeps` 引入 `buildReverseDependencyGraph()` 建構反向依賴圖，讓 `dependents` 欄位能一次查詢所有下游消費者。
 
 ## Known Issues
 
@@ -78,7 +71,8 @@ metadata:
 - D11: `gray-matter` 的 `matter.stringify(content, frontmatter)` 會自動處理 YAML 序列化。
 - D28: memory_commit 的二步流被證實為唯一穩定路徑。已全面廢除 MCP 的 append 與 patch 實務。
 - D26: handleMemoryCommit 從 index-manager.ts 匯入 parseTrackedFiles() 來重新解析追蹤檔案清單，確保索引與 SKILL.md 內容同步。
-- L07: (2026-05-06) handleMemoryDeps 在 P0 階段作為 placeholder 存在，其 Zod schema 命名為 memoryDepsSchema，使用 projectRootField 共用驗證器，確保與其他工具的安全標準一致。
+- L07: (2026-05-06) handleMemoryDeps 的 Zod schema 命名為 memoryDepsSchema，使用 projectRootField 共用驗證器，確保與其他工具的安全標準一致。
+- L08: (2026-05-06) `buildReverseDependencyGraph` 從正向圖建構反向映射，時間複雜度 O(V+E)，為 memory_deps 的 dependents 查詢提供 O(1) 存取。
 
 ## Relations
 

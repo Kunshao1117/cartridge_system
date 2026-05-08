@@ -396,6 +396,20 @@ if ($Mode -eq "Upgrade") {
         }
     }
 
+    # ---- 階段 A-0: AGENTS.md 保護區段暫存 ----
+    # 偵測 AGENTS.md 是否存在由 /05_condense 寫入的 PROJECT IDENTITY 保護區段
+    # 如果存在，將其暫存，在檔案更新後追加回去
+    $agentsMdPath = Join-Path -Path $targetDir -ChildPath "rules\AGENTS.md"
+    $savedIdentity = $null
+    if (Test-Path $agentsMdPath) {
+        $agentsContent = Get-Content $agentsMdPath -Raw
+        # 使用標記行擷取保護區段（從 ## [PROJECT IDENTITY 到 <!-- /PROJECT_IDENTITY_END -->）
+        if ($agentsContent -match '(?s)(## \[PROJECT IDENTITY[^\r\n]*\r?\n.*?<!-- /PROJECT_IDENTITY_END -->)') {
+            $savedIdentity = $Matches[1]
+            Write-Host "[*] 偵測到 PROJECT IDENTITY 保護區段，升級後將自動還原。"
+        }
+    }
+
     # ---- 階段 A: 框架檔案更新 ----
     # 如果有新增或變更的檔案，問使用者是否要套用
     $applied = 0
@@ -410,6 +424,17 @@ if ($Mode -eq "Upgrade") {
     } else {
         Write-Host ""
         Write-Host "[OK] 框架檔案皆為最新，無需變更。"
+    }
+
+    # ---- 階段 A-1: AGENTS.md 保護區段還原 ----
+    # 如果之前暫存了 PROJECT IDENTITY 區段，追加回更新後的 AGENTS.md
+    if ($savedIdentity -and (Test-Path $agentsMdPath)) {
+        $newContent = Get-Content $agentsMdPath -Raw
+        # 確認更新後的檔案不包含保護區段（正常情況下不會，因為源碼 AGENTS.md 沒有）
+        if ($newContent -notmatch '## \[PROJECT IDENTITY') {
+            Add-Content -Path $agentsMdPath -Value "`n$savedIdentity"
+            Write-Host "[v] PROJECT IDENTITY 保護區段已還原。"
+        }
     }
 
     # ---- 階段 B: 基礎設施確保（不受確認閘門影響，每次升級都會執行）----

@@ -2,7 +2,7 @@
 name: mcp-tools
 description: |
   專案記憶：MCP 工具介面模組（第三階段）。 Use when: 處理MCP伺服器註冊、工具路由、AI工具呼叫介面時載入。
-last_updated: '2026-05-06T08:16:45+08:00'
+last_updated: '2026-05-08T10:14:05+08:00'
 status: stable
 staleness: 0
 dependencies:
@@ -10,13 +10,20 @@ dependencies:
   - core-types
 metadata:
   author: antigravity
-  version: '4.0'
+  version: '4.1'
   origin: project
   memory_awareness: full
   tool_scope:
     - 'filesystem:read'
     - 'filesystem:write'
 ---
+
+# MCP Tool Interface — 工具介面記憶（v4.1）
+
+> 本模組提供標準化 AI 呼叫工具，支援跨專案動態路徑解析。
+> v4.1 設計哲學：**MCP 只讀 + 元資料同步，結構驗證從「被動偵測」升級為「主動診斷」。**
+
+
 
 # MCP Tool Interface — 工具介面記憶（v4.0）
 
@@ -55,6 +62,8 @@ metadata:
 - D32: v4.0 版本號升至 4.0.0。
 - D33: v4.0 `handleMemoryDeps` 使用 `await import()` 動態載入 `config.js`、`index-manager.js`、`dependency-propagator.js` 三個模組，避免頂層循環依賴。handler 內部執行 `manager.scan()` 重建索引後再查詢依賴圖。
 - D34: v4.0 `handleMemoryDeps` 引入 `buildReverseDependencyGraph()` 建構反向依賴圖，讓 `dependents` 欄位能一次查詢所有下游消費者。
+- D35: v4.1 **[健康合約升級]** `memory_commit` 標題精確匹配驗證 — 將 `body.includes("## Tracked Files")` 改為正則 `/^## Tracked Files\s*$/m`，並新增二階段診斷：拼寫錯誤（HEADING_TYPO）vs 完全缺失分開回報，確保 `## Tracked FilesD` 等錯誤被精準偵測。
+- D36: v4.1 **[健康合約升級]** 新增 `validateTrackedFilePaths()` 私有函式 — 在 `memory_commit` 步驟 3 後執行路徑格式驗證，偵測並回報 `[PATH_ABSOLUTE]`（絕對路徑）和 `[PATH_TRAVERSAL]`（路徑穿越 ..）違規。兩類警告均不阻斷 commit，保持 AI 操作彈性。
 
 ## Known Issues
 
@@ -73,6 +82,8 @@ metadata:
 - D26: handleMemoryCommit 從 index-manager.ts 匯入 parseTrackedFiles() 來重新解析追蹤檔案清單，確保索引與 SKILL.md 內容同步。
 - L07: (2026-05-06) handleMemoryDeps 的 Zod schema 命名為 memoryDepsSchema，使用 projectRootField 共用驗證器，確保與其他工具的安全標準一致。
 - L08: (2026-05-06) `buildReverseDependencyGraph` 從正向圖建構反向映射，時間複雜度 O(V+E)，為 memory_deps 的 dependents 查詢提供 O(1) 存取。
+- L09: (2026-05-08) 標題精確匹配應使用 `/^## Tracked Files\s*$/m` 而非 `includes()`，`includes` 無法偵測尾部附加字元的情境。
+- L10: (2026-05-08) 警告不阻斷設計原則 — HEADING_TYPO、PATH_ABSOLUTE、PATH_TRAVERSAL 均回傳 warnings 而非 isError，保持 commit 成功執行，讓 AI 有機會讀取警告後自行修正。
 
 ## Relations
 

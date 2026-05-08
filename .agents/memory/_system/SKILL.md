@@ -2,12 +2,12 @@
 name: _system
 description: |
   專案記憶：系統技術堆疊與部署設定。 Use when: 確認技術選型、環境設定、部署組態時載入。
-last_updated: '2026-05-06T08:15:25+08:00'
+last_updated: '2026-05-08T10:37:56+08:00'
 status: stable
 staleness: 0
 metadata:
   author: antigravity
-  version: '3.0'
+  version: '4.1'
   origin: project
   memory_awareness: full
   tool_scope:
@@ -69,12 +69,21 @@ metadata:
 
 ## Config Files
 
-- `package.json` — VS Code Extension 元數據（含 activationEvents / contributes），當前版本 **4.0.1**
+- `package.json` — VS Code Extension 元數據（含 activationEvents / contributes），當前版本 **4.1.0**
 - `tsconfig.json` — CommonJS + node 模組解析
 - `tsup.config.ts` — entry: extension.ts / format: cjs / external: vscode / noExternal: gray-matter, ignore（v3.0 已移除 onSuccess 範本複製邏輯）
 - `eslint.config.js` — ESLint v9 Flat Config（CJS 格式，@typescript-eslint）
 - `.vscodeignore` — 打包排除清單（含 .agents/ 排除）
 - `.cartridge/index.json` — 執行期產生（索引檔）
+
+## 專案身份與工作模式
+
+- **專案定位**：記憶卡匣監控系統 — Antigravity 框架生態中的 AI 記憶防禦引擎
+- **核心職責**：即時追蹤檔案變動並計算記憶卡過期指數；自動偵測幽靈檔案與依賴傳播；提供 5 個 MCP 工具供 AI 代理查詢與同步記憶狀態
+- **工作模式**：TypeScript 原始碼開發 + vitest 單元測試（112 案例 / 9 檔），版本以 VSIX 打包發布
+- **總監指揮語言**：繁體中文（zh-TW）
+- **部署環境**：Windows 11 本機，VS Code (Antigravity IDE) 安裝 VSIX，無雲端 CI/CD
+- **MCP 工具鏈**：cartridge-system（自身 5 工具）、gitnexus（程式碼知識圖譜）、multi-mcp-gateway（跨伺服器路由）
 
 ## Key Decisions
 
@@ -105,6 +114,7 @@ D14: v4.0.1 狀態列 Tooltip 幽靈感知修復 — 補齊狀態列懸浮健康
 - L07: v3.0.0 (2026-05-04) — 職責純化：移除框架基礎注入機制，外掛聚焦記憶卡匣管理核心功能。
 - L08: v4.0.0 (2026-05-06) — 次世代依賴引擎上線：自動化依賴推導 + 間接過期傳播 + 幽靈檔案偵測。單元測試從 94 躍升至 106 個案例。
 - L09: v4.0.1 (2026-05-06) — 修復狀態列 Tooltip 幽靈資訊顯示缺口。
+- L10: v4.1.0 (2026-05-08) — 健康合約升級：memory_commit 新增標題精確匹配驗證（HEADING_TYPO）與路徑基準驗證（PATH_ABSOLUTE / PATH_TRAVERSAL），測試 106→112。
 
 ## Applicable Skills
 

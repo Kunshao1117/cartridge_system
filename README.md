@@ -2,8 +2,8 @@
 
 > **現實感知 AI 記憶防禦引擎** — 自動偵測記憶卡過期、幽靈檔案、跨模組依賴傳播，確保 AI 不讀取失效的上下文。
 
-[![version](https://img.shields.io/badge/version-4.0.1-blue)](./CHANGELOG.md)
-[![tests](https://img.shields.io/badge/tests-106%20passed-brightgreen)](#-執行測試)
+[![version](https://img.shields.io/badge/version-4.1.0-blue)](./CHANGELOG.md)
+[![tests](https://img.shields.io/badge/tests-112%20passed-brightgreen)](#-執行測試)
 [![license](https://img.shields.io/badge/license-MIT-green)](#)
 
 ---
@@ -59,7 +59,7 @@ npm run build
 npm run package
 
 # 使用 Antigravity IDE CLI 安裝（注意：不可用 code 指令）
-antigravity --install-extension cartridge-system-4.0.1.vsix --force
+antigravity --install-extension cartridge-system-4.1.0.vsix --force
 ```
 
 ### 方法二：開發模式
@@ -165,12 +165,12 @@ npm test
 npm run test:watch
 ```
 
-測試涵蓋 9 個測試檔案（106 個案例）：
+測試涵蓋 9 個測試檔案（**112 個案例**）：
 
 | 測試模組 | 案例數 | 涵蓋範圍 |
 |----------|--------|----------|
 | 索引管理器 | 18 | 掃描、addPendingChange 去重、getChildren、resolveModulePath |
-| MCP 工具介面 | 35 | 正常流程、路徑穿越防禦、時間戳驗證、過期狀態診斷、memory_commit 後設同步 |
+| MCP 工具介面 | 41 | 正常流程、路徑穿越防禦、時間戳驗證、過期狀態診斷、memory_commit 後設同步、**標題錯字偵測 (HEADING_TYPO)**、**路徑格式驗證 (PATH_ABSOLUTE / PATH_TRAVERSAL)**、**警告區塊自動清除** |
 | 過期分析器 | 11 | 過期等級四分支、三種事件計分、閾值觸發 |
 | 路徑安全驗證 | 8 | 絕對/相對路徑、穿越攻擊拒絕 |
 | 時間戳格式 | 3 | ISO 8601 格式、台灣時區後綴 |
@@ -203,7 +203,7 @@ cartridge_system/
 │   ├── path-guard.ts         # 路徑安全驗證（雙層防禦）
 │   ├── timestamp.ts          # 時間戳生成（Intl API）
 │   ├── types.ts              # 共用型別定義（含 ghostFiles、dependencies）
-│   └── tests/                # vitest 單元測試（9 檔 106 案例）
+│   └── tests/                # vitest 單元測試（9 檔 112 案例）
 ├── .agents/
 │   ├── memory/               # 記憶卡匣（獨立目錄）
 │   │   ├── _system/          # 系統記憶
@@ -218,7 +218,7 @@ cartridge_system/
 │   └── workflows/            # Antigravity 工作流程
 ├── dist/                     # 編譯輸出（tsup 打包）
 ├── CHANGELOG.md              # 更新紀錄
-└── package.json              # v4.0.1
+└── package.json              # v4.1.0
 ```
 
 ### 技術堆疊

@@ -75,9 +75,18 @@ Stale memory card detected?
 
 > **FORBIDDEN**: Calling `memory_commit` without first completing Steps 1–5 to sync content. Staleness reset is a SIDE EFFECT of sync, not the goal.
 
+> **⚠️ Auto-Cleanup Guarantee (v4.0)**: `memory_commit` has `stripWarningBlock()` built in.
+> It **automatically removes** `<!-- CARTRIDGE_SYSTEM_WARNING_START/END -->` blocks on every commit.
+> **No manual deletion needed.** If warning blocks persist after commit, verify you are NOT using the deprecated `memory_update` mode.
+
 ## 4. Updating Memory (更新記憶)
 
 After modifying source files tracked by a memory skill, you **MUST** update the corresponding memory card.
+
+> **Path Baseline Rule (v4.1)**: All paths listed under `## Tracked Files` MUST be relative to the
+> **project root directory**, NOT to any subdirectory.
+> Correct: `src/index.ts` | Wrong: `swarm-mcp/src/index.ts` (subdirectory-relative)
+> `memory_commit` will report `[PATH_ABSOLUTE]` or `[PATH_TRAVERSAL]` violations in the `warnings` field.
 
 ### Mandatory Flow (強制流程 — 不可略過)
 
@@ -139,11 +148,22 @@ New source file created?
 ## 4.6 Lazy Upgrade Protocol (舊版記憶卡延遲升級義務)
 
 When modifying, fixing logic, or repairing staleness on a legacy memory card (e.g. ones created before V5 architecture), you MUST organically upgrade the card format during your two-step flow to match the latest structural requirements:
+
 - Inject missing fields strictly according to the format constraint.
 - Normalize section headers (e.g., ensure `## Tracked Files` matches naming conventions).
 - **Goal**: Seamlessly patch technical debt dynamically on-demand. Avoid massive migration shocks.
 
 <!-- NOTE: Creation, Tree Topology, and Splitting operations have been migrated to the memory-arch skill. -->
+
+## 4.7 Heading Accuracy Contract
+
+`memory_commit` structural validation uses **exact regex matching** to detect the `## Tracked Files` heading.
+If this heading contains any extra characters (e.g. `## Tracked FilesD`), the system will report a `[HEADING_TYPO]` warning
+and the parser will fail to recognize the tracked-files block — all tracked files will be misclassified as unattributed.
+
+- **Iron Rule**: When manually editing a memory card, the `## Tracked Files` heading string MUST NOT be altered in any way.
+- **Detection**: Check the `warnings` field returned by `memory_commit`.
+- **Remediation**: On `[HEADING_TYPO]`, use `replace_file_content` to correct the heading to exactly `## Tracked Files`, then call `memory_commit` again.
 
 ## 5. System Memory (系統記憶)
 

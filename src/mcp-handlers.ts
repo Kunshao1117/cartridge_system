@@ -575,12 +575,41 @@ export interface CommitReport {
 }
 
 /**
+ * 驗證追蹤路徑格式是否符合規範（路徑基準合約 v4.1）
+ * - 禁止絕對路徑（違反跨環境可攜性）
+ * - 禁止路徑穿越符號（../）
+ * 回傳結構化警告字串陣列，整合至 memory_commit warnings 欄位
+ */
+function validateTrackedFilePaths(
+  paths: string[],
+  moduleName: string,
+): string[] {
+  const pathWarnings: string[] = [];
+  for (const p of paths) {
+    if (path.isAbsolute(p)) {
+      pathWarnings.push(
+        `⚠️ [PATH_ABSOLUTE] "${moduleName}" 追蹤了絕對路徑 "${p}"。` +
+          `請改為相對於專案根目錄的相對路徑（例如 "src/index.ts"）。`,
+      );
+    }
+    if (p.includes("..")) {
+      pathWarnings.push(
+        `⚠️ [PATH_TRAVERSAL] "${moduleName}" 追蹤路徑含路徑穿越符號："${p}"。`,
+      );
+    }
+  }
+  return pathWarnings;
+}
+
+/**
  * memory_commit — 後設資料同步工具
  * 在 AI 用原生工具寫入 SKILL.md 後呼叫，負責：
  * 1. 時間戳注入（台灣時區）
  * 2. staleness 歸零
  * 3. 索引同步（pendingChanges 清除 + trackedFiles 重新解析）
  * 4. 結構驗證（frontmatter 欄位 + 必要區段檢查）
+ *    4a. 標題精確匹配（HEADING_TYPO 偵測）
+ *    4b. 路徑格式驗證（PATH_ABSOLUTE / PATH_TRAVERSAL 偵測）
  */
 export async function handleMemoryCommit(
   args: unknown,
@@ -636,8 +665,20 @@ export async function handleMemoryCommit(
     if (!frontmatter.name) warnings.push("frontmatter 缺少 name 欄位");
     if (!frontmatter.description)
       warnings.push("frontmatter 缺少 description 欄位");
-    if (!body.includes("## Tracked Files"))
-      warnings.push("body 缺少 ## Tracked Files 區段");
+    // 精確匹配：確保標題不含尾部多餘字元（如 ## Tracked FilesD）
+    const TRACKED_FILES_HEADING_RE = /^## Tracked Files\s*$/m;
+    if (!TRACKED_FILES_HEADING_RE.test(body)) {
+      const typoMatch = body.match(/^## Tracked Files\S+/m);
+      if (typoMatch) {
+        warnings.push(
+          `⚠️ [HEADING_TYPO] "## Tracked Files" 標題疑似拼寫錯誤：` +
+            `偵測到 "${typoMatch[0].trim()}"。解析器將忽略此區塊，` +
+            `所有追蹤檔案將被視為未歸屬。請修正為精確標題 "## Tracked Files"。`,
+        );
+      } else {
+        warnings.push("body 缺少 ## Tracked Files 區段");
+      }
+    }
     // 合約要求的 metadata 區塊驗證
     if (!frontmatter.metadata) {
       warnings.push("frontmatter 缺少 metadata 區塊（合約 §3 要求）");
@@ -656,6 +697,14 @@ export async function handleMemoryCommit(
         }
       }
     }
+
+    // 追蹤路徑格式驗證（路徑基準合約 v4.1）
+    const trackedPathsForValidation = parseTrackedFiles(body);
+    const pathWarnings = validateTrackedFilePaths(
+      trackedPathsForValidation,
+      moduleName,
+    );
+    warnings.push(...pathWarnings);
 
     // 4. 時間戳注入 + staleness 歸零 + 清除殘留警報區塊（修復 #4）
     let updatedContent = updateFrontmatterFields(rawContent, {

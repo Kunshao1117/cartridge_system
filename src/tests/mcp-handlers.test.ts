@@ -547,4 +547,126 @@ describe("handleMemoryCommit", () => {
     expect(result.isError).toBe(true);
     expect(result.content[0].text).toContain("Validation Error");
   });
+
+  // --- 新增：結構驗證強化測試 (v4.1) ---
+
+  it("[HEADING_TYPO] 標題拼寫錯誤應出現在 warnings 中", async () => {
+    const existing = `---\nname: mem-test\ndescription: test\nlast_updated: "old"\nstaleness: 0\n---\n\n## Tracked FilesD\n- src/foo.ts\n`;
+    vi.mocked(fs.readFile).mockResolvedValue(
+      existing as unknown as Awaited<ReturnType<typeof fs.readFile>>,
+    );
+    vi.mocked(fs.writeFile).mockResolvedValue(undefined);
+
+    const result = await handleMemoryCommit({
+      moduleName: "mem-test",
+      projectRoot: PROJECT_ROOT,
+    });
+    const report = JSON.parse(result.content[0].text);
+
+    expect(
+      report.warnings.some((w: string) => w.includes("HEADING_TYPO")),
+    ).toBe(true);
+    expect(
+      report.warnings.some((w: string) => w.includes("Tracked FilesD")),
+    ).toBe(true);
+    expect(result.isError).toBeUndefined(); // 警告不阻斷 commit
+  });
+
+  it("[HEADING_TYPO] 精確標題不應觸發 HEADING_TYPO 警告", async () => {
+    const existing = `---\nname: mem-test\ndescription: test\nlast_updated: "old"\nstaleness: 0\n---\n\n## Tracked Files\n- src/foo.ts\n`;
+    vi.mocked(fs.readFile).mockResolvedValue(
+      existing as unknown as Awaited<ReturnType<typeof fs.readFile>>,
+    );
+    vi.mocked(fs.writeFile).mockResolvedValue(undefined);
+
+    const result = await handleMemoryCommit({
+      moduleName: "mem-test",
+      projectRoot: PROJECT_ROOT,
+    });
+    const report = JSON.parse(result.content[0].text);
+
+    expect(
+      report.warnings.some((w: string) => w.includes("HEADING_TYPO")),
+    ).toBe(false);
+  });
+
+  it("[PATH_ABSOLUTE] 絕對路徑應出現在 warnings 中", async () => {
+    const existing = `---\nname: mem-test\ndescription: test\nlast_updated: "old"\nstaleness: 0\n---\n\n## Tracked Files\n- /absolute/path/file.ts\n`;
+    vi.mocked(fs.readFile).mockResolvedValue(
+      existing as unknown as Awaited<ReturnType<typeof fs.readFile>>,
+    );
+    vi.mocked(fs.writeFile).mockResolvedValue(undefined);
+
+    const result = await handleMemoryCommit({
+      moduleName: "mem-test",
+      projectRoot: PROJECT_ROOT,
+    });
+    const report = JSON.parse(result.content[0].text);
+
+    expect(
+      report.warnings.some((w: string) => w.includes("PATH_ABSOLUTE")),
+    ).toBe(true);
+    expect(result.isError).toBeUndefined();
+  });
+
+  it("[PATH_TRAVERSAL] 路徑穿越符號應出現在 warnings 中", async () => {
+    const existing = `---\nname: mem-test\ndescription: test\nlast_updated: "old"\nstaleness: 0\n---\n\n## Tracked Files\n- ../sibling/file.ts\n`;
+    vi.mocked(fs.readFile).mockResolvedValue(
+      existing as unknown as Awaited<ReturnType<typeof fs.readFile>>,
+    );
+    vi.mocked(fs.writeFile).mockResolvedValue(undefined);
+
+    const result = await handleMemoryCommit({
+      moduleName: "mem-test",
+      projectRoot: PROJECT_ROOT,
+    });
+    const report = JSON.parse(result.content[0].text);
+
+    expect(
+      report.warnings.some((w: string) => w.includes("PATH_TRAVERSAL")),
+    ).toBe(true);
+    expect(result.isError).toBeUndefined();
+  });
+
+  it("[PATH_VALID] 標準相對路徑不應觸發路徑警告", async () => {
+    const existing = `---\nname: mem-test\ndescription: test\nlast_updated: "old"\nstaleness: 0\n---\n\n## Tracked Files\n- src/index.ts\n`;
+    vi.mocked(fs.readFile).mockResolvedValue(
+      existing as unknown as Awaited<ReturnType<typeof fs.readFile>>,
+    );
+    vi.mocked(fs.writeFile).mockResolvedValue(undefined);
+
+    const result = await handleMemoryCommit({
+      moduleName: "mem-test",
+      projectRoot: PROJECT_ROOT,
+    });
+    const report = JSON.parse(result.content[0].text);
+
+    expect(
+      report.warnings.some((w: string) => w.includes("PATH_")),
+    ).toBe(false);
+  });
+
+  it("[WARNING_STRIP] commit 後應自動清除警告 HTML 區塊", async () => {
+    const existing =
+      `---\nname: mem-test\ndescription: test\nlast_updated: "old"\nstaleness: 0\n---\n` +
+      `<!-- CARTRIDGE_SYSTEM_WARNING_START -->\n⚠️ 此卡匣已嚴重過期\n<!-- CARTRIDGE_SYSTEM_WARNING_END -->\n` +
+      `\n## Tracked Files\n- src/foo.ts\n`;
+    vi.mocked(fs.readFile).mockResolvedValue(
+      existing as unknown as Awaited<ReturnType<typeof fs.readFile>>,
+    );
+
+    let writtenContent = "";
+    vi.mocked(fs.writeFile).mockImplementation(async (_path, data) => {
+      writtenContent = data as string;
+    });
+
+    await handleMemoryCommit({
+      moduleName: "mem-test",
+      projectRoot: PROJECT_ROOT,
+    });
+
+    expect(writtenContent).not.toContain("CARTRIDGE_SYSTEM_WARNING_START");
+    expect(writtenContent).not.toContain("CARTRIDGE_SYSTEM_WARNING_END");
+    expect(writtenContent).toContain("## Tracked Files");
+  });
 });

@@ -1,5 +1,17 @@
 # 更新紀錄
 
+## [4.1.0] — 2026-05-08
+
+### 🛡️ 記憶卡健康合約強化
+
+- **標題精確匹配驗證 (HEADING_TYPO)** — `memory_commit` 的 `## Tracked Files` 標題偵測從模糊字串比對（`includes`）升級為精確正則匹配（`/^## Tracked Files\s*$/m`），新增二階段診斷邏輯：標題錯字（如 `## Tracked FilesD`）將回報 `[HEADING_TYPO]` 告警代碼，並說明解析器將忽略此區塊導致所有追蹤檔案被誤判為未歸屬；完全缺失的情境維持原有 `body 缺少 ## Tracked Files 區段` 錯誤訊息
+- **路徑基準驗證 (PATH_ABSOLUTE / PATH_TRAVERSAL)** — 新增 `validateTrackedFilePaths()` 私有函式，在 `memory_commit` 步驟 3 結構驗證後，自動掃描 `## Tracked Files` 中的所有路徑，偵測並回報絕對路徑（`[PATH_ABSOLUTE]`）與路徑穿越符號（`[PATH_TRAVERSAL] `）違規。兩類告警均整合至 `warnings` 欄位，不阻斷 commit 流程，確保 AI 可讀取告警後自行修正
+- **操作規範文件化** — 更新 `memory-ops` 技能，新增 `§ 4.7 Heading Accuracy Contract`、`Path Baseline Rule (v4.1)`、`Auto-Cleanup Guarantee (v4.0)` 三條英文規範，明確化標題精確性合約與路徑基準義務
+
+### 🧪 測試覆蓋擴展
+
+- **MCP 工具介面測試案例由 35 升至 41** — 新增 6 個驗證場景：`[HEADING_TYPO]` 正反向、`[PATH_ABSOLUTE]`、`[PATH_TRAVERSAL]`、`[PATH_VALID]`、`[WARNING_STRIP]`；全套測試案例數從 **106** 升至 **112**
+
 ## [4.0.1] — 2026-05-06
 
 ### 🔧 修復

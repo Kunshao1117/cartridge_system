@@ -31,7 +31,7 @@ Cartridge System 是一個為 [Antigravity 框架](https://github.com/Kunshao111
 | 功能 | 說明 |
 |------|------|
 | 🔍 **全域雷達** | 使用 VS Code 原生 FileSystemWatcher 全專案監聽，結合原生 `.gitignore` 規則精準屏除依賴庫。 |
-| 💀 **幽靈偵測** | **v4.0 新增** — 自動標記已追蹤但磁碟不存在的幽靈檔案，側邊欄 💀 圖示視覺化提示，`memory_status` 輸出清理行動指引 |
+| 💀 **幽靈偵測** | **v4.1.1 增強** — 自動標記已追蹤但磁碟不存在的幽靈檔案。**新增互動式修復指引（Modal）**，點擊側邊欄 💀 項目可直接彈出修復路徑與操作建議。 |
 | 🕸️ **依賴圖引擎** | **v4.0 新增** — 自動掃描 import 語句推導卡匣依賴關係，BFS 演算法傳播間接過期，DFS 偵測循環依賴 |
 | 👻 **未歸屬檔案池** | 智能偵測專案內新增但未被任何卡匣記錄的檔案，支援歸屬建議。 |
 | 📊 **過期指數計算** | 根據異動類型（新增/修改/刪除）與時間衰退計算分數 |
@@ -104,7 +104,7 @@ Cartridge System 提供 MCP（Model Context Protocol）工具伺服器，供 AI 
 | `memory_list` | 列出所有記憶卡匣（含過期指數、幽靈計數、依賴數量、間接過期指數） |
 | `memory_read` | 讀取特定記憶技能的完整 SKILL.md 內容（自動解析巢狀點分隔路徑） |
 | `memory_status` | 查詢過期修復診斷：過期指數、待處理異動、**幽靈檔案清單**及清理行動指引 |
-| `memory_commit` | AI 寫入 SKILL.md 後呼叫，自動完成：時間戳注入、staleness 歸零、索引同步、**幽靈清除** |
+| `memory_commit` | AI 寫入 SKILL.md 後呼叫，自動完成：時間戳注入、staleness 歸零、索引同步、**幽靈清除**。**v4.1.1 強化格式容錯與 I/O 防護**。 |
 | `memory_deps` | **v4.0 新增** — 查詢卡匣依賴拓樸：上游依賴、下游被依賴者、間接過期指數、循環依賴警告 |
 
 ### 跨專案支援
@@ -151,6 +151,7 @@ memory_commit({
 | `記憶卡匣：重新掃描索引` | 強制重新讀取所有記憶技能，重建監聽清單 |
 | `記憶卡匣：查看健康報告` | 在輸出面板顯示所有記憶卡的詳細狀態 |
 | `記憶卡匣：重新掃描未歸屬檔案` | 清空並重新掃描全專案的未歸屬幽靈檔案 |
+| `記憶卡匣：查看幽靈詳情` | **v4.1.1 新增** — 針對選定的幽靈檔案彈出 Modal 診斷報告與修復指引 |
 | `記憶卡匣：歸屬到記憶卡…` | 透過 QuickPick 介面將當前檔案或選定檔案一鍵歸檔至目標記憶卡 |
 
 ---
@@ -216,8 +217,11 @@ cartridge_system/
 │   │   └── mcp-tools/        # MCP 工具介面
 │   ├── skills/               # 操作技能（框架提供）
 │   └── workflows/            # Antigravity 工作流程
-├── dist/                     # 編譯輸出（tsup 打包）
-├── CHANGELOG.md              # 更新紀錄
+└── dist/                     # 編譯輸出（tsup 打包）
+
+> 💡 **治理備註**：`.agents/` 目錄在 Git 中採取「白名單模式」，僅追蹤 `memory/` 核心卡匣，其餘殘留檔案（如 Workflows/Skills）預設不納入版本控制以保持儲存庫輕量化。
+
+├── CHANGELOG.md              # v4.1.1 治理特輯
 └── package.json              # v4.1.1
 ```
 
@@ -232,6 +236,7 @@ cartridge_system/
 | MCP SDK | @modelcontextprotocol/sdk |
 | 打包 | tsup（CJS 輸出，vscode external） |
 | 測試 | vitest |
+| 知識圖譜 | GitNexus 1.6.4 (pnpm 整合) |
 | 程式碼品質 | ESLint v9 + @typescript-eslint |
 
 ---

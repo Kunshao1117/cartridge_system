@@ -3,14 +3,14 @@ name: index-manager
 description: >
   專案記憶：記憶索引管理器模組。管理卡匣索引、檔案反向映射、離線偵測、未歸屬檔案池、Cache-First 持久化。Use when:
   處理卡匣索引、檔案反向映射、持久化讀寫時載入。
-last_updated: '2026-05-06T08:16:45+08:00'
+last_updated: '2026-05-13T15:15:57+08:00'
 status: stable
 staleness: 0
 dependencies:
   - core-types
 metadata:
   author: antigravity
-  version: '3.0'
+  version: '3.1'
   origin: project
   memory_awareness: full
   tool_scope:
@@ -50,11 +50,15 @@ metadata:
 - D21: v2.0 detectUntrackedFiles 簽名變更 — 不再內部呼叫 scanDirectory，改為接受外部傳入的 `allFiles: string[]` 參數，保持模組不依賴 vscode API
 - D22: v2.0 persist() 保留 public — MCP Server 的 memory_commit 需要在明確保存時機直接呼叫
 - D23: v4.0 幽靈追蹤偵測 — CartridgeEntry 新增 ghostFiles: string[] 欄位，記錄已追蹤但磁碟不存在的檔案
-- D24: v4.0 markGhostFile() — 將已追蹤但已刪除的檔案標記為幽靈，支援去重
+- D24: v4.0 markGhostFile() — 將已追蹤但已刪除的檔案標記為幽靈，支援去重；**注意：markGhostFile 本身不呼叫 markDirty()**，呼叫端需自行補呼叫
 - D25: v4.0 clearGhostFiles() — memory_commit 後自動清除幽靈標記，確保同步後狀態乾淨
 - D26: v4.0 validateTrackedFiles() — 全量磁碟存在性驗證，由啟動掃描或手動指令觸發，標記所有幽靈檔案
 - D27: v4.0 detectMissedChanges() catch 區塊 — 除了記錄 unlink pendingChange，也同步呼叫 markGhostFile，確保啟動偵測與即時監聽的幽靈標記一致
 - D28: v4.0 依賴推導同步載入 — `buildAndMergeDependencies()` 使用 `require()` 同步載入 `dependency-propagator.js`（而非 `await import()`），因為此方法需在 scan() 流程中保持同步一致性。與 mcp-handlers.ts 中 `handleMemoryDeps` 的非同步 `import()` 形成互補設計。
+- D29: parseTrackedFiles 正則容錯升級 — 將 `## Tracked Files\n` 改為 `## Tracked Files[ \t]*\n`，接受行尾空格的標題；結束匹配改為 `\s*$` 支援 EOF 無換行情境，防止些微格式偏差導致 trackedFiles 靜默回傳空陣列。
+- D30: scanRecursive I/O 防護 — `fs.readFileSync` 與 `matter()` 分別包裝 try-catch，YAML 格式錯誤或讀取失敗不再崩潰插件，改為 console.warn 跳過該卡片繼續掃描。
+- D31: scanRecursive 格式異常偵測 — 解析後 trackedFiles 為空但 content 含 `## Tracked` 的卡片輸出 console.warn，協助診斷格式偏差（不阻斷掃描）。
+- D32: buildAndMergeDependencies 崩潰防護 — 整個 require() 與依賴傳播區塊包裝 try-catch，依賴推導失敗時輸出 console.error 並繼續，不崩潰插件。
 
 ## Key Decisions Addendum
 
@@ -73,6 +77,7 @@ metadata:
 - D19: 幽靈檔案池 (Untracked Files Pool) 被證實為極為重要之機制，讓索引不只管「已追蹤檔案」，更能幫助總監主動抓出落單的實作程式碼，徹底消滅盲區。
 - L05: (2026-04-12) v2.0 EventEmitter 不可放 index-manager 內部，因其同時被 MCP Server 引用。改用 callback hook 確保跨環境安全。
 - L06: (2026-05-06) ghostFiles 欄位以 Optional-safe 方式初始化（`existingEntry?.ghostFiles ?? []`），確保舊索引向後相容。
+- L07: (2026-05-13) scanRecursive 的 readFileSync 與 matter() 解析各自需要獨立 try-catch，因為 readFileSync 可能拋 ENOENT/EPERM，而 matter() 可能拋 YAML syntax error，兩種 catch 行為相同（skip + warn）但原因不同，需要分開捕獲以便 debug 時區分原因。
 
 ## Relations
 
@@ -84,3 +89,5 @@ metadata:
 ## Applicable Skills
 
 - test-patterns
+
+_此模組的子節點：index-manager.dep-engine_

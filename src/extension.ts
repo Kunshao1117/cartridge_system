@@ -151,7 +151,61 @@ export async function activate(
         }
         channel.show(true);
       }
+
+      // 幽靈檔案報告（已追蹤但磁碟不存在）
+      const ghostEntries = Object.entries(idx.cartridges).filter(
+        ([, v]) => (v.ghostFiles?.length ?? 0) > 0,
+      );
+      if (ghostEntries.length > 0) {
+        const ghostChannel = vscode.window.createOutputChannel(
+          "記憶卡匣幽靈報告",
+        );
+        ghostChannel.clear();
+        ghostChannel.appendLine(`💀 幽靈檔案報告（已追蹤但磁碟不存在）`);
+        ghostChannel.appendLine("");
+        for (const [id, v] of ghostEntries) {
+          ghostChannel.appendLine(`  記憶卡：${id}`);
+          for (const f of v.ghostFiles ?? []) {
+            ghostChannel.appendLine(`    💀 ${f}`);
+          }
+          ghostChannel.appendLine(`  → 修復：更新記憶卡並呼叫 memory_commit`);
+          ghostChannel.appendLine("");
+        }
+        ghostChannel.show(true);
+      }
     }),
+  );
+
+  // 命令：查看幽靈檔案詳情（由 TreeView 💀 項目點擊觸發）
+  context.subscriptions.push(
+    vscode.commands.registerCommand(
+      "cartridge.showGhostFileInfo",
+      async (args?: { filePath?: string; cartridgeId?: string }) => {
+        if (!indexManager || !config) {
+          vscode.window.showWarningMessage("記憶卡匣：系統尚未初始化完成");
+          return;
+        }
+        const filePath = args?.filePath ?? "未知檔案";
+        const cartridgeId = args?.cartridgeId ?? "未知記憶卡";
+        const entry = indexManager.getIndex().cartridges[cartridgeId];
+
+        const choice = await vscode.window.showWarningMessage(
+          `💀 幽靈檔案：${path.basename(filePath)}`,
+          {
+            detail: `此檔案已從磁碟刪除，仍登記在記憶卡 [${cartridgeId}] 的追蹤清單中。\n\n修復方式：更新記憶卡，從 ## Tracked Files 區段移除此路徑後，呼叫 memory_commit 即可自動清除幽靈標記。`,
+            modal: true,
+          },
+          "開啟記憶卡",
+        );
+
+        if (choice === "開啟記憶卡" && entry?.skillPath) {
+          await vscode.commands.executeCommand(
+            "vscode.open",
+            vscode.Uri.file(path.resolve(config.projectRoot, entry.skillPath)),
+          );
+        }
+      },
+    ),
   );
 
   // 命令：歸屬到記憶卡（智慧推薦 + QuickPick 選擇）

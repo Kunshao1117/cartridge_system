@@ -1,5 +1,27 @@
 # 更新紀錄
 
+## [4.1.1] — 2026-05-13
+
+### 🚀 治理與治理 (Governance & Governance)
+
+- **GitNexus 知識圖譜整合** — 完成 GitNexus 1.6.4 環境部署與索引建立（576 節點 / 1198 關係）。修復 pnpm 編譯權限與 ONNX 執行階段路徑鎖定問題，實現全專案程式碼智慧感知與影響分析能力
+- **專案身份濃縮 (Condense)** — 執行 `/05_condense` 工作流，將專案身份（TS/VSCode Extension API）與工作模式正式萃取並轉為英文版，同步鎖定至 `AGENTS.md`、`CLAUDE.md` 與 `_system` 記憶卡保護區段
+- **Git 儲存庫輕量化治理** — 優化 `.gitignore` 配置採「白名單模式」，全域忽略 `.agents/` 殘留追蹤（123 個檔案）但精確保留 `.agents/memory/` 核心記憶。新增 `*.vsix` 排除規則，確保儲存庫維持輕量且身份一致
+
+### 🔧 修復
+
+- **幽靈熱更新修復** — 修正幽靈檔案標記後 UI 未即時刷新的時序 Bug。`watcher.ts` 的 `handleEvent()` 在 `markGhostFile()` 迴圈結束後補呼叫 `markDirty()`，確保 TreeView 與狀態列的 💀 圖示能在刪除追蹤檔案的瞬間更新，不再需要手動重掃或重啟外掛
+- **幽靈點選互動修復** — 修正 TreeView 幽靈檔案項目點擊靜音的問題。幽靈 TreeItem 新增 `command` 綁定 `cartridge.showGhostFileInfo`，點擊後彈出 Modal 警告框，顯示幽靈路徑與修復指引，並提供「開啟記憶卡」快捷按鈕
+- **健康報告補充幽靈段落** — `cartridge.status` 指令輸出面板新增 `💀 幽靈檔案報告` 獨立段落，列出磁碟不存在但仍登記在追蹤清單中的幽靈路徑與修復指引
+- **新增幽靈詳情指令** — 新增 `cartridge.showGhostFileInfo` 指令（由 TreeView 💀 項目點擊觸發），以 modal 顯示幽靈檔案路徑、所屬記憶卡名稱與修復說明
+
+### 🛡️ 穩定性強化
+
+- **記憶卡解析正則容錯升級** — `parseTrackedFiles()` 正則升級為接受 `## Tracked Files` 行尾空格（`[ \t]*`），並以 `\s*$` 支援 EOF 無換行情境，防止些微格式偏差導致追蹤清單靜默回傳空陣列
+- **掃描引擎 I/O 雙層防護** — `scanRecursive()` 的 `readFileSync` 與 `matter()` 各自包裝獨立 try-catch；YAML 格式錯誤或讀取失敗改為 `console.warn` 跳過並繼續；新增格式異常偵測：`trackedFiles` 解析為空但 content 含 `## Tracked` 的卡片將輸出 `console.warn` 協助診斷
+- **依賴傳播引擎崩潰防護** — `buildAndMergeDependencies()` 的 `require()` 呼叫包裝 try-catch，載入失敗時輸出 `console.error` 並繼續，不崩潰插件
+- **unhandled Promise 修復** — `debounceEvent()` 的 setTimeout callback 改為 `void this.handleEvent(...).catch(err => console.error(...))` 捕獲 async 例外，防止未處理的 Promise rejection 崩潰插件
+
 ## [4.1.0] — 2026-05-08
 
 ### 🛡️ 記憶卡健康合約強化

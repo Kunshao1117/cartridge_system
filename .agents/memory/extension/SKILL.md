@@ -3,7 +3,7 @@ name: extension
 description: >
   專案記憶：VS Code 外掛入口與 UI 模組。 Use when:
   處理外掛啟動生命週期、指令註冊、狀態列/TreeView/CodeLens/智慧歸屬等 UI 更新時載入。
-last_updated: '2026-05-06T08:16:50+08:00'
+last_updated: '2026-05-13T15:15:52+08:00'
 staleness: 0
 status: stable
 ---
@@ -50,6 +50,9 @@ status: stable
 - D26: v2.0 indexManager.onChanged callback hook 連動 UI 三兄弟（StatusBar + TreeView + CodeLens）即時刷新
 - D27: (2026-04-12) 補全啟動時的 `detectMissedChanges` 流程，針對過期卡匣不僅更新 RAM 內 `staleness`，也會主動呼叫 `writer.injectWarning()` 植入警報區塊，修正了啟動無法顯示警報區塊的遺漏。
 - D28: v4.0.1 狀態列 Tooltip 幽靈感知 — `status-bar.ts` 的 `buildTooltip()` 方法新增 `💀 幽靈檔案 (需清理)` 摘要區塊。遍歷 `index.cartridges` 過濾 `ghostFiles.length > 0` 的條目，列出受影響的記憶卡名稱與幽靈數量。修復了 TreeView 有 💀 圖示但 Tooltip 無顯示的設計缺口。
+- D29: 新增 `cartridge.showGhostFileInfo` 指令 — 由 TreeView 的 💀 幽靈 TreeItem 點擊觸發，顯示 modal 警告框含幽靈路徑、所屬記憶卡、修復說明，提供「開啟記憶卡」快捷按鈕，解決點擊靜音問題。
+- D30: `cartridge.status` 健康報告新增 `💀 幽靈檔案報告` OutputChannel 段落 — 過濾 ghostFiles.length > 0 的記憶卡，列出幽靈路徑與修復指引。
+- D31: treeview-provider.ts 幽靈 TreeItem 補上 `item.command` 綁定 `cartridge.showGhostFileInfo`，參數傳遞 `{ filePath, cartridgeId }`。
 
 ## Known Issues
 
@@ -59,7 +62,7 @@ status: stable
 
 - D01: 指令必須先於工作區驗證和初始化邏輯之前完成註冊，否則 VS Code 在找不到指令時會回報 "command not found"
 - D02: Antigravity IDE 使用獨立 CLI（`antigravity`），安裝時須用 `antigravity --install-extension`，不可用 `code`
-- D07: VS Code 的 `showWarningMessage` 不支援多行格式，所有 `\n` 會被壓成一行。結構化多行報告必須改用 `OutputChannel` 呈現
+- D07: VS Code 的 `showWarningMessage` 不支援多行格式，所有 `\n` 會被壓成一行。結構化多行報告必須改用 `OutputChannel` 呈現；**例外**：`{ modal: true, detail: string }` 模式下 detail 文字換行有效。
 - L01: (2026-04-12) 修正前次更新的錯誤。移除對附屬子模組 (analyzer.ts, watcher.ts, writer.ts, injector.ts) 的越權追蹤，讓這些檔案回歸各自專屬的子卡。確保符合合約要求的「單一職責」與「粒度上限 (Max 8)」原則。
 - L02: (2026-04-12) v2.0 watcher 棄用 chokidar 改用原生 Watcher。因原生 watcher 的事件參數是 Uri 非 string，所有事件處理器需要 `uri.fsPath` 拉出絕對路徑。
 - L03: (2026-04-12) EventEmitter 不可放 index-manager 內部（MCP Server 共用模組不可依賴 vscode API），改用 `onChanged?: () => void` callback hook 模式。

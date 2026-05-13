@@ -31,7 +31,7 @@ export function parseTrackedFiles(content: string): string[] {
   const normalized = content.replace(/\r\n/g, "\n");
 
   const trackedSection = normalized.match(
-    /## Tracked Files\n([\s\S]*?)(?=\n## |\n---|\n$)/,
+    /## Tracked Files[ \t]*\n([\s\S]*?)(?=\n## |\n---|\s*$)/,
   )?.[1];
   if (!trackedSection) return [];
 
@@ -175,10 +175,31 @@ export class CartridgeIndexManager {
       const skillPath = path.join(dir, entry.name, "SKILL.md");
       if (!fs.existsSync(skillPath)) continue;
 
-      const raw = fs.readFileSync(skillPath, "utf-8");
-      const { data: frontmatter, content } = matter(raw);
+      let raw: string;
+      try {
+        raw = fs.readFileSync(skillPath, "utf-8");
+      } catch (err) {
+        console.warn(`[記憶卡匣] 無法讀取記憶卡：${skillPath}`, err);
+        continue;
+      }
+
+      let frontmatter: Record<string, unknown>;
+      let content: string;
+      try {
+        const parsed = matter(raw);
+        frontmatter = parsed.data as Record<string, unknown>;
+        content = parsed.content;
+      } catch (err) {
+        console.warn(`[記憶卡匣] YAML 格式錯誤，已跳過：${skillPath}`, err);
+        continue;
+      }
 
       const trackedFiles = parseTrackedFiles(content);
+      if (trackedFiles.length === 0 && content.includes("## Tracked")) {
+        console.warn(
+          `[記憶卡匣] 疑似格式偏差，Tracked Files 解析為空：${skillPath}`,
+        );
+      }
       // 巢狀記憶使用 dot-separated 路徑作為唯一識別碼
       // 根層: "extension"、巢狀: "api.auth"、深層: "api.auth.oauth"
       const cartridgeId = parentId ? `${parentId}.${entry.name}` : entry.name;
@@ -352,34 +373,38 @@ export class CartridgeIndexManager {
    * 3. 計算間接過期傳播
    */
   buildAndMergeDependencies(): void {
-    // 動態匯入避免頂層循環依賴
-    const { buildDependencyGraph, propagateStaleness } = require("./dependency-propagator.js") as {
-      buildDependencyGraph: (index: CartridgeIndex, projectRoot: string) => Map<string, string[]>;
-      propagateStaleness: (index: CartridgeIndex, graph: Map<string, string[]>, maxDepth: number) => Map<string, number>;
-    };
+    try {
+      // 動態匯入避免頂層循環依賴
+      const { buildDependencyGraph, propagateStaleness } = require("./dependency-propagator.js") as {
+        buildDependencyGraph: (index: CartridgeIndex, projectRoot: string) => Map<string, string[]>;
+        propagateStaleness: (index: CartridgeIndex, graph: Map<string, string[]>, maxDepth: number) => Map<string, number>;
+      };
 
-    const graph = buildDependencyGraph(this.index, this.config.projectRoot);
+      const graph = buildDependencyGraph(this.index, this.config.projectRoot);
 
-    // 合併自動推導 + 手動宣告的依賴
-    for (const [cartridgeId, autoDeps] of graph.entries()) {
-      const entry = this.index.cartridges[cartridgeId];
-      if (!entry) continue;
-      const manual = entry.dependencies ?? [];
-      entry.dependencies = [...new Set([...autoDeps, ...manual])];
-    }
-
-    // 計算間接過期傳播
-    const indirectScores = propagateStaleness(
-      this.index,
-      graph,
-      this.config.dependencyDepth,
-    );
-
-    for (const [cartridgeId, score] of indirectScores.entries()) {
-      const entry = this.index.cartridges[cartridgeId];
-      if (entry) {
-        entry.indirectStaleness = score;
+      // 合併自動推導 + 手動宣告的依賴
+      for (const [cartridgeId, autoDeps] of graph.entries()) {
+        const entry = this.index.cartridges[cartridgeId];
+        if (!entry) continue;
+        const manual = entry.dependencies ?? [];
+        entry.dependencies = [...new Set([...autoDeps, ...manual])];
       }
+
+      // 計算間接過期傳播
+      const indirectScores = propagateStaleness(
+        this.index,
+        graph,
+        this.config.dependencyDepth,
+      );
+
+      for (const [cartridgeId, score] of indirectScores.entries()) {
+        const entry = this.index.cartridges[cartridgeId];
+        if (entry) {
+          entry.indirectStaleness = score;
+        }
+      }
+    } catch (err) {
+      console.error("[記憶卡匣] 依賴圖建構失敗，跳過依賴傳播：", err);
     }
   }
 

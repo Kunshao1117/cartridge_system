@@ -2,7 +2,7 @@
 name: _system
 description: |
   專案記憶：系統技術堆疊與部署設定。 Use when: 確認技術選型、環境設定、部署組態時載入。
-last_updated: '2026-05-08T10:37:56+08:00'
+last_updated: '2026-05-13T15:14:51+08:00'
 status: stable
 staleness: 0
 metadata:
@@ -69,7 +69,7 @@ metadata:
 
 ## Config Files
 
-- `package.json` — VS Code Extension 元數據（含 activationEvents / contributes），當前版本 **4.1.0**
+- `package.json` — VS Code Extension 元數據（含 activationEvents / contributes），當前版本 **4.1.1**
 - `tsconfig.json` — CommonJS + node 模組解析
 - `tsup.config.ts` — entry: extension.ts / format: cjs / external: vscode / noExternal: gray-matter, ignore（v3.0 已移除 onSuccess 範本複製邏輯）
 - `eslint.config.js` — ESLint v9 Flat Config（CJS 格式，@typescript-eslint）
@@ -78,12 +78,11 @@ metadata:
 
 ## 專案身份與工作模式
 
-- **專案定位**：記憶卡匣監控系統 — Antigravity 框架生態中的 AI 記憶防禦引擎
-- **核心職責**：即時追蹤檔案變動並計算記憶卡過期指數；自動偵測幽靈檔案與依賴傳播；提供 5 個 MCP 工具供 AI 代理查詢與同步記憶狀態
-- **工作模式**：TypeScript 原始碼開發 + vitest 單元測試（112 案例 / 9 檔），版本以 VSIX 打包發布
-- **總監指揮語言**：繁體中文（zh-TW）
-- **部署環境**：Windows 11 本機，VS Code (Antigravity IDE) 安裝 VSIX，無雲端 CI/CD
-- **MCP 工具鏈**：cartridge-system（自身 5 工具）、gitnexus（程式碼知識圖譜）、multi-mcp-gateway（跨伺服器路由）
+- **Project Identity**: Cartridge System — A VS Code extension + MCP tool server for the Antigravity framework, providing automated detection of stale memory, ghost files, and cross-module dependency propagation.
+- **Work Mode**: Core extension logic development (TypeScript + vitest), MCP tool interface maintenance, and evolution of memory card specifications.
+- **Director Role**: Traditional Chinese commander, acting as framework architect and quality supervisor.
+- **Deployment Environment**: Local development on Windows 11, VSIX installation into Antigravity IDE, no cloud CI/CD.
+- **MCP Toolchain**: cartridge-system (native), gitnexus (knowledge graph), multi-mcp-gateway (tool routing).
 
 ## Key Decisions
 

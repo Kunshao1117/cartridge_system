@@ -117,7 +117,12 @@ export class CartridgeTreeProvider implements vscode.TreeDataProvider<CartridgeT
           { filePath: f },
         );
         if (isGhost) {
-          item.tooltip = `⚠️ 此檔案已從磁碟刪除，但仍登記在記憶卡追蹤清單中`;
+          item.tooltip = `⚠️ 此檔案已從磁碟刪除，仍登記於追蹤清單。點擊查看修復指引。`;
+          item.command = {
+            command: "cartridge.showGhostFileInfo",
+            title: "查看幽靈檔案報告",
+            arguments: [{ filePath: f, cartridgeId: id }],
+          };
         } else {
           item.command = {
             command: "vscode.open",

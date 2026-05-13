@@ -92,7 +92,9 @@ export class CartridgeWatcher {
       absPath,
       setTimeout(() => {
         this.debounceMap.delete(absPath);
-        this.handleEvent(absPath, eventType);
+        void this.handleEvent(absPath, eventType).catch((err) =>
+          console.error(`[監聽引擎] 事件處理失敗: ${absPath}`, err),
+        );
       }, CartridgeWatcher.DEBOUNCE_MS),
     );
   }
@@ -145,11 +147,12 @@ export class CartridgeWatcher {
     if (affected.length > 0) {
       console.log(`[監聽引擎] 偵測到異動: ${eventType} ${relPath}`);
       await this.analyzer.processFileEvent(relPath, eventType);
-      // 刪除事件 → 標記幽靈檔案
+      // 刪除事件 → 標記幽靈檔案並觸發第二次 UI 刷新
       if (eventType === "unlink") {
         for (const cartridgeId of affected) {
           this.indexManager.markGhostFile(cartridgeId, relPath);
         }
+        this.indexManager.markDirty();
       }
       this.onUpdate?.();
       return;

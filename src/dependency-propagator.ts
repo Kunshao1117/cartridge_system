@@ -97,7 +97,7 @@ export function propagateStaleness(
     for (let depth = 1; depth <= maxDepth; depth++) {
       const nextLayer: string[] = [];
       // 衰減因子：深度越深影響越小
-      const factor = 1 / depth;
+      const factor = 1 / (depth * depth);
 
       for (const nodeId of currentLayer) {
         const dependents = reverseGraph.get(nodeId) ?? [];

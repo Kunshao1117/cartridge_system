@@ -866,4 +866,3 @@ export async function handleMemoryDeps(args: unknown): Promise<McpToolResult> {
     };
   }
 }
-

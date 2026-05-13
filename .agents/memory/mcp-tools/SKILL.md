@@ -2,7 +2,7 @@
 name: mcp-tools
 description: |
   專案記憶：MCP 工具介面模組（第三階段）。 Use when: 處理MCP伺服器註冊、工具路由、AI工具呼叫介面時載入。
-last_updated: '2026-05-08T10:14:05+08:00'
+last_updated: '2026-05-14T00:55:08+08:00'
 status: stable
 staleness: 0
 dependencies:
@@ -64,6 +64,9 @@ metadata:
 - D34: v4.0 `handleMemoryDeps` 引入 `buildReverseDependencyGraph()` 建構反向依賴圖，讓 `dependents` 欄位能一次查詢所有下游消費者。
 - D35: v4.1 **[健康合約升級]** `memory_commit` 標題精確匹配驗證 — 將 `body.includes("## Tracked Files")` 改為正則 `/^## Tracked Files\s*$/m`，並新增二階段診斷：拼寫錯誤（HEADING_TYPO）vs 完全缺失分開回報，確保 `## Tracked FilesD` 等錯誤被精準偵測。
 - D36: v4.1 **[健康合約升級]** 新增 `validateTrackedFilePaths()` 私有函式 — 在 `memory_commit` 步驟 3 後執行路徑格式驗證，偵測並回報 `[PATH_ABSOLUTE]`（絕對路徑）和 `[PATH_TRAVERSAL]`（路徑穿越 ..）違規。兩類警告均不阻斷 commit，保持 AI 操作彈性。
+- D37: v4.1.1 MCP server 對外宣告版本需與 package.json 同步，避免 Gateway 或使用者看到過期版本號。
+- D38: `workspace_brief` 是第一個高階治理入口工具；工具註冊與 MCP routing 歸屬本卡，摘要統計邏輯下放至 `mcp-tools.workspace-brief` 子卡，避免主卡追蹤檔案超過 8 檔粒度上限。
+- D39: `commit_preflight` 是提交前治理入口工具；工具註冊與 MCP routing 歸屬本卡，git dirty state 與 memory blockers 摘要邏輯下放至 `mcp-tools.commit-preflight` 子卡。
 
 ## Known Issues
 
@@ -84,11 +87,14 @@ metadata:
 - L08: (2026-05-06) `buildReverseDependencyGraph` 從正向圖建構反向映射，時間複雜度 O(V+E)，為 memory_deps 的 dependents 查詢提供 O(1) 存取。
 - L09: (2026-05-08) 標題精確匹配應使用 `/^## Tracked Files\s*$/m` 而非 `includes()`，`includes` 無法偵測尾部附加字元的情境。
 - L10: (2026-05-08) 警告不阻斷設計原則 — HEADING_TYPO、PATH_ABSOLUTE、PATH_TRAVERSAL 均回傳 warnings 而非 isError，保持 commit 成功執行，讓 AI 有機會讀取警告後自行修正。
+- L11: (2026-05-14) mcp-server.ts 的 SDK metadata 版本不會自動讀 package.json；版本升級時需同步檢查硬編碼宣告。
 
 ## Relations
 
 - extension（父卡：啟動外掛編排）
 - index-manager（共用服務：索引讀寫）
+- mcp-tools.workspace-brief（子卡：workspace_brief 高階治理摘要）
+- mcp-tools.commit-preflight（子卡：commit_preflight 提交前治理檢查）
 
 ## Applicable Skills
 

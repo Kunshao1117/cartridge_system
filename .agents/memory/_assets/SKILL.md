@@ -3,9 +3,9 @@ name: _assets
 scopePath: null
 description: |
   專案記憶：靜態檔案與一般文檔收納。 Use when: 處理不需要業務邏輯追蹤的靜態圖檔、授權文件或更新日誌等。
-last_updated: '2026-05-13T15:14:29+08:00'
-status: stale
-staleness: 20
+last_updated: '2026-05-14T01:02:41+08:00'
+status: stable
+staleness: 0
 metadata:
   author: antigravity
   version: '1.2'
@@ -14,15 +14,6 @@ metadata:
   tool_scope:
     - 'filesystem:read'
 ---
-<!-- CARTRIDGE_SYSTEM_WARNING_START -->
-
-> [!CAUTION]
-> 🟠 **系統強制攔截**：此記憶已過期失真！
-> 追蹤檔案異動：`README.md`、`CHANGELOG.md`（2026-05-13T15:17:07+08:00）
-> AI 嚴禁基於此記憶施工，必須優先閱讀最新原始碼並更新此記憶卡。
-> staleness: 20 | threshold: 🟠 顯著過期
-
-<!-- CARTRIDGE_SYSTEM_WARNING_END -->
 
 # Assets — 靜態收容
 
@@ -44,6 +35,9 @@ metadata:
 ## Module Lessons
 
 - L01: (2026-05-06) `test.ts` 曾作為幽靈偵測功能的測試暫存檔歸入此卡，刪除後觸發幽靈標記，驗證了 v4.0 幽靈引擎的偵測能力。已從追蹤清單與決策中移除。
+- L02: (2026-05-14) README.md 與 CHANGELOG.md 已同步 v4.1.1 文件狀態；此卡屬靜態收容卡，文檔異動確認後可用 memory_commit 快速核銷。
+- L03: (2026-05-14) README 已補齊 `workspace_brief` 與 `commit_preflight` 高階 MCP 工具說明，並同步測試數 123 passed 與架構樹新檔案。
+- L04: (2026-05-14) CHANGELOG 已新增 2026-05-14 治理工具、依賴衰減、MCP 版本同步與 GitNexus CLI 修復紀錄。
 
 ## Relations
 

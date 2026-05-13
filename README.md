@@ -3,7 +3,7 @@
 > **現實感知 AI 記憶防禦引擎** — 自動偵測記憶卡過期、幽靈檔案、跨模組依賴傳播，確保 AI 不讀取失效的上下文。
 
 [![version](https://img.shields.io/badge/version-4.1.1-blue)](./CHANGELOG.md)
-[![tests](https://img.shields.io/badge/tests-112%20passed-brightgreen)](#-執行測試)
+[![tests](https://img.shields.io/badge/tests-123%20passed-brightgreen)](#-執行測試)
 [![license](https://img.shields.io/badge/license-MIT-green)](#)
 
 ---
@@ -39,7 +39,7 @@ Cartridge System 是一個為 [Antigravity 框架](https://github.com/Kunshao111
 | 🟢 **狀態列燈號** | VS Code 狀態列即時顯示記憶卡指標（五層等級：🟢🔵🟡🟠🔴）以及 👻 幽靈計數 |
 | 🌳 **TreeView 面板**| 記憶卡匣專屬側邊欄，樹狀可視化呈現所有健康指標、幽靈池與 💀 幽靈檔案 |
 | 🔍 **CodeLens 標記**| 編輯器頂部行內標記，即時顯示當前檔案所屬的記憶卡與過期狀態 |
-| 🛠️ **MCP 工具介面** | 提供五個標準化 AI 工具（純讀取 + 後設同步 + 依賴查詢），支援跨專案動態路徑解析 |
+| 🛠️ **MCP 工具介面** | 提供七個標準化 AI 工具（純讀取 + 後設同步 + 依賴查詢 + 高階治理入口），支援跨專案動態路徑解析 |
 | 🌐 **跨平台相容** | 完整支援 Windows CRLF 與 Unix LF 行尾格式 |
 | 🛡️ **路徑安全防禦** | 雙層路徑驗證（Zod 格式守衛 + 語意守衛），阻擋路徑穿越攻擊 |
 | 🌲 **巢狀目錄掃描** | 支援最大 4 層深度的記憶卡樹狀結構，目錄結構即層級 |
@@ -106,6 +106,8 @@ Cartridge System 提供 MCP（Model Context Protocol）工具伺服器，供 AI 
 | `memory_status` | 查詢過期修復診斷：過期指數、待處理異動、**幽靈檔案清單**及清理行動指引 |
 | `memory_commit` | AI 寫入 SKILL.md 後呼叫，自動完成：時間戳注入、staleness 歸零、索引同步、**幽靈清除**。**v4.1.1 強化格式容錯與 I/O 防護**。 |
 | `memory_deps` | **v4.0 新增** — 查詢卡匣依賴拓樸：上游依賴、下游被依賴者、間接過期指數、循環依賴警告 |
+| `workspace_brief` | **v4.1.1 新增** — 彙整專案身份、記憶卡健康、stale/ghost/untracked 狀態與建議下一步，作為 AI 開工前高階入口 |
+| `commit_preflight` | **v4.1.1 新增** — 提交前治理檢查，彙整 git dirty state、記憶卡健康阻塞、建議行動與驗證命令 |
 
 ### 跨專案支援
 
@@ -131,6 +133,18 @@ memory_deps({
   projectRoot: 'D:\\cartridge_system'
 })
 // → 回傳 dependencies（依賴誰）、dependents（誰依賴我）、indirectStaleness
+
+// AI 開工前摘要
+workspace_brief({
+  projectRoot: 'D:\\cartridge_system'
+})
+// → 回傳專案身份、記憶卡健康摘要、readiness 與 recommendedActions
+
+// 提交前治理檢查
+commit_preflight({
+  projectRoot: 'D:\\cartridge_system'
+})
+// → 回傳 ready/blocked、git dirty state、阻塞原因與建議驗證命令
 
 // ✅ 推薦流程：先用原生工具寫入 SKILL.md，再呼叫 memory_commit 同步
 memory_commit({
@@ -166,19 +180,19 @@ npm test
 npm run test:watch
 ```
 
-測試涵蓋 9 個測試檔案（**112 個案例**）：
+測試涵蓋 9 個測試檔案（**123 個案例**）：
 
 | 測試模組 | 案例數 | 涵蓋範圍 |
 |----------|--------|----------|
 | 索引管理器 | 18 | 掃描、addPendingChange 去重、getChildren、resolveModulePath |
-| MCP 工具介面 | 41 | 正常流程、路徑穿越防禦、時間戳驗證、過期狀態診斷、memory_commit 後設同步、**標題錯字偵測 (HEADING_TYPO)**、**路徑格式驗證 (PATH_ABSOLUTE / PATH_TRAVERSAL)**、**警告區塊自動清除** |
+| MCP 工具介面 | 51 | 正常流程、路徑穿越防禦、時間戳驗證、過期狀態診斷、memory_commit 後設同步、workspace_brief 專案健康摘要、commit_preflight 提交前治理檢查、**標題錯字偵測 (HEADING_TYPO)**、**路徑格式驗證 (PATH_ABSOLUTE / PATH_TRAVERSAL)**、**警告區塊自動清除** |
 | 過期分析器 | 11 | 過期等級四分支、三種事件計分、閾值觸發 |
 | 路徑安全驗證 | 8 | 絕對/相對路徑、穿越攻擊拒絕 |
 | 時間戳格式 | 3 | ISO 8601 格式、台灣時區後綴 |
 | 離線變動偵測 | 10 | 啟動校驗、目錄跳過、去重、幽靈標記 |
 | 警報寫入器 | 9 | 冪等植入、條件式清除、狀態回復 |
 | import 掃描器 | 5 | ES/動態/CJS 語法擷取、去重、node_modules 過濾 |
-| 依賴傳播引擎 | 7 | 反向圖建構、BFS 傳播深度、循環偵測 |
+| 依賴傳播引擎 | 8 | 反向圖建構、BFS 傳播深度、平方衰減權重、循環偵測 |
 
 ---
 
@@ -190,6 +204,10 @@ cartridge_system/
 │   ├── extension.ts          # VS Code 外掛入口與狀態列
 │   ├── mcp-server.ts         # MCP 伺服器路由（SDK 層）
 │   ├── mcp-handlers.ts       # MCP 工具商業邏輯（純函式層）
+│   ├── workspace-brief.ts    # 高階開工摘要工具（MCP handler）
+│   ├── workspace-brief-summary.ts # 專案健康摘要規則引擎
+│   ├── commit-preflight.ts   # 提交前治理檢查工具（MCP handler）
+│   ├── commit-preflight-summary.ts # 提交阻塞與建議行動規則引擎
 │   ├── index-manager.ts      # 記憶索引管理器（路徑掃描 + 反向映射 + 依賴推導）
 │   ├── import-resolver.ts    # 🆕 輕量 import 路徑掃描器（ES/動態/CJS）
 │   ├── dependency-propagator.ts # 🆕 依賴圖引擎（建構 + 傳播 + 循環偵測）
@@ -204,7 +222,7 @@ cartridge_system/
 │   ├── path-guard.ts         # 路徑安全驗證（雙層防禦）
 │   ├── timestamp.ts          # 時間戳生成（Intl API）
 │   ├── types.ts              # 共用型別定義（含 ghostFiles、dependencies）
-│   └── tests/                # vitest 單元測試（9 檔 112 案例）
+│   └── tests/                # vitest 單元測試（9 檔 123 案例）
 ├── .agents/
 │   ├── memory/               # 記憶卡匣（獨立目錄）
 │   │   ├── _system/          # 系統記憶

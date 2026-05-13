@@ -75,6 +75,18 @@ describe("propagateStaleness — 過期傳播", () => {
     expect(result.has("A")).toBe(false);
   });
 
+  it("深度 2 傳播應使用平方衰減", () => {
+    const graph = makeGraph({ A: ["B"], B: ["C"], C: [] });
+    const index = makeIndex({
+      A: { staleness: 0 },
+      B: { staleness: 0 },
+      C: { staleness: 20 },
+    });
+    const result = propagateStaleness(index, graph, 2);
+    expect(result.get("B")).toBe(20);
+    expect(result.get("A")).toBe(5);
+  });
+
   it("無過期卡匣時回傳空 Map", () => {
     const graph = makeGraph({ A: ["B"], B: [] });
     const index = makeIndex({ A: { staleness: 0 }, B: { staleness: 0 } });

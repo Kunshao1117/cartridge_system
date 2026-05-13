@@ -37,6 +37,10 @@
       {
         "command": "cartridge.attributeFile",
         "title": "記憶卡匣：歸屬到記憶卡…"
+      },
+      {
+        "command": "cartridge.showGhostFileInfo",
+        "title": "記憶卡匣：查看幽靈詳情"
       }
     ],
     "views": {

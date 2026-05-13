@@ -15,3 +15,6 @@ dist/
 AGENTS.md
 CLAUDE.md
 .vscode/
+.agents/logs/
+.codex/
+.cartridge/

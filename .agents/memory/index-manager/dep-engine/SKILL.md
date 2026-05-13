@@ -2,7 +2,7 @@
 name: dep-engine
 description: |
   專案記憶：依賴推導引擎模組。 Use when: 處理模組間 import 掃描、依賴圖建構、間接過期傳播與循環偵測時載入。
-last_updated: '2026-05-06T07:36:05+08:00'
+last_updated: '2026-05-14T00:32:56+08:00'
 status: stable
 staleness: 0
 dependencies:
@@ -35,6 +35,7 @@ metadata:
 - D05: 間接過期傳播採 BFS 演算法，深度由 `config.dependencyDepth`（預設 2）控制，衰減比例為 `1 / (depth^2)` 四捨五入取整
 - D06: 循環依賴偵測採 DFS + visited Set，偵測到循環時不拋出錯誤而是記錄警告字串陣列回傳給呼叫端
 - D07: 動態 `import()` 載入 — 為防止頂層循環依賴，`mcp-handlers.ts` 中的 `handleMemoryDeps` 採用 `await import()` 非同步載入本模組
+- D08: depth=2 間接過期傳播需由回歸測試鎖定平方衰減；staleness 20 在第二層應傳播為 5。
 
 ## Known Issues
 
@@ -44,6 +45,7 @@ metadata:
 
 - L01: (2026-05-06) BFS 傳播時需對 `indirectStaleness` 做 Math.round()，避免浮點數汙染 JSON 持久化格式
 - L02: (2026-05-06) 循環偵測必須在建構依賴圖後立即執行，而非延遲至傳播階段，否則無窮迴圈會在 BFS 中先行觸發
+- L03: (2026-05-14) 文件記載的 `1 / (depth^2)` 必須有 depth=2 具體數值測試，否則 `1 / depth` 這類弱化衰減會通過只檢查大於 0 的測試。
 
 ## Relations
 

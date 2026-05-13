@@ -11,11 +11,13 @@ import {
   handleMemoryCommit,
   handleMemoryDeps,
 } from "./mcp-handlers.js";
+import { handleWorkspaceBrief } from "./workspace-brief.js";
+import { handleCommitPreflight } from "./commit-preflight.js";
 
 const server = new Server(
   {
     name: "cartridge-system",
-    version: "4.0.0",
+    version: "4.1.1",
   },
   {
     capabilities: {
@@ -116,6 +118,36 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
           required: ["moduleName", "projectRoot"],
         },
       },
+      {
+        name: "workspace_brief",
+        description:
+          "彙整專案治理狀態：專案身份、記憶卡健康、stale/ghost/untracked 狀態與建議下一步。作為 AI 開工前的高階入口。",
+        inputSchema: {
+          type: "object",
+          properties: {
+            projectRoot: {
+              type: "string",
+              description: "目標專案的根目錄絕對路徑",
+            },
+          },
+          required: ["projectRoot"],
+        },
+      },
+      {
+        name: "commit_preflight",
+        description:
+          "提交前治理檢查：彙整 git dirty state、記憶卡健康狀態、阻塞原因與建議提交前動作。",
+        inputSchema: {
+          type: "object",
+          properties: {
+            projectRoot: {
+              type: "string",
+              description: "目標專案的根目錄絕對路徑",
+            },
+          },
+          required: ["projectRoot"],
+        },
+      },
     ],
   };
 });
@@ -144,6 +176,14 @@ server.setRequestHandler(
 
     if (name === "memory_deps") {
       return handleMemoryDeps(args);
+    }
+
+    if (name === "workspace_brief") {
+      return handleWorkspaceBrief(args);
+    }
+
+    if (name === "commit_preflight") {
+      return handleCommitPreflight(args);
     }
 
     return {

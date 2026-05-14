@@ -3,7 +3,7 @@ name: workspace-brief
 description: >
   專案記憶：workspace_brief 高階治理摘要工具。Use when: 處理 AI 開工摘要、記憶卡健康彙整、readiness
   判斷與建議行動排序時載入。
-last_updated: '2026-05-14T21:11:36+08:00'
+last_updated: '2026-05-14T21:25:25+08:00'
 status: stable
 staleness: 0
 dependencies:
@@ -37,6 +37,7 @@ metadata:
 - D06: readiness reasons 會轉成 warning findings，讓 AI 或未來 UI 可直接顯示具體阻擋原因。
 - D07: 父卡 `mcp-tools` 改為 Relations 導覽，不再寫入 `dependencies`；本卡僅依賴 `mcp-tools.tool-registry` 提供的 envelope 契約。
 - D08: `workspace_brief` 會在 memory summary 中揭露 dependencies 總邊數；語義可疑判斷留給能讀完整 SKILL.md 內文的 `memory_commit`，避免 index-only 摘要誤報合法父子工程依賴。
+- D09: `workspace_brief` 新增 `submitReadiness`；記憶健康阻擋時回 `blocked`，記憶健康乾淨時回 `needs_review` 並指向 `commit_preflight`，避免在未讀 git state 時宣稱可提交。
 
 ## Known Issues
 
@@ -48,6 +49,7 @@ metadata:
 - L02: 超過 8 檔粒度上限時，應優先建立子卡承接新功能，而不是把父卡繼續擴大。
 - L03: `Relations` 可提示 AI 讀父卡取得脈絡，但不應觸發 staleness propagation。
 - L04: workspace 摘要只做 index 層可見的輕量拓樸提示，不讀取所有 SKILL.md，避免開工入口變慢，也避免在缺少依賴理由內文時誤判。
+- L05: workspace_brief 可提示提交前下一步，但不應取代 commit_preflight；只要沒有讀取 git state，就只能給 needs_review 而非 ready-to-submit。
 
 ## Relations
 

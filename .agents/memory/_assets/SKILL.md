@@ -3,7 +3,7 @@ name: _assets
 scopePath: null
 description: |
   專案記憶：靜態檔案與一般文檔收納。 Use when: 處理不需要業務邏輯追蹤的靜態圖檔、授權文件或更新日誌等。
-last_updated: '2026-05-14T21:14:49+08:00'
+last_updated: '2026-05-14T21:27:43+08:00'
 status: stable
 staleness: 0
 metadata:
@@ -43,6 +43,8 @@ metadata:
 - L07: (2026-05-14) README 已同步 MCP dispatcher、`memory_commit confirm: true` 防線、測試數 133 passed 與 dispatcher 架構樹。
 - L08: (2026-05-14) README 已同步 dependencies 語義警告、測試數 141 passed、dependency-semantics 架構檔、workspace_brief 依賴健康摘要，以及 memory_commit 未歸屬池清理與間接過期重算行為。
 - L09: (2026-05-14) CHANGELOG 已同步 MCP 工具防線、記憶依賴語義警告與 141 測試案例紀錄。
+- L10: (2026-05-14) README 已同步 MCP 分層摘要、workspace submitReadiness、commit_preflight dependency semantics 摘要與測試數 143 passed。
+- L11: (2026-05-14) CHANGELOG 已補充 MCP 操作摘要強化，涵蓋 memory_deps 分層、workspace submitReadiness 與 commit_preflight dependency semantics 摘要。
 
 ## Relations
 

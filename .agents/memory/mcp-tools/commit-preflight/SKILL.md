@@ -3,7 +3,7 @@ name: commit-preflight
 description: >
   專案記憶：commit_preflight 提交前治理檢查工具。Use when: 處理 git dirty state、記憶卡健康阻塞、
   提交前建議動作與收尾治理決策時載入。
-last_updated: '2026-05-14T15:45:06+08:00'
+last_updated: '2026-05-14T21:26:58+08:00'
 status: stable
 staleness: 0
 dependencies:
@@ -17,6 +17,7 @@ metadata:
     - 'filesystem:read'
     - 'filesystem:write'
 ---
+
 # Commit Preflight — 提交前治理檢查記憶
 
 > 本模組提供 `commit_preflight` MCP 工具的提交前決策邏輯，作為 `workspace_brief` 之後的收尾治理入口。
@@ -35,6 +36,7 @@ metadata:
 - D05: Handler 回傳改用 `mcp-response.ts` envelope，外層 status 與 preflight status 同步，原本 preflight 內容保留在 `summary` 欄位。
 - D06: blockers 會轉成 error findings，讓 AI 或未來 UI 可直接顯示提交前阻擋原因。
 - D07: 父卡 `mcp-tools` 改為 Relations 導覽，不再寫入 `dependencies`；本卡僅依賴 `mcp-tools.tool-registry` 提供的 envelope 契約。
+- D08: `commit_preflight` 會針對 git dirty 相關記憶卡執行 best-effort dependency semantics 摘要，將可疑 dependencies 轉為 warning findings；此檢查不改變 blocked/ready 判斷。
 
 ## Known Issues
 
@@ -44,6 +46,8 @@ metadata:
 
 - L01: 提交前治理工具應先回答「是否可提交與被什麼擋住」，驗證命令可以列為下一步，不應在第一版查詢工具中隱性執行。
 - L02: `Relations` 可描述 workspace_brief 前置入口與父卡脈絡，但不應被用於依賴傳播。
+- L03: dependency semantics 屬提交前輔助訊號，應只掃 dirty 相關卡片並保持 warning-only，避免 preflight 變成昂貴全專案語義審計。
+- L04: dependency semantics 摘要必須讀取 dirty 卡片的 SKILL.md frontmatter；不可使用索引中的 dependencies，因其可能混入工程自動推導依賴。
 
 ## Relations
 

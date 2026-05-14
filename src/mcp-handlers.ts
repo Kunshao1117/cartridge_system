@@ -894,12 +894,69 @@ export async function handleMemoryDeps(args: unknown): Promise<McpToolResult> {
 
     const dependencies = graph.get(moduleName) ?? [];
     const dependents = reverseGraph.get(moduleName) ?? [];
+    let frontmatterDependencies: string[] = [];
+    try {
+      const rawSkill = await fs.readFile(
+        path.join(normalizedPath, entry.skillPath),
+        "utf-8",
+      );
+      const { data } = matter(rawSkill);
+      frontmatterDependencies = Array.isArray(data.dependencies)
+        ? data.dependencies.filter(
+            (dependency): dependency is string =>
+              typeof dependency === "string" && dependency.trim().length > 0,
+          )
+        : [];
+    } catch {
+      frontmatterDependencies = entry.dependencies ?? [];
+    }
     const cycles = detectCycles(graph).filter((c: string[]) =>
       c.includes(moduleName),
     );
+    const findings = [
+      ...(cycles.length > 0
+        ? [
+            {
+              severity: "warning",
+              code: "dependency_cycle_detected",
+              message: `偵測到 ${cycles.length} 組循環依賴`,
+            },
+          ]
+        : []),
+      ...((entry.indirectStaleness ?? 0) > 0
+        ? [
+            {
+              severity: "warning",
+              code: "indirect_staleness",
+              message: `上游依賴傳播間接過期指數 ${entry.indirectStaleness ?? 0}`,
+            },
+          ]
+        : []),
+    ];
 
     const result = {
       module: moduleName,
+      summary: {
+        status: findings.length > 0 ? "warning" : "ready",
+        engineeringDependencies: dependencies.length,
+        engineeringDependents: dependents.length,
+        frontmatterDependencies: frontmatterDependencies.length,
+        indirectStaleness: entry.indirectStaleness ?? 0,
+        cycleCount: cycles.length,
+      },
+      engineeringGraph: {
+        dependencies,
+        dependents,
+      },
+      frontmatterGraph: {
+        dependencies: frontmatterDependencies,
+      },
+      staleness: {
+        direct: entry.staleness ?? 0,
+        indirect: entry.indirectStaleness ?? 0,
+      },
+      findings,
+      // Legacy fields kept for existing callers.
       dependencies,
       dependents,
       indirectStaleness: entry.indirectStaleness ?? 0,

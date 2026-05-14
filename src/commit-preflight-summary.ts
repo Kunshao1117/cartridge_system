@@ -1,11 +1,15 @@
 export interface PreflightCartridgeEntry {
+  skillPath?: string;
   staleness?: number;
   ghostFiles?: unknown[];
   indirectStaleness?: number;
+  parent?: string | null;
+  dependencies?: string[];
 }
 
 export interface PreflightIndex {
   cartridges?: Record<string, PreflightCartridgeEntry>;
+  fileMap?: Record<string, string[]>;
   untrackedFiles?: unknown[];
 }
 
@@ -34,6 +38,16 @@ type RecommendedAction = {
   target: string;
   reason: string;
 };
+
+export interface DependencySemanticSummaryItem {
+  module: string;
+  codes: string[];
+}
+
+export interface DependencySemanticSummary {
+  warnings: number;
+  modules: DependencySemanticSummaryItem[];
+}
 
 export function parseGitStatusPorcelain(output: string): GitStatusEntry[] {
   return output
@@ -182,6 +196,10 @@ function buildSuggestedCommands() {
 export function buildCommitPreflight(
   index: PreflightIndex,
   gitStatus: GitStatusEntry[],
+  dependencySemantics: DependencySemanticSummary = {
+    warnings: 0,
+    modules: [],
+  },
 ) {
   const memory = buildMemoryGate(index);
   const git = buildGitGate(gitStatus);
@@ -191,6 +209,7 @@ export function buildCommitPreflight(
     summary: {
       memory: memory.summary,
       git: git.summary,
+      dependencySemantics,
     },
     blockers,
     recommendedActions: buildRecommendedActions(memory, git),

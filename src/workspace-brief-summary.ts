@@ -30,6 +30,12 @@ type RecommendedAction = {
   reason: string;
 };
 
+type SubmitReadiness = {
+  status: "ready" | "needs_review" | "blocked";
+  reasons: string[];
+  nextTool: "commit_preflight" | null;
+};
+
 function buildMemorySummary(index: BriefIndex) {
   const cartridges = Object.entries(index.cartridges ?? {});
   const byScore = <T extends { score: number }>(items: T[]) =>
@@ -100,6 +106,27 @@ function buildReadiness(memory: ReturnType<typeof buildMemorySummary>) {
   return { status: reasons.length > 0 ? "blocked" : "ready", reasons };
 }
 
+function buildSubmitReadiness(
+  readiness: ReturnType<typeof buildReadiness>,
+): SubmitReadiness {
+  if (readiness.status === "blocked") {
+    return {
+      status: "blocked",
+      reasons: readiness.reasons,
+      nextTool: null,
+    };
+  }
+
+  return {
+    status: "needs_review",
+    reasons: [
+      "workspace_brief does not inspect git state",
+      "run commit_preflight before committing",
+    ],
+    nextTool: "commit_preflight",
+  };
+}
+
 function buildRecommendedActions(index: BriefIndex): RecommendedAction[] {
   const actions: RecommendedAction[] = [];
   for (const [module, entry] of Object.entries(index.cartridges ?? {})) {
@@ -136,10 +163,12 @@ function buildRecommendedActions(index: BriefIndex): RecommendedAction[] {
 
 export function buildWorkspaceBrief(project: ProjectSummary, index: BriefIndex) {
   const memory = buildMemorySummary(index);
+  const readiness = buildReadiness(memory);
   return {
     project,
     memory,
-    readiness: buildReadiness(memory),
+    readiness,
+    submitReadiness: buildSubmitReadiness(readiness),
     recommendedActions: buildRecommendedActions(index),
   };
 }

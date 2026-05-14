@@ -2,6 +2,8 @@ import { execFile } from "child_process";
 import * as fs from "fs/promises";
 import * as path from "path";
 import * as z from "zod";
+import matter from "gray-matter";
+import { validateDependencySemantics } from "./dependency-semantics.js";
 import { validateProjectRoot } from "./path-guard.js";
 import { type McpToolResult } from "./mcp-handlers.js";
 import {
@@ -14,6 +16,7 @@ import {
 import {
   buildCommitPreflight,
   parseGitStatusPorcelain,
+  type DependencySemanticSummary,
   type PreflightIndex,
 } from "./commit-preflight-summary.js";
 
@@ -37,6 +40,16 @@ function blockersToFindings(
     severity: "error",
     code: blocker.type,
     message: `${blocker.target}: ${blocker.reason}`,
+  }));
+}
+
+function dependencySemanticsToFindings(
+  summary: DependencySemanticSummary,
+): CartridgeFinding[] {
+  return summary.modules.map((item) => ({
+    severity: "warning",
+    code: "dependency_semantics_warning",
+    message: `${item.module}: ${item.codes.join(", ")}`,
   }));
 }
 
@@ -70,6 +83,73 @@ async function readGitStatus(projectRoot: string) {
   return parseGitStatusPorcelain(stdout);
 }
 
+function getDirtyMemoryModules(
+  index: PreflightIndex,
+  gitStatus: Array<{ path: string }>,
+): string[] {
+  const modules = new Set<string>();
+  for (const entry of gitStatus) {
+    for (const owner of index.fileMap?.[entry.path] ?? []) {
+      modules.add(owner);
+    }
+    for (const [moduleName, cartridge] of Object.entries(
+      index.cartridges ?? {},
+    )) {
+      if (cartridge.skillPath === entry.path) {
+        modules.add(moduleName);
+      }
+    }
+  }
+  return [...modules];
+}
+
+async function buildDependencySemanticSummary(
+  projectRoot: string,
+  index: PreflightIndex,
+  gitStatus: Array<{ path: string }>,
+): Promise<DependencySemanticSummary> {
+  const modules = getDirtyMemoryModules(index, gitStatus);
+  const items: DependencySemanticSummary["modules"] = [];
+  let warningCount = 0;
+
+  for (const moduleName of modules) {
+    const entry = index.cartridges?.[moduleName];
+    if (!entry?.skillPath) continue;
+
+    try {
+      const raw = await fs.readFile(path.join(projectRoot, entry.skillPath), "utf-8");
+      const { content: body, data } = matter(raw);
+      const dependencies = Array.isArray(data.dependencies)
+        ? data.dependencies.filter(
+            (dependency): dependency is string =>
+              typeof dependency === "string" && dependency.trim().length > 0,
+          )
+        : [];
+      if (dependencies.length === 0) continue;
+      const warnings = validateDependencySemantics({
+        moduleName,
+        dependencies,
+        body,
+        parent: entry.parent ?? null,
+      });
+      if (warnings.length > 0) {
+        warningCount += warnings.length;
+        items.push({
+          module: moduleName,
+          codes: [...new Set(warnings.map((warning) => warning.code))],
+        });
+      }
+    } catch {
+      /* Dependency semantic summary is best-effort and must not block preflight. */
+    }
+  }
+
+  return {
+    warnings: warningCount,
+    modules: items,
+  };
+}
+
 export async function handleCommitPreflight(
   args: unknown,
 ): Promise<McpToolResult> {
@@ -92,7 +172,16 @@ export async function handleCommitPreflight(
       readCartridgeIndex(projectRoot),
       readGitStatus(projectRoot),
     ]);
-    const preflight = buildCommitPreflight(index, gitStatus);
+    const dependencySemantics = await buildDependencySemanticSummary(
+      projectRoot,
+      index,
+      gitStatus,
+    );
+    const preflight = buildCommitPreflight(
+      index,
+      gitStatus,
+      dependencySemantics,
+    );
     return toMcpTextResult(
       createToolEnvelope({
         tool: TOOL_NAME,
@@ -100,7 +189,10 @@ export async function handleCommitPreflight(
         projectRoot,
         status: preflight.status as CartridgeToolStatus,
         summary: preflight,
-        findings: blockersToFindings(preflight.blockers),
+        findings: [
+          ...blockersToFindings(preflight.blockers),
+          ...dependencySemanticsToFindings(dependencySemantics),
+        ],
         recommendedActions: preflight.recommendedActions,
       }),
     );

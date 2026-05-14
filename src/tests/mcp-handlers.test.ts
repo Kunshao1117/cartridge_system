@@ -477,6 +477,8 @@ describe("handleWorkspaceBrief", () => {
     expect(brief.memory.dependencies.totalEdges).toBe(1);
     expect(brief.readiness.status).toBe("blocked");
     expect(brief.readiness.reasons).toContain("_system staleness=10");
+    expect(brief.submitReadiness.status).toBe("blocked");
+    expect(brief.submitReadiness.nextTool).toBeNull();
     expect(brief.recommendedActions[0].priority).toBe("P1");
   });
 
@@ -511,6 +513,8 @@ describe("handleWorkspaceBrief", () => {
     expect(envelope.status).toBe("ready");
     expect(brief.readiness.status).toBe("ready");
     expect(brief.readiness.reasons).toEqual([]);
+    expect(brief.submitReadiness.status).toBe("needs_review");
+    expect(brief.submitReadiness.nextTool).toBe("commit_preflight");
     expect(brief.recommendedActions).toEqual([]);
   });
 
@@ -612,6 +616,7 @@ describe("handleCommitPreflight", () => {
     expect(preflight.status).toBe("ready");
     expect(preflight.blockers).toEqual([]);
     expect(preflight.summary.git.dirty).toBe(false);
+    expect(preflight.summary.dependencySemantics.warnings).toBe(0);
   });
 
   it("記憶卡健康問題與 git dirty state 應回傳 blocked", async () => {
@@ -650,6 +655,7 @@ describe("handleCommitPreflight", () => {
     expect(preflight.summary.git.dirty).toBe(true);
     expect(preflight.summary.git.modified).toBe(1);
     expect(preflight.summary.git.untracked).toBe(1);
+    expect(preflight.summary.dependencySemantics.warnings).toBe(0);
     expect(
       preflight.blockers.some(
         (blocker: { type: string }) => blocker.type === "git_dirty",
@@ -688,6 +694,73 @@ describe("handleCommitPreflight", () => {
 
     expect(result.isError).toBe(true);
     expect(result.content[0].text).toContain("git status failed");
+  });
+
+  it("dirty 記憶卡的 dependencies 語義 warning 應彙整為非阻擋 finding", async () => {
+    const indexData = {
+      cartridges: {
+        "mcp-tools.dispatcher": {
+          skillPath: ".agents/memory/mcp-tools/dispatcher/SKILL.md",
+          staleness: 0,
+          ghostFiles: [],
+          indirectStaleness: 0,
+          parent: "mcp-tools",
+          dependencies: ["mcp-tools"],
+        },
+      },
+      fileMap: {},
+      untrackedFiles: [],
+    };
+    const skillData = `---
+name: mcp-tools.dispatcher
+description: test
+dependencies:
+  - mcp-tools
+---
+
+## Tracked Files
+
+- src/tool-dispatcher.ts
+
+## Key Decisions
+
+- D01: Dispatcher routes tools.
+
+## Relations
+
+- mcp-tools（父卡）
+`;
+
+    vi.mocked(fs.readFile).mockImplementation(async (filePath) => {
+      const fp = filePath as string;
+      if (fp.includes("index.json")) {
+        return JSON.stringify(indexData) as unknown as Awaited<
+          ReturnType<typeof fs.readFile>
+        >;
+      }
+      if (fp.includes("dispatcher") && fp.endsWith("SKILL.md")) {
+        return skillData as unknown as Awaited<ReturnType<typeof fs.readFile>>;
+      }
+      throw new Error("unexpected path");
+    });
+    mockGitStatus(" M .agents/memory/mcp-tools/dispatcher/SKILL.md\n");
+
+    const result = await handleCommitPreflight({ projectRoot: PROJECT_ROOT });
+    const envelope = JSON.parse(result.content[0].text);
+    const preflight = envelope.summary;
+
+    expect(envelope.status).toBe("blocked");
+    expect(preflight.summary.dependencySemantics.warnings).toBeGreaterThan(0);
+    expect(preflight.summary.dependencySemantics.modules[0].module).toBe(
+      "mcp-tools.dispatcher",
+    );
+    expect(
+      envelope.findings.some(
+        (finding: { code: string; severity: string }) =>
+          finding.code === "dependency_semantics_warning" &&
+          finding.severity === "warning",
+      ),
+    ).toBe(true);
   });
 });
 

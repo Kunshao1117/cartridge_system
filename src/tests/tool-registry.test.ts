@@ -34,5 +34,9 @@ describe("tool-registry — MCP 工具名冊", () => {
     expect(memoryCommit?.readOnly).toBe(false);
     expect(memoryCommit?.risk).toBe("high");
     expect(memoryCommit?.requiresExplicitApproval).toBe(true);
+    expect(memoryCommit?.inputSchema.required).toContain("confirm");
+    expect(memoryCommit?.inputSchema.properties.confirm).toEqual(
+      expect.objectContaining({ type: "boolean" }),
+    );
   });
 });

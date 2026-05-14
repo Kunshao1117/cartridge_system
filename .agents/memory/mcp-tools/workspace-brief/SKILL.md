@@ -3,11 +3,10 @@ name: workspace-brief
 description: >
   專案記憶：workspace_brief 高階治理摘要工具。Use when: 處理 AI 開工摘要、記憶卡健康彙整、readiness
   判斷與建議行動排序時載入。
-last_updated: '2026-05-14T14:38:41+08:00'
+last_updated: '2026-05-14T21:11:36+08:00'
 status: stable
 staleness: 0
 dependencies:
-  - mcp-tools
   - mcp-tools.tool-registry
 metadata:
   author: antigravity
@@ -18,6 +17,7 @@ metadata:
     - 'filesystem:read'
     - 'filesystem:write'
 ---
+
 # Workspace Brief — 高階治理摘要記憶
 
 > 本模組提供 `workspace_brief` MCP 工具的摘要彙整邏輯，作為 AI 進入專案時的高階開工入口。
@@ -35,6 +35,8 @@ metadata:
 - D04: recommendedActions 以 P1/P2 排序，優先處理 significant stale、ghost files 與 untracked files，讓 AI 能直接判斷下一步。
 - D05: Handler 回傳改用 `mcp-response.ts` envelope，外層提供 status、summary、findings、recommendedActions 與 metadata；原本的 brief 內容保留在 `summary` 欄位。
 - D06: readiness reasons 會轉成 warning findings，讓 AI 或未來 UI 可直接顯示具體阻擋原因。
+- D07: 父卡 `mcp-tools` 改為 Relations 導覽，不再寫入 `dependencies`；本卡僅依賴 `mcp-tools.tool-registry` 提供的 envelope 契約。
+- D08: `workspace_brief` 會在 memory summary 中揭露 dependencies 總邊數；語義可疑判斷留給能讀完整 SKILL.md 內文的 `memory_commit`，避免 index-only 摘要誤報合法父子工程依賴。
 
 ## Known Issues
 
@@ -44,6 +46,8 @@ metadata:
 
 - L01: 高階 MCP 工具應避免在查詢型摘要中執行隱性掃描或外部命令，否則會讓 AI 開工入口變慢且難以預測。
 - L02: 超過 8 檔粒度上限時，應優先建立子卡承接新功能，而不是把父卡繼續擴大。
+- L03: `Relations` 可提示 AI 讀父卡取得脈絡，但不應觸發 staleness propagation。
+- L04: workspace 摘要只做 index 層可見的輕量拓樸提示，不讀取所有 SKILL.md，避免開工入口變慢，也避免在缺少依賴理由內文時誤判。
 
 ## Relations
 

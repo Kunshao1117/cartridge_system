@@ -3,7 +3,7 @@ name: _assets
 scopePath: null
 description: |
   專案記憶：靜態檔案與一般文檔收納。 Use when: 處理不需要業務邏輯追蹤的靜態圖檔、授權文件或更新日誌等。
-last_updated: '2026-05-14T14:54:45+08:00'
+last_updated: '2026-05-14T21:14:49+08:00'
 status: stable
 staleness: 0
 metadata:
@@ -40,6 +40,9 @@ metadata:
 - L04: (2026-05-14) CHANGELOG 已新增 2026-05-14 治理工具、依賴衰減、MCP 版本同步與 GitNexus CLI 修復紀錄。
 - L05: (2026-05-14) README 已同步 MCP 工具名冊、統一治理回傳 envelope、測試數 128 passed 與新架構檔案。
 - L06: (2026-05-14) CHANGELOG 已補充 MCP 工具名冊、治理回傳契約與 128 測試案例紀錄。
+- L07: (2026-05-14) README 已同步 MCP dispatcher、`memory_commit confirm: true` 防線、測試數 133 passed 與 dispatcher 架構樹。
+- L08: (2026-05-14) README 已同步 dependencies 語義警告、測試數 141 passed、dependency-semantics 架構檔、workspace_brief 依賴健康摘要，以及 memory_commit 未歸屬池清理與間接過期重算行為。
+- L09: (2026-05-14) CHANGELOG 已同步 MCP 工具防線、記憶依賴語義警告與 141 測試案例紀錄。
 
 ## Relations
 

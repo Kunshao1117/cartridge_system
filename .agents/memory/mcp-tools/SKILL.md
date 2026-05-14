@@ -2,13 +2,10 @@
 name: mcp-tools
 description: |
   專案記憶：MCP 工具介面模組（第三階段）。 Use when: 處理MCP伺服器註冊、工具路由、AI工具呼叫介面時載入。
-last_updated: '2026-05-14T14:38:41+08:00'
+last_updated: '2026-05-14T15:45:06+08:00'
 status: stable
 staleness: 0
-dependencies:
-  - mcp-tools.tool-registry
-  - index-manager
-  - core-types
+dependencies: null
 metadata:
   author: antigravity
   version: '4.1'
@@ -33,13 +30,7 @@ metadata:
 
 ## Tracked Files
 
-- src/mcp-server.ts
-- src/mcp-handlers.ts
-- src/path-guard.ts
-- src/timestamp.ts
-- src/tests/mcp-handlers.test.ts
-- src/tests/path-guard.test.ts
-- src/tests/timestamp.test.ts
+（父層總覽卡，不直接追蹤實作檔案；實作檔案由子卡承接）
 
 ## Key Decisions
 
@@ -70,6 +61,8 @@ metadata:
 - D39: `commit_preflight` 是提交前治理入口工具；工具註冊與 MCP routing 歸屬本卡，git dirty state 與 memory blockers 摘要邏輯下放至 `mcp-tools.commit-preflight` 子卡。
 - D40: 新增 `mcp-tools.tool-registry` 子卡承接 MCP 工具名冊與統一回傳契約，避免主卡追蹤檔案超過 8 檔粒度上限。
 - D41: `mcp-server.ts` 的工具公開清單改由 `CARTRIDGE_TOOLS` 生成；主卡仍保留 server routing 職責，工具治理 metadata 下放子卡。
+- D42: `mcp-server.ts` 的工具呼叫路由改由 `dispatchToolCall()` 統一分派；server 層只保留 SDK request handler 與 registry-driven list tools。
+- D43: 依照新版核心規範，`mcp-tools` 轉為父層總覽卡，不再以 `dependencies` 表示父子導覽關係；實作檔案下放至 `mcp-tools.server`、`mcp-tools.handlers`、`mcp-tools.dispatcher` 與 `mcp-tools.tool-registry` 等子卡。
 
 ## Known Issues
 
@@ -91,14 +84,18 @@ metadata:
 - L09: (2026-05-08) 標題精確匹配應使用 `/^## Tracked Files\s*$/m` 而非 `includes()`，`includes` 無法偵測尾部附加字元的情境。
 - L10: (2026-05-08) 警告不阻斷設計原則 — HEADING_TYPO、PATH_ABSOLUTE、PATH_TRAVERSAL 均回傳 warnings 而非 isError，保持 commit 成功執行，讓 AI 有機會讀取警告後自行修正。
 - L11: (2026-05-14) mcp-server.ts 的 SDK metadata 版本不會自動讀 package.json；版本升級時需同步檢查硬編碼宣告。
+- L12: (2026-05-14) `dependencies` 只保留會觸發過期傳播的工程依賴；父子卡、導覽關係與建議一起閱讀改放 `Relations`。
 
 ## Relations
 
 - extension（父卡：啟動外掛編排）
 - index-manager（共用服務：索引讀寫）
+- mcp-tools.server（子卡：MCP SDK server 入口與工具公開清單）
+- mcp-tools.handlers（子卡：底層 memory_* handler 與路徑/時間戳共用邏輯）
 - mcp-tools.workspace-brief（子卡：workspace_brief 高階治理摘要）
 - mcp-tools.commit-preflight（子卡：commit_preflight 提交前治理檢查）
 - mcp-tools.tool-registry（子卡：MCP 工具名冊與統一回傳契約）
+- mcp-tools.dispatcher（子卡：MCP 工具分派與 high-risk tool guardrail）
 
 ## Applicable Skills
 

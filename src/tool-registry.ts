@@ -42,6 +42,20 @@ const moduleProjectRootSchema = {
   required: ["moduleName", "projectRoot"],
 };
 
+const memoryCommitSchema = {
+  type: "object" as const,
+  properties: {
+    moduleName: moduleNameProperty,
+    projectRoot: projectRootProperty,
+    confirm: {
+      type: "boolean",
+      description:
+        "確認已完成 SKILL.md 內容寫入，並允許同步記憶卡後設資料。",
+    },
+  },
+  required: ["moduleName", "projectRoot", "confirm"],
+};
+
 export const CARTRIDGE_TOOLS: CartridgeToolDefinition[] = [
   {
     name: "memory_list",
@@ -79,7 +93,7 @@ export const CARTRIDGE_TOOLS: CartridgeToolDefinition[] = [
     capability: "write",
     readOnly: false,
     requiresExplicitApproval: true,
-    inputSchema: moduleProjectRootSchema,
+    inputSchema: memoryCommitSchema,
   },
   {
     name: "memory_deps",
@@ -112,3 +126,9 @@ export const CARTRIDGE_TOOLS: CartridgeToolDefinition[] = [
     inputSchema: projectRootSchema,
   },
 ];
+
+export function findToolDefinition(
+  name: string,
+): CartridgeToolDefinition | undefined {
+  return CARTRIDGE_TOOLS.find((tool) => tool.name === name);
+}

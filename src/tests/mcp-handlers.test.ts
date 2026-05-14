@@ -436,6 +436,8 @@ describe("handleWorkspaceBrief", () => {
           ],
           ghostFiles: ["src/old.ts"],
           indirectStaleness: 5,
+          dependencies: ["_system"],
+          parent: null,
         },
       },
       untrackedFiles: [{ filePath: "src/new.ts" }],
@@ -472,6 +474,7 @@ describe("handleWorkspaceBrief", () => {
     expect(brief.memory.untrackedFiles).toBe(1);
     expect(brief.memory.indirectStale).toBe(1);
     expect(brief.memory.oversized[0].module).toBe("mcp-tools");
+    expect(brief.memory.dependencies.totalEdges).toBe(1);
     expect(brief.readiness.status).toBe("blocked");
     expect(brief.readiness.reasons).toContain("_system staleness=10");
     expect(brief.recommendedActions[0].priority).toBe("P1");
@@ -492,6 +495,7 @@ describe("handleWorkspaceBrief", () => {
               staleness: 0,
               pendingChanges: [],
               trackedFiles: ["src/mcp-server.ts"],
+              dependencies: [],
             },
           },
           untrackedFiles: [],
@@ -507,6 +511,40 @@ describe("handleWorkspaceBrief", () => {
     expect(envelope.status).toBe("ready");
     expect(brief.readiness.status).toBe("ready");
     expect(brief.readiness.reasons).toEqual([]);
+    expect(brief.recommendedActions).toEqual([]);
+  });
+
+  it("workspace_brief 應揭露 dependencies 總邊數且不產生語義誤報", async () => {
+    vi.mocked(fs.readFile).mockImplementation(async (filePath) => {
+      const fp = filePath as string;
+      if (fp.endsWith("package.json")) {
+        return JSON.stringify({ name: "ok" }) as unknown as Awaited<
+          ReturnType<typeof fs.readFile>
+        >;
+      }
+      if (fp.includes("index.json") && fp.includes(".cartridge")) {
+        return JSON.stringify({
+          cartridges: {
+            "mcp-tools.dispatcher": {
+              staleness: 0,
+              pendingChanges: [],
+              trackedFiles: ["src/tool-dispatcher.ts"],
+              dependencies: ["mcp-tools"],
+              parent: "mcp-tools",
+            },
+          },
+          untrackedFiles: [],
+        }) as unknown as Awaited<ReturnType<typeof fs.readFile>>;
+      }
+      throw new Error("unexpected path");
+    });
+
+    const result = await handleWorkspaceBrief({ projectRoot: PROJECT_ROOT });
+    const envelope = JSON.parse(result.content[0].text);
+    const brief = envelope.summary;
+
+    expect(envelope.status).toBe("ready");
+    expect(brief.memory.dependencies.totalEdges).toBe(1);
     expect(brief.recommendedActions).toEqual([]);
   });
 
@@ -708,9 +746,14 @@ describe("handleMemoryCommit", () => {
           pendingChanges: [{ filePath: "src/foo.ts" }],
           trackedFiles: ["src/foo.ts"],
           lastUpdated: "old",
+          indirectStaleness: 5,
         },
       },
       fileMap: { "src/foo.ts": ["mem-test"] },
+      untrackedFiles: [
+        { filePath: "src/bar.ts" },
+        { filePath: "src/other.ts" },
+      ],
     };
 
     vi.mocked(fs.readFile).mockImplementation(async (filePath) => {
@@ -742,10 +785,12 @@ describe("handleMemoryCommit", () => {
     const parsed = JSON.parse(writtenIndex);
     expect(parsed.cartridges["mem-test"].pendingChanges).toEqual([]);
     expect(parsed.cartridges["mem-test"].staleness).toBe(0);
+    expect(parsed.cartridges["mem-test"].indirectStaleness).toBe(0);
     expect(parsed.cartridges["mem-test"].trackedFiles).toEqual([
       "src/foo.ts",
       "src/bar.ts",
     ]);
+    expect(parsed.untrackedFiles).toEqual([{ filePath: "src/other.ts" }]);
   });
 
   it("模組不存在時應回傳錯誤", async () => {
@@ -912,6 +957,50 @@ describe("handleMemoryCommit", () => {
     expect(
       report.warnings.some((w: string) => w.includes("PATH_")),
     ).toBe(false);
+  });
+
+  it("[DEPENDENCY_SEMANTICS] 可疑 dependencies 應出現在 warnings 中", async () => {
+    const existing = `---\nname: mcp-tools.dispatcher\ndescription: test\nlast_updated: "old"\nstaleness: 0\ndependencies:\n  - mcp-tools\n---\n\n## Tracked Files\n- src/tool-dispatcher.ts\n\n## Key Decisions\n- D01: Dispatcher routes tool calls.\n\n## Relations\n- mcp-tools（父卡）\n`;
+    const indexData = {
+      cartridges: {
+        "mcp-tools.dispatcher": {
+          staleness: 0,
+          pendingChanges: [],
+          trackedFiles: ["src/tool-dispatcher.ts"],
+          lastUpdated: "old",
+          parent: "mcp-tools",
+        },
+      },
+      fileMap: { "src/tool-dispatcher.ts": ["mcp-tools.dispatcher"] },
+    };
+
+    vi.mocked(fs.readFile).mockImplementation(async (filePath) => {
+      const fp = filePath as string;
+      if (fp.includes("index.json") && fp.includes(".cartridge")) {
+        return JSON.stringify(indexData) as unknown as Awaited<
+          ReturnType<typeof fs.readFile>
+        >;
+      }
+      return existing as unknown as Awaited<ReturnType<typeof fs.readFile>>;
+    });
+    vi.mocked(fs.writeFile).mockResolvedValue(undefined);
+
+    const result = await handleMemoryCommit({
+      moduleName: "mcp-tools.dispatcher",
+      projectRoot: PROJECT_ROOT,
+    });
+    const report = JSON.parse(result.content[0].text);
+
+    expect(
+      report.warnings.some((warning: string) =>
+        warning.includes("DEPENDENCY_PARENT_CHILD_SUSPECT"),
+      ),
+    ).toBe(true);
+    expect(
+      report.warnings.some((warning: string) =>
+        warning.includes("DEPENDENCY_RELATION_MIRROR_SUSPECT"),
+      ),
+    ).toBe(true);
   });
 
   it("[WARNING_STRIP] commit 後應自動清除警告 HTML 區塊", async () => {

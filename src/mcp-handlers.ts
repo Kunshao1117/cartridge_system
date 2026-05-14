@@ -7,9 +7,14 @@ import * as fs from "fs/promises";
 import * as path from "path";
 import * as z from "zod";
 import matter from "gray-matter";
+import {
+  formatDependencySemanticWarning,
+  validateDependencySemantics,
+} from "./dependency-semantics.js";
 import { validateProjectRoot } from "./path-guard.js";
 import { getTaiwanISO } from "./timestamp.js";
 import { parseTrackedFiles } from "./index-manager.js";
+import type { CartridgeIndex } from "./types.js";
 
 /** 警報區塊的標記邊界（與 writer.ts 保持一致） */
 const WARNING_START = "<!-- CARTRIDGE_SYSTEM_WARNING_START -->";
@@ -706,6 +711,32 @@ export async function handleMemoryCommit(
     );
     warnings.push(...pathWarnings);
 
+    let indexForCommit: CartridgeIndex | null = null;
+    try {
+      const indexPath = path.join(projectRoot, ".cartridge", "index.json");
+      indexForCommit = JSON.parse(
+        await fs.readFile(indexPath, "utf-8"),
+      ) as CartridgeIndex;
+    } catch {
+      indexForCommit = null;
+    }
+
+    const cartridgeEntry = indexForCommit?.cartridges[moduleName];
+    const dependencies = Array.isArray(frontmatter.dependencies)
+      ? frontmatter.dependencies.filter(
+          (dependency): dependency is string =>
+            typeof dependency === "string" && dependency.trim().length > 0,
+        )
+      : [];
+    warnings.push(
+      ...validateDependencySemantics({
+        moduleName,
+        dependencies,
+        body,
+        parent: cartridgeEntry?.parent ?? null,
+      }).map(formatDependencySemanticWarning),
+    );
+
     // 4. 時間戳注入 + staleness 歸零 + 清除殘留警報區塊（修復 #4）
     let updatedContent = updateFrontmatterFields(rawContent, {
       last_updated: isoLocal,
@@ -720,8 +751,9 @@ export async function handleMemoryCommit(
     let trackedFilesCount = 0;
     try {
       const indexPath = path.join(projectRoot, ".cartridge", "index.json");
-      const indexRaw = await fs.readFile(indexPath, "utf-8");
-      const index = JSON.parse(indexRaw);
+      const index =
+        indexForCommit ??
+        (JSON.parse(await fs.readFile(indexPath, "utf-8")) as CartridgeIndex);
       if (index.cartridges?.[moduleName]) {
         // 清除 pendingChanges + staleness
         index.cartridges[moduleName].pendingChanges = [];
@@ -750,6 +782,29 @@ export async function handleMemoryCommit(
           if (!(index.fileMap[file] as string[]).includes(moduleName)) {
             (index.fileMap[file] as string[]).push(moduleName);
           }
+        }
+
+        index.untrackedFiles = (index.untrackedFiles ?? []).filter(
+          (entry) => !trackedFiles.includes(entry.filePath),
+        );
+
+        for (const cartridge of Object.values(index.cartridges)) {
+          cartridge.indirectStaleness = 0;
+        }
+        try {
+          const { buildDependencyGraph, propagateStaleness } = await import(
+            "./dependency-propagator.js"
+          );
+          const graph = buildDependencyGraph(index, projectRoot);
+          const propagated = propagateStaleness(index, graph, 2);
+          for (const [cartridgeId, indirectStaleness] of propagated.entries()) {
+            if (index.cartridges[cartridgeId]) {
+              index.cartridges[cartridgeId].indirectStaleness =
+                indirectStaleness;
+            }
+          }
+        } catch {
+          /* 依賴重算失敗不應阻止核心索引同步 */
         }
 
         await fs.writeFile(indexPath, JSON.stringify(index, null, 2), "utf-8");

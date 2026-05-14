@@ -3,11 +3,10 @@ name: commit-preflight
 description: >
   專案記憶：commit_preflight 提交前治理檢查工具。Use when: 處理 git dirty state、記憶卡健康阻塞、
   提交前建議動作與收尾治理決策時載入。
-last_updated: '2026-05-14T14:38:41+08:00'
+last_updated: '2026-05-14T15:45:06+08:00'
 status: stable
 staleness: 0
 dependencies:
-  - mcp-tools
   - mcp-tools.tool-registry
 metadata:
   author: antigravity
@@ -35,6 +34,7 @@ metadata:
 - D04: git 狀態解析使用 `git status --porcelain=v1`，避免依賴人類可讀輸出格式；handler 使用 `execFile` 固定參數呼叫，避免 shell 字串組合。
 - D05: Handler 回傳改用 `mcp-response.ts` envelope，外層 status 與 preflight status 同步，原本 preflight 內容保留在 `summary` 欄位。
 - D06: blockers 會轉成 error findings，讓 AI 或未來 UI 可直接顯示提交前阻擋原因。
+- D07: 父卡 `mcp-tools` 改為 Relations 導覽，不再寫入 `dependencies`；本卡僅依賴 `mcp-tools.tool-registry` 提供的 envelope 契約。
 
 ## Known Issues
 
@@ -43,6 +43,7 @@ metadata:
 ## Module Lessons
 
 - L01: 提交前治理工具應先回答「是否可提交與被什麼擋住」，驗證命令可以列為下一步，不應在第一版查詢工具中隱性執行。
+- L02: `Relations` 可描述 workspace_brief 前置入口與父卡脈絡，但不應被用於依賴傳播。
 
 ## Relations
 

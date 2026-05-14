@@ -8,6 +8,8 @@ export interface BriefCartridgeEntry {
   trackedFiles?: string[];
   ghostFiles?: string[];
   indirectStaleness?: number;
+  dependencies?: string[];
+  parent?: string | null;
 }
 
 export interface BriefIndex {
@@ -61,6 +63,10 @@ function buildMemorySummary(index: BriefIndex) {
         indirectStaleness: entry.indirectStaleness ?? 0,
       })),
   );
+  const dependencyEdges = cartridges.reduce(
+    (sum, [, entry]) => sum + (entry.dependencies?.length ?? 0),
+    0,
+  );
   return {
     total: cartridges.length,
     stale: staleModules.length,
@@ -76,6 +82,9 @@ function buildMemorySummary(index: BriefIndex) {
         module,
         trackedFilesCount: entry.trackedFiles?.length ?? 0,
       })),
+    dependencies: {
+      totalEdges: dependencyEdges,
+    },
   };
 }
 

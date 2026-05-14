@@ -4,16 +4,8 @@ import {
   CallToolRequestSchema,
   ListToolsRequestSchema,
 } from "@modelcontextprotocol/sdk/types.js";
-import {
-  handleMemoryList,
-  handleMemoryRead,
-  handleMemoryStatus,
-  handleMemoryCommit,
-  handleMemoryDeps,
-} from "./mcp-handlers.js";
-import { handleWorkspaceBrief } from "./workspace-brief.js";
-import { handleCommitPreflight } from "./commit-preflight.js";
 import { CARTRIDGE_TOOLS } from "./tool-registry.js";
+import { dispatchToolCall } from "./tool-dispatcher.js";
 
 const server = new Server(
   {
@@ -43,38 +35,7 @@ server.setRequestHandler(
   async (request): Promise<any> => {
     const { name, arguments: args } = request.params;
 
-    if (name === "memory_list") {
-      return handleMemoryList(args);
-    }
-
-    if (name === "memory_read") {
-      return handleMemoryRead(args);
-    }
-
-    if (name === "memory_status") {
-      return handleMemoryStatus(args);
-    }
-
-    if (name === "memory_commit") {
-      return handleMemoryCommit(args);
-    }
-
-    if (name === "memory_deps") {
-      return handleMemoryDeps(args);
-    }
-
-    if (name === "workspace_brief") {
-      return handleWorkspaceBrief(args);
-    }
-
-    if (name === "commit_preflight") {
-      return handleCommitPreflight(args);
-    }
-
-    return {
-      content: [{ type: "text", text: `Unknown tool: ${name}` }],
-      isError: true,
-    };
+    return dispatchToolCall({ name, args });
   },
 );
 

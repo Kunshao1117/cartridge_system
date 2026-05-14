@@ -3,7 +3,7 @@ name: index-manager
 description: >
   專案記憶：記憶索引管理器模組。管理卡匣索引、檔案反向映射、離線偵測、未歸屬檔案池、Cache-First 持久化。Use when:
   處理卡匣索引、檔案反向映射、持久化讀寫時載入。
-last_updated: '2026-05-13T15:15:57+08:00'
+last_updated: '2026-05-15T02:21:20+08:00'
 status: stable
 staleness: 0
 dependencies:
@@ -22,6 +22,7 @@ metadata:
 ## Tracked Files
 
 - src/index-manager.ts
+- src/smart-owner.ts
 - src/tests/index-manager.test.ts
 - src/tests/detect-missed-changes.test.ts
 
@@ -59,6 +60,9 @@ metadata:
 - D30: scanRecursive I/O 防護 — `fs.readFileSync` 與 `matter()` 分別包裝 try-catch，YAML 格式錯誤或讀取失敗不再崩潰插件，改為 console.warn 跳過該卡片繼續掃描。
 - D31: scanRecursive 格式異常偵測 — 解析後 trackedFiles 為空但 content 含 `## Tracked` 的卡片輸出 console.warn，協助診斷格式偏差（不阻斷掃描）。
 - D32: buildAndMergeDependencies 崩潰防護 — 整個 require() 與依賴傳播區塊包裝 try-catch，依賴推導失敗時輸出 console.error 並繼續，不崩潰插件。
+- D33: `shouldWarnEmptyTrackedFiles()` 區分格式偏差與刻意空追蹤卡；父層總覽、導航與歸檔卡若明確宣告不追蹤檔案，不再觸發 Tracked Files 解析為空警告。
+- D34: 本卡 frontmatter `dependencies` 保留 `core-types`，因 `index-manager.ts` 實際匯入 `types.ts`、`config.ts` 與 `timestamp.ts`；若 core-types 過期，索引資料結構、路徑設定或時間戳語義都必須重新檢查。
+- D35: `smart-owner.ts` 歸屬本卡，因它根據 `CartridgeIndex` 與 trackedFiles 提供未歸屬檔案推薦；extension 只消費推薦結果，不持有推薦演算法。
 
 ## Key Decisions Addendum
 
@@ -78,6 +82,8 @@ metadata:
 - L05: (2026-04-12) v2.0 EventEmitter 不可放 index-manager 內部，因其同時被 MCP Server 引用。改用 callback hook 確保跨環境安全。
 - L06: (2026-05-06) ghostFiles 欄位以 Optional-safe 方式初始化（`existingEntry?.ghostFiles ?? []`），確保舊索引向後相容。
 - L07: (2026-05-13) scanRecursive 的 readFileSync 與 matter() 解析各自需要獨立 try-catch，因為 readFileSync 可能拋 ENOENT/EPERM，而 matter() 可能拋 YAML syntax error，兩種 catch 行為相同（skip + warn）但原因不同，需要分開捕獲以便 debug 時區分原因。
+- L08: (2026-05-15) Tracked Files 空區塊警告必須排除「刻意不追蹤」的父卡、導航卡與歸檔卡，否則 `memory_deps` 每次重建索引都會輸出無效噪音。
+- L09: (2026-05-15) smart-owner 屬索引歸屬演算法，不屬 UI 層；放在 index-manager 可避免 extension 與 index-manager 的 Memory Graph 雙向依賴。
 
 ## Relations
 

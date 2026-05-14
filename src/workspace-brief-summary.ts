@@ -1,4 +1,4 @@
-import { stalenessToLevel } from "./mcp-handlers.js";
+import { stalenessToLevel } from "./staleness.js";
 
 const STALENESS_SIGNIFICANT = 10;
 
@@ -32,7 +32,9 @@ type RecommendedAction = {
 
 type SubmitReadiness = {
   status: "ready" | "needs_review" | "blocked";
+  reason: string | null;
   reasons: string[];
+  nextAction: "run_commit_preflight" | null;
   nextTool: "commit_preflight" | null;
 };
 
@@ -112,17 +114,21 @@ function buildSubmitReadiness(
   if (readiness.status === "blocked") {
     return {
       status: "blocked",
+      reason: "memory readiness is blocked",
       reasons: readiness.reasons,
+      nextAction: null,
       nextTool: null,
     };
   }
 
   return {
     status: "needs_review",
+    reason: "git state not inspected",
     reasons: [
       "workspace_brief does not inspect git state",
       "run commit_preflight before committing",
     ],
+    nextAction: "run_commit_preflight",
     nextTool: "commit_preflight",
   };
 }

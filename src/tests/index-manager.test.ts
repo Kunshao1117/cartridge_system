@@ -4,7 +4,10 @@
  */
 
 import { describe, it, expect, beforeEach } from "vitest";
-import { parseTrackedFiles } from "../index-manager.js";
+import {
+  parseTrackedFiles,
+  shouldWarnEmptyTrackedFiles,
+} from "../index-manager.js";
 import { CartridgeIndexManager } from "../index-manager.js";
 import { createConfig } from "../config.js";
 
@@ -132,6 +135,30 @@ describe("parseTrackedFiles — 路徑淨化邏輯", () => {
     const result = parseTrackedFiles(content);
     expect(result).toEqual(["src/foo.ts"]);
     expect(result).not.toContain("<!--");
+  });
+
+  it("明確宣告不追蹤檔案的總覽卡不應被視為格式偏差", () => {
+    const content = `
+## Tracked Files
+
+（父層總覽卡，不直接追蹤實作檔案；實作檔案由子卡承接）
+
+## Key Decisions
+`;
+
+    expect(parseTrackedFiles(content)).toEqual([]);
+    expect(shouldWarnEmptyTrackedFiles(content)).toBe(false);
+  });
+
+  it("空白 Tracked Files 區塊仍應回報疑似格式偏差", () => {
+    const content = `
+## Tracked Files
+
+## Key Decisions
+`;
+
+    expect(parseTrackedFiles(content)).toEqual([]);
+    expect(shouldWarnEmptyTrackedFiles(content)).toBe(true);
   });
 });
 

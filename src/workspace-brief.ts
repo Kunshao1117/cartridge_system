@@ -2,13 +2,13 @@ import * as fs from "fs/promises";
 import * as path from "path";
 import * as z from "zod";
 import { validateProjectRoot } from "./path-guard.js";
-import { type McpToolResult } from "./mcp-handlers.js";
 import {
   createToolEnvelope,
   createToolErrorEnvelope,
   toMcpTextResult,
   type CartridgeFinding,
   type CartridgeToolStatus,
+  type McpToolResult,
 } from "./mcp-response.js";
 import {
   buildWorkspaceBrief,

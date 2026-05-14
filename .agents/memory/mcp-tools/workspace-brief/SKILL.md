@@ -3,10 +3,11 @@ name: workspace-brief
 description: >
   專案記憶：workspace_brief 高階治理摘要工具。Use when: 處理 AI 開工摘要、記憶卡健康彙整、readiness
   判斷與建議行動排序時載入。
-last_updated: '2026-05-14T21:25:25+08:00'
+last_updated: '2026-05-15T02:40:02+08:00'
 status: stable
 staleness: 0
 dependencies:
+  - core-types
   - mcp-tools.tool-registry
 metadata:
   author: antigravity
@@ -26,6 +27,7 @@ metadata:
 
 - src/workspace-brief.ts
 - src/workspace-brief-summary.ts
+- src/tests/workspace-brief.test.ts
 
 ## Key Decisions
 
@@ -38,6 +40,11 @@ metadata:
 - D07: 父卡 `mcp-tools` 改為 Relations 導覽，不再寫入 `dependencies`；本卡僅依賴 `mcp-tools.tool-registry` 提供的 envelope 契約。
 - D08: `workspace_brief` 會在 memory summary 中揭露 dependencies 總邊數；語義可疑判斷留給能讀完整 SKILL.md 內文的 `memory_commit`，避免 index-only 摘要誤報合法父子工程依賴。
 - D09: `workspace_brief` 新增 `submitReadiness`；記憶健康阻擋時回 `blocked`，記憶健康乾淨時回 `needs_review` 並指向 `commit_preflight`，避免在未讀 git state 時宣稱可提交。
+- D10: `submitReadiness` 補充單一 `reason` 與 `nextAction`，讓 AI 可直接判讀提交前下一步，同時保留 `reasons` 與 `nextTool` 相容既有輸出。
+- D11: `workspace-brief-summary.ts` 改由 `staleness.ts` 取得過期等級轉換，不再為了 `stalenessToLevel` import `mcp-handlers.ts`。
+- D12: `core-types` 是 `workspace-brief.ts` 與 `workspace-brief-summary.ts` 的路徑驗證與 staleness 等級轉換上游 dependency；若 `core-types` 的 `path-guard.ts` 或 `staleness.ts` 過期，workspace 摘要也必須重新檢查。
+- D13: `workspace_brief` 測試已從 `mcp-handlers.test.ts` 拆至 `workspace-brief.test.ts`，避免底層 handlers 記憶卡因測試 import 被推導依賴本高階工具。
+- D14: MCP stdio E2E 與 Gateway 實測都必須確認 `workspace_brief` 記憶健康為 ready，且 stale、ghost、untracked、oversized 皆為 0。
 
 ## Known Issues
 
@@ -50,10 +57,15 @@ metadata:
 - L03: `Relations` 可提示 AI 讀父卡取得脈絡，但不應觸發 staleness propagation。
 - L04: workspace 摘要只做 index 層可見的輕量拓樸提示，不讀取所有 SKILL.md，避免開工入口變慢，也避免在缺少依賴理由內文時誤判。
 - L05: workspace_brief 可提示提交前下一步，但不應取代 commit_preflight；只要沒有讀取 git state，就只能給 needs_review 而非 ready-to-submit。
+- L06: readiness 給記憶健康狀態，submitReadiness 給提交前流程狀態；兩者不可混用，避免 AI 把「記憶乾淨」誤解成「可直接提交」。
+- L07: 高階摘要工具只應依賴窄型共用工具與 envelope 契約；避免直接依賴底層 handler 大檔，降低 Memory Graph 循環雜訊。
+- L08: 高階工具的 handler 測試應由對應子卡持有；測試檔 import 也會影響 Memory Graph 的工程依賴推導。
+- L09: workspace_brief 不讀 git state；它可以回報記憶健康 ready，但提交是否可封存仍以 commit_preflight 為準。
 
 ## Relations
 
 - mcp-tools（父卡：MCP 工具註冊、路由與工具契約）
+- core-types（依賴：路徑驗證與 staleness 等級轉換）
 - mcp-tools.tool-registry（共用：MCP 統一回傳 envelope）
 
 ## Applicable Skills

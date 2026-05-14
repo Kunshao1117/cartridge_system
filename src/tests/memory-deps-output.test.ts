@@ -67,12 +67,17 @@ describe("handleMemoryDeps — 分層依賴輸出", () => {
     const deps = JSON.parse(result.content[0].text);
 
     expect(result.isError).toBeUndefined();
-    expect(deps.summary.engineeringDependencies).toBe(1);
-    expect(deps.summary.frontmatterDependencies).toBe(1);
-    expect(deps.engineeringGraph.dependencies).toEqual(["module-b"]);
-    expect(deps.frontmatterGraph.dependencies).toEqual(["manual-upstream"]);
-    expect(deps.staleness.indirect).toBe(0);
-    expect(deps.dependencies).toEqual(["module-b"]);
-    expect(deps.indirectStaleness).toBe(0);
+    expect(deps.status).toBe("ready");
+    expect(deps.metadata.tool).toBe("memory_deps");
+    expect(deps.summary.module).toBe("module-a");
+    expect(deps.summary.graph.engineering.dependencyCount).toBe(1);
+    expect(deps.summary.graph.frontmatter.dependencyCount).toBe(1);
+    expect(deps.summary.graph.engineering.dependencies).toEqual(["module-b"]);
+    expect(deps.summary.graph.frontmatter.dependencies).toEqual([
+      "manual-upstream",
+    ]);
+    expect(deps.summary.staleness.indirect).toBe(0);
+    expect(deps.legacy.dependencies).toEqual(["module-b"]);
+    expect(deps.legacy.indirectStaleness).toBe(0);
   });
 });

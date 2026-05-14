@@ -3,9 +3,17 @@ name: extension
 description: >
   專案記憶：VS Code 外掛入口與 UI 模組。 Use when:
   處理外掛啟動生命週期、指令註冊、狀態列/TreeView/CodeLens/智慧歸屬等 UI 更新時載入。
-last_updated: '2026-05-13T15:15:52+08:00'
+last_updated: '2026-05-15T02:21:20+08:00'
 staleness: 0
 status: stable
+metadata:
+  author: antigravity
+  version: '1.0'
+  origin: project
+  memory_awareness: full
+  tool_scope:
+    - 'filesystem:read'
+    - 'filesystem:write'
 ---
 
 # Extension & UI Layer — 外掛入口記憶
@@ -18,7 +26,6 @@ status: stable
 - src/status-bar.ts
 - src/treeview-provider.ts
 - src/codelens-provider.ts
-- src/smart-owner.ts
 
 ## Key Decisions
 
@@ -42,7 +49,7 @@ status: stable
 - D18: v2.0 watcher.ts 全面重寫，所有 `persist()` 呼叫替換為 `markDirty()`，磁碟 I/O 延遲至安全時機
 - D19: v2.0 新增 TreeView 側邊欄（treeview-provider.ts），直接引用 RAM 索引，以樹狀結構展示記憶卡匣健康燈號與幽靈池
 - D20: v2.0 新增 CodeLens 行內標記（codelens-provider.ts），在每個開啟的檔案頂部顯示歸屬狀態與過期指數（O(1) fileMap 查詢）
-- D21: v2.0 新增智慧歸屬推薦引擎（smart-owner.ts），使用最長公共目錄前綴匹配演算法推薦未歸屬檔案的歸屬
+- D21: v2.0 新增智慧歸屬推薦入口；`smart-owner.ts` 已歸屬 `index-manager`，extension 僅在 UI 指令流程消費推薦結果。
 - D22: v2.0 新增 `cartridge.attributeFile` 指令與右鍵選單，支援智慧推薦 + QuickPick 一鍵歸檔
 - D23: v2.0 背景化幽靈掃描 — detectUntrackedFiles 改為 setTimeout 3 秒後異步執行，不阻塞啟動主序列
 - D24: v2.0 安全心跳 — setInterval 每 5 分鐘呼叫 flushIfDirty()，確保崩潰最大損失窗口僅 5 分鐘
@@ -83,7 +90,7 @@ status: stable
 - gitignore-filter（提供 .gitignore 排除過濾）
 - treeview-provider（v2.0 新增：側邊欄 TreeView 面板）
 - codelens-provider（v2.0 新增：CodeLens 行內標記）
-- smart-owner（v2.0 新增：智慧歸屬推薦引擎）
+- index-manager（含 smart-owner：智慧歸屬推薦引擎）
 
 ## Applicable Skills
 

@@ -3,7 +3,7 @@
 > **現實感知 AI 記憶防禦引擎** — 自動偵測記憶卡過期、幽靈檔案、跨模組依賴傳播，確保 AI 不讀取失效的上下文。
 
 [![version](https://img.shields.io/badge/version-4.1.1-blue)](./CHANGELOG.md)
-[![tests](https://img.shields.io/badge/tests-143%20passed-brightgreen)](#-執行測試)
+[![tests](https://img.shields.io/badge/tests-149%20passed-brightgreen)](#-執行測試)
 [![license](https://img.shields.io/badge/license-MIT-green)](#)
 
 ---
@@ -43,8 +43,9 @@ Cartridge System 是一個為 [Antigravity 框架](https://github.com/Kunshao111
 | 🧭 **MCP 工具名冊** | **v4.1.1 增強** — 集中管理工具描述、風險等級、讀寫屬性與授權需求，並驅動 MCP dispatcher 執行路由。 |
 | 🧯 **MCP 工具防線** | **v4.1.1 增強** — 寫入型工具 `memory_commit` 需要 `confirm: true`，由 server dispatcher 層硬性阻擋未確認呼叫。 |
 | 🧪 **依賴語義警告** | **v4.1.1 增強** — `memory_commit` 會檢查 `dependencies` 是否疑似混入父子導覽、技能建議或缺少依賴理由；只產生 warning，不取代 `D:\AI_Rules` 的核心規範。`workspace_brief` 僅揭露依賴總邊數，避免在缺少 SKILL.md 內文時產生誤報。 |
-| 📦 **治理回傳契約** | **v4.1.1 增強** — 高階治理工具統一回傳 `status`、`summary`、`findings`、`recommendedActions` 與 `metadata`，方便 AI 與插件解析。 |
-| 🧩 **MCP 分層摘要** | **v4.1.1 增強** — `memory_deps` 區分工程依賴、frontmatter 依賴與過期傳播；`workspace_brief` 提供提交 readiness；`commit_preflight` 彙整 dependency semantics warning。 |
+| 📦 **治理回傳契約** | **v4.1.1 增強** — MCP 治理工具統一回傳 `status`、`summary`、`findings`、`recommendedActions`、`metadata` 與 `legacy`，方便 AI 與插件解析。 |
+| 🧩 **MCP 分層摘要** | **v4.1.1 增強** — `memory_deps` 採標準 envelope 回傳，區分工程依賴、frontmatter 依賴與過期傳播；`workspace_brief` 提供提交 readiness；`commit_preflight` 彙整 dependency semantics warning。 |
+| 🕸️ **Memory Graph 瘦身** | **v4.1.1 增強** — 抽出共用路徑驗證、時間戳與過期等級工具，降低高階治理工具、索引器與底層 handlers 之間的不必要工程依賴，讓記憶圖譜更貼近真實分層。 |
 | 🌐 **跨平台相容** | 完整支援 Windows CRLF 與 Unix LF 行尾格式 |
 | 🛡️ **路徑安全防禦** | 雙層路徑驗證（Zod 格式守衛 + 語意守衛），阻擋路徑穿越攻擊 |
 | 🌲 **巢狀目錄掃描** | 支援最大 4 層深度的記憶卡樹狀結構，目錄結構即層級 |
@@ -116,7 +117,7 @@ Cartridge System 提供 MCP（Model Context Protocol）工具伺服器，供 AI 
 
 ### 高階治理工具回傳格式
 
-`workspace_brief` 與 `commit_preflight` 採用統一 envelope，方便 AI 與未來插件 UI 穩定解析：
+`workspace_brief`、`commit_preflight` 與 `memory_deps` 採用統一 envelope，方便 AI 與未來插件 UI 穩定解析：
 
 ```json
 {
@@ -129,11 +130,24 @@ Cartridge System 提供 MCP（Model Context Protocol）工具伺服器，供 AI 
     "readOnly": true,
     "generatedAt": "2026-05-14T14:48:01+08:00",
     "projectRoot": "D:\\cartridge_system"
-  }
+  },
+  "legacy": {}
 }
 ```
 
-底層 `memory_*` 工具暫時維持既有格式，避免破壞既有 MCP 呼叫者。
+新版 AI 流程應優先讀取 `summary`、`findings` 與 `recommendedActions`。舊版欄位會收納於 `legacy`，用於相容既有 MCP 呼叫者。
+
+### MCP 驗證層級
+
+本專案的 MCP 工具驗證分成三層，避免把「直接呼叫 handler」誤認為「MCP 工具入口可用」：
+
+| 層級 | 目的 | 驗證方式 |
+|------|------|----------|
+| 終端單元測試 | 驗證 TypeScript 純函式、摘要規則、路徑防線與回傳契約 | `npx vitest run`、`npx tsc --noEmit`、`npx eslint src/`、`npx tsup --config tsup.config.ts` |
+| MCP stdio 協議 E2E | 驗證 `dist/mcp-server.js` 真的能透過 MCP JSON-RPC 對外提供工具 | 啟動 `node dist/mcp-server.js`，呼叫 `initialize`、`tools/list`、`tools/call` |
+| Gateway 真實工具入口 | 驗證 `multi-mcp-gateway` 能找到並呼叫 `cartridge-system` 工具 | 呼叫 `cartridge-system__memory_deps`、`cartridge-system__workspace_brief`、`cartridge-system__commit_preflight` |
+
+目前已實測：`tools/list` 會列出七個工具；`memory_deps` 對 `mcp-tools.handlers`、`mcp-tools.tool-registry`、`index-manager` 的 cycles 為 0；`workspace_brief` 記憶健康為 ready，stale、ghost、untracked、oversized 皆為 0；`commit_preflight` 的 dependency semantics warnings 為 0，blocked 僅來自尚未提交的工作區變更。
 
 ### 跨專案支援
 
@@ -158,7 +172,7 @@ memory_deps({
   moduleName: 'mcp-tools',
   projectRoot: 'D:\\cartridge_system'
 })
-// → 回傳 dependencies（依賴誰）、dependents（誰依賴我）、indirectStaleness
+// → 回傳標準 envelope；summary.graph 區分工程依賴與 frontmatter 依賴，legacy 保留舊欄位
 
 // AI 開工前摘要
 workspace_brief({
@@ -207,11 +221,11 @@ npm test
 npm run test:watch
 ```
 
-測試涵蓋 14 個測試檔案（**143 個案例**）：
+測試涵蓋 17 個測試檔案（**149 個案例**）：
 
 | 測試模組 | 案例數 | 涵蓋範圍 |
 |----------|--------|----------|
-| 索引管理器 | 18 | 掃描、addPendingChange 去重、getChildren、resolveModulePath |
+| 索引管理器 | 20 | 掃描、addPendingChange 去重、getChildren、resolveModulePath、空追蹤卡誤報防護 |
 | MCP 工具介面 | 54 | 正常流程、路徑穿越防禦、時間戳驗證、過期狀態診斷、memory_commit 後設同步、workspace_brief 專案健康摘要與提交 readiness、commit_preflight 提交前治理檢查與 dependency semantics 摘要、**標題錯字偵測 (HEADING_TYPO)**、**路徑格式驗證 (PATH_ABSOLUTE / PATH_TRAVERSAL)**、**dependencies 語義警告**、**未歸屬池清理**、**間接過期重算**、**警告區塊自動清除** |
 | 過期分析器 | 11 | 過期等級四分支、三種事件計分、閾值觸發 |
 | 路徑安全驗證 | 8 | 絕對/相對路徑、穿越攻擊拒絕 |
@@ -221,10 +235,11 @@ npm run test:watch
 | import 掃描器 | 5 | ES/動態/CJS 語法擷取、去重、node_modules 過濾 |
 | 依賴傳播引擎 | 8 | 反向圖建構、BFS 傳播深度、平方衰減權重、循環偵測 |
 | 依賴語義檢查器 | 6 | dependency reason、父子導覽可疑、技能名稱混用、Relations 鏡像可疑、warning 格式 |
-| 依賴拓樸輸出 | 1 | memory_deps 工程依賴、frontmatter 依賴與 legacy 欄位相容 |
+| 過期等級工具 | 4 | healthy、mild、significant、critical 邊界轉換 |
+| 依賴拓樸輸出 | 1 | memory_deps 標準 envelope、工程依賴、frontmatter 依賴與 legacy 欄位相容 |
 | MCP 工具名冊 | 3 | 工具登錄完整性、治理後設資料、寫入型工具授權要求 |
 | MCP 工具分派 | 5 | registry-driven routing、unknown tool envelope、memory_commit 明確確認防線 |
-| MCP 回傳契約 | 2 | envelope 包裝、錯誤格式與台灣時區 metadata |
+| MCP 回傳契約 | 2 | envelope 包裝、錯誤格式、台灣時區 metadata 與 legacy 相容欄位 |
 
 ---
 
@@ -258,7 +273,7 @@ cartridge_system/
 │   ├── path-guard.ts         # 路徑安全驗證（雙層防禦）
 │   ├── timestamp.ts          # 時間戳生成（Intl API）
 │   ├── types.ts              # 共用型別定義（含 ghostFiles、dependencies）
-│   └── tests/                # vitest 單元測試（14 檔 143 案例）
+│   └── tests/                # vitest 單元測試（17 檔 149 案例）
 ├── .agents/
 │   ├── memory/               # 記憶卡匣（獨立目錄）
 │   │   ├── _system/          # 系統記憶

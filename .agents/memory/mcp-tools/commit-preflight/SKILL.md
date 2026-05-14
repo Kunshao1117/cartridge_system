@@ -3,10 +3,11 @@ name: commit-preflight
 description: >
   專案記憶：commit_preflight 提交前治理檢查工具。Use when: 處理 git dirty state、記憶卡健康阻塞、
   提交前建議動作與收尾治理決策時載入。
-last_updated: '2026-05-14T21:26:58+08:00'
+last_updated: '2026-05-15T02:40:02+08:00'
 status: stable
 staleness: 0
 dependencies:
+  - core-types
   - mcp-tools.tool-registry
 metadata:
   author: antigravity
@@ -26,6 +27,7 @@ metadata:
 
 - src/commit-preflight.ts
 - src/commit-preflight-summary.ts
+- src/tests/commit-preflight.test.ts
 
 ## Key Decisions
 
@@ -37,6 +39,11 @@ metadata:
 - D06: blockers 會轉成 error findings，讓 AI 或未來 UI 可直接顯示提交前阻擋原因。
 - D07: 父卡 `mcp-tools` 改為 Relations 導覽，不再寫入 `dependencies`；本卡僅依賴 `mcp-tools.tool-registry` 提供的 envelope 契約。
 - D08: `commit_preflight` 會針對 git dirty 相關記憶卡執行 best-effort dependency semantics 摘要，將可疑 dependencies 轉為 warning findings；此檢查不改變 blocked/ready 判斷。
+- D09: `commit_preflight` 摘要新增 `readiness` 區塊，將 blocking reasons 與 warning reasons 分層，讓 AI 不需自行從 blockers 與 dependency semantics 摘要重組提交狀態。
+- D10: `commit-preflight.ts` 的 `McpToolResult` 型別來源改為 `mcp-response.ts`，避免提交前工具因型別依賴底層 handlers。
+- D11: `core-types` 是 `commit-preflight.ts` 的路徑驗證上游 dependency；若 `core-types` 的 `path-guard.ts` 過期，提交前工具的 projectRoot 防線也必須重新檢查。
+- D12: `commit_preflight` 測試已從 `mcp-handlers.test.ts` 拆至 `commit-preflight.test.ts`，避免底層 handlers 記憶卡因測試 import 被推導依賴本高階工具。
+- D13: MCP stdio E2E 與 Gateway 實測都必須確認 dependency semantics warnings 為 0；若 blocked 只來自 git dirty state，表示工具層可用但尚未封存。
 
 ## Known Issues
 
@@ -48,10 +55,16 @@ metadata:
 - L02: `Relations` 可描述 workspace_brief 前置入口與父卡脈絡，但不應被用於依賴傳播。
 - L03: dependency semantics 屬提交前輔助訊號，應只掃 dirty 相關卡片並保持 warning-only，避免 preflight 變成昂貴全專案語義審計。
 - L04: dependency semantics 摘要必須讀取 dirty 卡片的 SKILL.md frontmatter；不可使用索引中的 dependencies，因其可能混入工程自動推導依賴。
+- L05: 提交總閘門需要同時保留原始 blockers 與整理後 readiness；前者方便精準除錯，後者方便 AI 做下一步決策。
+- L06: 高階提交工具的回傳型別應依賴 envelope 契約，不應為型別從底層 handler 匯入。
+- L07: projectRoot 驗證是跨 MCP 工具共用防線，應由 core-types 層持有，避免高階工具為路徑驗證依賴 handlers。
+- L08: 提交前工具測試應與功能記憶卡一起維護；測試檔混放在 handlers 卡會製造假的高階依賴。
+- L09: commit_preflight 的 blocked 不等於工具錯誤；封存前需分辨 dirty files、memory blockers、dependency semantics warnings 三種原因。
 
 ## Relations
 
 - mcp-tools（父卡：MCP 工具註冊、路由與工具契約）
+- core-types（依賴：projectRoot 路徑驗證）
 - mcp-tools.workspace-brief（前置入口：專案健康摘要）
 - mcp-tools.tool-registry（共用：MCP 統一回傳 envelope）
 

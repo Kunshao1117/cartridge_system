@@ -14,6 +14,7 @@ describe("mcp-response — 統一工具回傳 envelope", () => {
       status: "ready",
       summary: { ok: true },
       recommendedActions: [],
+      legacy: { oldField: "kept" },
     });
 
     const result = toMcpTextResult(envelope);
@@ -25,6 +26,7 @@ describe("mcp-response — 統一工具回傳 envelope", () => {
     expect(parsed.metadata.tool).toBe("workspace_brief");
     expect(parsed.metadata.readOnly).toBe(true);
     expect(parsed.metadata.generatedAt).toContain("+08:00");
+    expect(parsed.legacy.oldField).toBe("kept");
   });
 
   it("error envelope 應標記 MCP isError", () => {

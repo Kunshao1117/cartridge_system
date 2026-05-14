@@ -12,9 +12,18 @@ import {
   validateDependencySemantics,
 } from "./dependency-semantics.js";
 import { validateProjectRoot } from "./path-guard.js";
+import { stalenessToLevel } from "./staleness.js";
 import { getTaiwanISO } from "./timestamp.js";
 import { parseTrackedFiles } from "./index-manager.js";
 import type { CartridgeIndex } from "./types.js";
+import {
+  createToolEnvelope,
+  createToolErrorEnvelope,
+  toMcpTextResult,
+  type CartridgeFinding,
+  type CartridgeToolStatus,
+  type McpToolResult,
+} from "./mcp-response.js";
 
 /** 警報區塊的標記邊界（與 writer.ts 保持一致） */
 const WARNING_START = "<!-- CARTRIDGE_SYSTEM_WARNING_START -->";
@@ -30,23 +39,6 @@ function stripWarningBlock(content: string): string {
   const before = content.substring(0, startIdx);
   const after = content.substring(endIdx + WARNING_END.length);
   return (before + after).replace(/^\n+/, "\n");
-}
-
-/** 過期等級閾值（預設值，與 Extension 的 CartridgeConfig 解耦） */
-const STALENESS_THRESHOLDS = { significant: 10, critical: 30 };
-
-/** 過期指數轉換為人類可讀等級（輕量版，不依賴 CartridgeConfig） */
-export function stalenessToLevel(staleness: number): string {
-  if (staleness <= 0) return "healthy";
-  if (staleness < STALENESS_THRESHOLDS.significant) return "mild";
-  if (staleness < STALENESS_THRESHOLDS.critical) return "significant";
-  return "critical";
-}
-
-/** MCP 工具回傳結構（純資料結構，與 MCP SDK 相容但不依賴其型別） */
-export interface McpToolResult {
-  content: Array<{ type: string; text: string }>;
-  isError?: boolean;
 }
 
 /** projectRoot 共用驗證規則 */
@@ -845,15 +837,15 @@ export const memoryDepsSchema = z.object({
 export async function handleMemoryDeps(args: unknown): Promise<McpToolResult> {
   const parsed = memoryDepsSchema.safeParse(args);
   if (!parsed.success) {
-    return {
-      content: [
-        {
-          type: "text",
-          text: "Validation Error: moduleName and projectRoot are required (projectRoot must be absolute path without ..)",
-        },
-      ],
-      isError: true,
-    };
+    return toMcpTextResult(
+      createToolErrorEnvelope({
+        tool: "memory_deps",
+        projectRoot: "",
+        code: "validation_error",
+        message:
+          "Validation Error: moduleName and projectRoot are required (projectRoot must be absolute path without ..)",
+      }),
+    );
   }
 
   const { moduleName, projectRoot } = parsed.data;
@@ -872,15 +864,14 @@ export async function handleMemoryDeps(args: unknown): Promise<McpToolResult> {
     const index = manager.getIndex();
     const entry = index.cartridges[moduleName];
     if (!entry) {
-      return {
-        content: [
-          {
-            type: "text",
-            text: `Error: Module "${moduleName}" not found in index`,
-          },
-        ],
-        isError: true,
-      };
+      return toMcpTextResult(
+        createToolErrorEnvelope({
+          tool: "memory_deps",
+          projectRoot: normalizedPath,
+          code: "module_not_found",
+          message: `Error: Module "${moduleName}" not found in index`,
+        }),
+      );
     }
 
     // 建構依賴圖
@@ -913,11 +904,11 @@ export async function handleMemoryDeps(args: unknown): Promise<McpToolResult> {
     const cycles = detectCycles(graph).filter((c: string[]) =>
       c.includes(moduleName),
     );
-    const findings = [
+    const findings: CartridgeFinding[] = [
       ...(cycles.length > 0
         ? [
             {
-              severity: "warning",
+              severity: "warning" as const,
               code: "dependency_cycle_detected",
               message: `偵測到 ${cycles.length} 組循環依賴`,
             },
@@ -926,18 +917,55 @@ export async function handleMemoryDeps(args: unknown): Promise<McpToolResult> {
       ...((entry.indirectStaleness ?? 0) > 0
         ? [
             {
-              severity: "warning",
+              severity: "warning" as const,
               code: "indirect_staleness",
               message: `上游依賴傳播間接過期指數 ${entry.indirectStaleness ?? 0}`,
             },
           ]
         : []),
     ];
+    const recommendedActions =
+      findings.length > 0
+        ? findings.map((finding) => ({
+            priority: "P2",
+            action:
+              finding.code === "dependency_cycle_detected"
+                ? "review_dependency_cycles"
+                : "review_upstream_staleness",
+            target: moduleName,
+            reason: finding.message,
+          }))
+        : [];
+    const status: CartridgeToolStatus =
+      findings.length > 0 ? "warning" : "ready";
 
-    const result = {
+    const summary = {
+      module: moduleName,
+      graph: {
+        engineering: {
+          dependencies,
+          dependents,
+          dependencyCount: dependencies.length,
+          dependentCount: dependents.length,
+        },
+        frontmatter: {
+          dependencies: frontmatterDependencies,
+          dependencyCount: frontmatterDependencies.length,
+        },
+      },
+      staleness: {
+        direct: entry.staleness ?? 0,
+        indirect: entry.indirectStaleness ?? 0,
+      },
+      cycles: {
+        count: cycles.length,
+        paths: cycles,
+      },
+    };
+    const legacy = {
       module: moduleName,
       summary: {
-        status: findings.length > 0 ? "warning" : "ready",
+        status,
         engineeringDependencies: dependencies.length,
         engineeringDependents: dependents.length,
         frontmatterDependencies: frontmatterDependencies.length,
@@ -956,7 +984,6 @@ export async function handleMemoryDeps(args: unknown): Promise<McpToolResult> {
         indirect: entry.indirectStaleness ?? 0,
       },
       findings,
-      // Legacy fields kept for existing callers.
       dependencies,
       dependents,
       indirectStaleness: entry.indirectStaleness ?? 0,
@@ -967,14 +994,27 @@ export async function handleMemoryDeps(args: unknown): Promise<McpToolResult> {
           : undefined,
     };
 
-    return {
-      content: [{ type: "text", text: JSON.stringify(result, null, 2) }],
-    };
+    return toMcpTextResult(
+      createToolEnvelope({
+        tool: "memory_deps",
+        readOnly: true,
+        projectRoot: normalizedPath,
+        status,
+        summary,
+        findings,
+        recommendedActions,
+        legacy,
+      }),
+    );
   } catch (e: unknown) {
     const msg = e instanceof Error ? e.message : String(e);
-    return {
-      content: [{ type: "text", text: `Error: ${msg}` }],
-      isError: true,
-    };
+    return toMcpTextResult(
+      createToolErrorEnvelope({
+        tool: "memory_deps",
+        projectRoot,
+        code: "memory_deps_failed",
+        message: `Error: ${msg}`,
+      }),
+    );
   }
 }

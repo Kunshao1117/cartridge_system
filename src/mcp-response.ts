@@ -1,7 +1,11 @@
-import { type McpToolResult } from "./mcp-handlers.js";
 import { getTaiwanISO } from "./timestamp.js";
 
 export type CartridgeToolStatus = "ready" | "warning" | "blocked" | "error";
+
+export interface McpToolResult {
+  content: Array<{ type: string; text: string }>;
+  isError?: boolean;
+}
 
 export interface CartridgeFinding {
   severity: "info" | "warning" | "error";
@@ -23,6 +27,7 @@ export interface CartridgeToolEnvelope {
   findings: CartridgeFinding[];
   recommendedActions: unknown[];
   metadata: CartridgeToolMetadata;
+  legacy?: Record<string, unknown>;
 }
 
 export function createToolEnvelope(args: {
@@ -33,8 +38,9 @@ export function createToolEnvelope(args: {
   summary: Record<string, unknown>;
   findings?: CartridgeFinding[];
   recommendedActions?: unknown[];
+  legacy?: Record<string, unknown>;
 }): CartridgeToolEnvelope {
-  return {
+  const envelope: CartridgeToolEnvelope = {
     status: args.status,
     summary: args.summary,
     findings: args.findings ?? [],
@@ -46,6 +52,10 @@ export function createToolEnvelope(args: {
       projectRoot: args.projectRoot,
     },
   };
+  if (args.legacy) {
+    envelope.legacy = args.legacy;
+  }
+  return envelope;
 }
 
 export function createToolErrorEnvelope(args: {

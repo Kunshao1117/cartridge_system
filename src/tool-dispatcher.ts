@@ -4,12 +4,12 @@ import {
   handleMemoryList,
   handleMemoryRead,
   handleMemoryStatus,
-  type McpToolResult,
 } from "./mcp-handlers.js";
 import {
   createToolEnvelope,
   createToolErrorEnvelope,
   toMcpTextResult,
+  type McpToolResult,
 } from "./mcp-response.js";
 import { handleCommitPreflight } from "./commit-preflight.js";
 import {

@@ -49,6 +49,12 @@ export interface DependencySemanticSummary {
   modules: DependencySemanticSummaryItem[];
 }
 
+type PreflightReadiness = {
+  status: "ready" | "blocked";
+  blockingReasons: string[];
+  warningReasons: string[];
+};
+
 export function parseGitStatusPorcelain(output: string): GitStatusEntry[] {
   return output
     .split(/\r?\n/)
@@ -193,6 +199,21 @@ function buildSuggestedCommands() {
   ];
 }
 
+function buildReadiness(
+  blockers: Blocker[],
+  dependencySemantics: DependencySemanticSummary,
+): PreflightReadiness {
+  return {
+    status: blockers.length > 0 ? "blocked" : "ready",
+    blockingReasons: blockers.map(
+      (blocker) => `${blocker.target}: ${blocker.reason}`,
+    ),
+    warningReasons: dependencySemantics.modules.map(
+      (item) => `${item.module}: ${item.codes.join(", ")}`,
+    ),
+  };
+}
+
 export function buildCommitPreflight(
   index: PreflightIndex,
   gitStatus: GitStatusEntry[],
@@ -204,9 +225,11 @@ export function buildCommitPreflight(
   const memory = buildMemoryGate(index);
   const git = buildGitGate(gitStatus);
   const blockers = [...memory.blockers, ...git.blockers];
+  const readiness = buildReadiness(blockers, dependencySemantics);
   return {
-    status: blockers.length > 0 ? "blocked" : "ready",
+    status: readiness.status,
     summary: {
+      readiness,
       memory: memory.summary,
       git: git.summary,
       dependencySemantics,

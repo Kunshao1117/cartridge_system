@@ -3,7 +3,7 @@ name: _assets
 scopePath: null
 description: |
   專案記憶：靜態檔案與一般文檔收納。 Use when: 處理不需要業務邏輯追蹤的靜態圖檔、授權文件或更新日誌等。
-last_updated: '2026-05-14T21:27:43+08:00'
+last_updated: '2026-05-15T02:47:32+08:00'
 status: stable
 staleness: 0
 metadata:
@@ -45,6 +45,9 @@ metadata:
 - L09: (2026-05-14) CHANGELOG 已同步 MCP 工具防線、記憶依賴語義警告與 141 測試案例紀錄。
 - L10: (2026-05-14) README 已同步 MCP 分層摘要、workspace submitReadiness、commit_preflight dependency semantics 摘要與測試數 143 passed。
 - L11: (2026-05-14) CHANGELOG 已補充 MCP 操作摘要強化，涵蓋 memory_deps 分層、workspace submitReadiness 與 commit_preflight dependency semantics 摘要。
+- L12: (2026-05-14) README 與 CHANGELOG 已同步 MCP 標準 envelope 的 `legacy` 相容欄位，以及 memory_deps 採標準報告格式的說明。
+- L13: (2026-05-14) README 與 CHANGELOG 已同步 MCP 依賴圖瘦身，包含 path guard / timestamp / staleness 共用工具、Memory Graph 分層與測試數 149 passed。
+- L14: (2026-05-15) README 已新增 MCP 驗證層級，明確區分終端單元測試、MCP stdio 協議 E2E 與 multi-mcp-gateway 真實工具入口；CHANGELOG 已同步 MCP 雙重驗證紀錄，確認七個工具可由協議層與 Gateway 正常列出並呼叫。
 
 ## Relations
 

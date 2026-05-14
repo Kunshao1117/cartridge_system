@@ -55,6 +55,25 @@ export function parseTrackedFiles(content: string): string[] {
 }
 
 /**
+ * 空追蹤區塊警告只針對疑似格式錯誤。
+ * 父層總覽卡、導航卡、歸檔卡可明確宣告不追蹤實體檔案，不應被視為格式偏差。
+ */
+export function shouldWarnEmptyTrackedFiles(content: string): boolean {
+  const normalized = content.replace(/\r\n/g, "\n");
+  if (!/^## Tracked Files[ \t]*$/m.test(normalized)) return false;
+
+  const trackedSection = normalized.match(
+    /## Tracked Files[ \t]*\n([\s\S]*?)(?=\n## |\n---|\s*$)/,
+  )?.[1] ?? "";
+  if (parseTrackedFiles(content).length > 0) return false;
+  if (trackedSection.trim().length === 0) return true;
+
+  return !/(?:（無|不追蹤|不直接追蹤|父層總覽|導航用途|歸檔|已刪除)/.test(
+    trackedSection,
+  );
+}
+
+/**
  * 記憶索引管理器
  */
 export class CartridgeIndexManager {
@@ -195,7 +214,7 @@ export class CartridgeIndexManager {
       }
 
       const trackedFiles = parseTrackedFiles(content);
-      if (trackedFiles.length === 0 && content.includes("## Tracked")) {
+      if (shouldWarnEmptyTrackedFiles(content)) {
         console.warn(
           `[記憶卡匣] 疑似格式偏差，Tracked Files 解析為空：${skillPath}`,
         );

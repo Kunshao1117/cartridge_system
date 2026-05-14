@@ -5,13 +5,13 @@ import * as z from "zod";
 import matter from "gray-matter";
 import { validateDependencySemantics } from "./dependency-semantics.js";
 import { validateProjectRoot } from "./path-guard.js";
-import { type McpToolResult } from "./mcp-handlers.js";
 import {
   createToolEnvelope,
   createToolErrorEnvelope,
   toMcpTextResult,
   type CartridgeFinding,
   type CartridgeToolStatus,
+  type McpToolResult,
 } from "./mcp-response.js";
 import {
   buildCommitPreflight,

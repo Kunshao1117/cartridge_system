@@ -3,7 +3,7 @@
 > **現實感知 AI 記憶防禦引擎** — 自動偵測記憶卡過期、幽靈檔案、跨模組依賴傳播，確保 AI 不讀取失效的上下文。
 
 [![version](https://img.shields.io/badge/version-4.1.1-blue)](./CHANGELOG.md)
-[![tests](https://img.shields.io/badge/tests-123%20passed-brightgreen)](#-執行測試)
+[![tests](https://img.shields.io/badge/tests-128%20passed-brightgreen)](#-執行測試)
 [![license](https://img.shields.io/badge/license-MIT-green)](#)
 
 ---
@@ -40,6 +40,8 @@ Cartridge System 是一個為 [Antigravity 框架](https://github.com/Kunshao111
 | 🌳 **TreeView 面板**| 記憶卡匣專屬側邊欄，樹狀可視化呈現所有健康指標、幽靈池與 💀 幽靈檔案 |
 | 🔍 **CodeLens 標記**| 編輯器頂部行內標記，即時顯示當前檔案所屬的記憶卡與過期狀態 |
 | 🛠️ **MCP 工具介面** | 提供七個標準化 AI 工具（純讀取 + 後設同步 + 依賴查詢 + 高階治理入口），支援跨專案動態路徑解析 |
+| 🧭 **MCP 工具名冊** | **v4.1.1 增強** — 集中管理工具描述、風險等級、讀寫屬性與授權需求，避免工具定義散落在伺服器入口。 |
+| 📦 **治理回傳契約** | **v4.1.1 增強** — 高階治理工具統一回傳 `status`、`summary`、`findings`、`recommendedActions` 與 `metadata`，方便 AI 與插件解析。 |
 | 🌐 **跨平台相容** | 完整支援 Windows CRLF 與 Unix LF 行尾格式 |
 | 🛡️ **路徑安全防禦** | 雙層路徑驗證（Zod 格式守衛 + 語意守衛），阻擋路徑穿越攻擊 |
 | 🌲 **巢狀目錄掃描** | 支援最大 4 層深度的記憶卡樹狀結構，目錄結構即層級 |
@@ -108,6 +110,27 @@ Cartridge System 提供 MCP（Model Context Protocol）工具伺服器，供 AI 
 | `memory_deps` | **v4.0 新增** — 查詢卡匣依賴拓樸：上游依賴、下游被依賴者、間接過期指數、循環依賴警告 |
 | `workspace_brief` | **v4.1.1 新增** — 彙整專案身份、記憶卡健康、stale/ghost/untracked 狀態與建議下一步，作為 AI 開工前高階入口 |
 | `commit_preflight` | **v4.1.1 新增** — 提交前治理檢查，彙整 git dirty state、記憶卡健康阻塞、建議行動與驗證命令 |
+
+### 高階治理工具回傳格式
+
+`workspace_brief` 與 `commit_preflight` 採用統一 envelope，方便 AI 與未來插件 UI 穩定解析：
+
+```json
+{
+  "status": "ready | warning | blocked | error",
+  "summary": {},
+  "findings": [],
+  "recommendedActions": [],
+  "metadata": {
+    "tool": "workspace_brief",
+    "readOnly": true,
+    "generatedAt": "2026-05-14T14:48:01+08:00",
+    "projectRoot": "D:\\cartridge_system"
+  }
+}
+```
+
+底層 `memory_*` 工具暫時維持既有格式，避免破壞既有 MCP 呼叫者。
 
 ### 跨專案支援
 
@@ -180,7 +203,7 @@ npm test
 npm run test:watch
 ```
 
-測試涵蓋 9 個測試檔案（**123 個案例**）：
+測試涵蓋 11 個測試檔案（**128 個案例**）：
 
 | 測試模組 | 案例數 | 涵蓋範圍 |
 |----------|--------|----------|
@@ -193,6 +216,8 @@ npm run test:watch
 | 警報寫入器 | 9 | 冪等植入、條件式清除、狀態回復 |
 | import 掃描器 | 5 | ES/動態/CJS 語法擷取、去重、node_modules 過濾 |
 | 依賴傳播引擎 | 8 | 反向圖建構、BFS 傳播深度、平方衰減權重、循環偵測 |
+| MCP 工具名冊 | 3 | 工具登錄完整性、治理後設資料、寫入型工具授權要求 |
+| MCP 回傳契約 | 2 | envelope 包裝、錯誤格式與台灣時區 metadata |
 
 ---
 
@@ -204,6 +229,8 @@ cartridge_system/
 │   ├── extension.ts          # VS Code 外掛入口與狀態列
 │   ├── mcp-server.ts         # MCP 伺服器路由（SDK 層）
 │   ├── mcp-handlers.ts       # MCP 工具商業邏輯（純函式層）
+│   ├── tool-registry.ts      # MCP 工具名冊（描述、風險、授權需求）
+│   ├── mcp-response.ts       # 高階治理工具統一回傳 envelope
 │   ├── workspace-brief.ts    # 高階開工摘要工具（MCP handler）
 │   ├── workspace-brief-summary.ts # 專案健康摘要規則引擎
 │   ├── commit-preflight.ts   # 提交前治理檢查工具（MCP handler）
@@ -233,6 +260,7 @@ cartridge_system/
 │   │   │   ├── analyzer/     # └ 過期分析器
 │   │   │   └── writer/       # └ 寫入器
 │   │   └── mcp-tools/        # MCP 工具介面
+│   │       └── tool-registry/# MCP 工具名冊與統一回傳契約
 │   ├── skills/               # 操作技能（框架提供）
 │   └── workflows/            # Antigravity 工作流程
 └── dist/                     # 編譯輸出（tsup 打包）

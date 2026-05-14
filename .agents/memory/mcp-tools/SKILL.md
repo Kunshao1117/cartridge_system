@@ -2,10 +2,11 @@
 name: mcp-tools
 description: |
   專案記憶：MCP 工具介面模組（第三階段）。 Use when: 處理MCP伺服器註冊、工具路由、AI工具呼叫介面時載入。
-last_updated: '2026-05-14T00:55:08+08:00'
+last_updated: '2026-05-14T14:38:41+08:00'
 status: stable
 staleness: 0
 dependencies:
+  - mcp-tools.tool-registry
   - index-manager
   - core-types
 metadata:
@@ -67,6 +68,8 @@ metadata:
 - D37: v4.1.1 MCP server 對外宣告版本需與 package.json 同步，避免 Gateway 或使用者看到過期版本號。
 - D38: `workspace_brief` 是第一個高階治理入口工具；工具註冊與 MCP routing 歸屬本卡，摘要統計邏輯下放至 `mcp-tools.workspace-brief` 子卡，避免主卡追蹤檔案超過 8 檔粒度上限。
 - D39: `commit_preflight` 是提交前治理入口工具；工具註冊與 MCP routing 歸屬本卡，git dirty state 與 memory blockers 摘要邏輯下放至 `mcp-tools.commit-preflight` 子卡。
+- D40: 新增 `mcp-tools.tool-registry` 子卡承接 MCP 工具名冊與統一回傳契約，避免主卡追蹤檔案超過 8 檔粒度上限。
+- D41: `mcp-server.ts` 的工具公開清單改由 `CARTRIDGE_TOOLS` 生成；主卡仍保留 server routing 職責，工具治理 metadata 下放子卡。
 
 ## Known Issues
 
@@ -95,6 +98,7 @@ metadata:
 - index-manager（共用服務：索引讀寫）
 - mcp-tools.workspace-brief（子卡：workspace_brief 高階治理摘要）
 - mcp-tools.commit-preflight（子卡：commit_preflight 提交前治理檢查）
+- mcp-tools.tool-registry（子卡：MCP 工具名冊與統一回傳契約）
 
 ## Applicable Skills
 

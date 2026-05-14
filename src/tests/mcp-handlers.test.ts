@@ -457,9 +457,13 @@ describe("handleWorkspaceBrief", () => {
     });
 
     const result = await handleWorkspaceBrief({ projectRoot: PROJECT_ROOT });
-    const brief = JSON.parse(result.content[0].text);
+    const envelope = JSON.parse(result.content[0].text);
+    const brief = envelope.summary;
 
     expect(result.isError).toBeUndefined();
+    expect(envelope.status).toBe("blocked");
+    expect(envelope.metadata.tool).toBe("workspace_brief");
+    expect(envelope.metadata.readOnly).toBe(true);
     expect(brief.project.name).toBe("cartridge-system");
     expect(brief.project.version).toBe("4.1.1");
     expect(brief.memory.total).toBe(3);
@@ -497,8 +501,10 @@ describe("handleWorkspaceBrief", () => {
     });
 
     const result = await handleWorkspaceBrief({ projectRoot: PROJECT_ROOT });
-    const brief = JSON.parse(result.content[0].text);
+    const envelope = JSON.parse(result.content[0].text);
+    const brief = envelope.summary;
 
+    expect(envelope.status).toBe("ready");
     expect(brief.readiness.status).toBe("ready");
     expect(brief.readiness.reasons).toEqual([]);
     expect(brief.recommendedActions).toEqual([]);
@@ -558,9 +564,13 @@ describe("handleCommitPreflight", () => {
     mockGitStatus("");
 
     const result = await handleCommitPreflight({ projectRoot: PROJECT_ROOT });
-    const preflight = JSON.parse(result.content[0].text);
+    const envelope = JSON.parse(result.content[0].text);
+    const preflight = envelope.summary;
 
     expect(result.isError).toBeUndefined();
+    expect(envelope.status).toBe("ready");
+    expect(envelope.metadata.tool).toBe("commit_preflight");
+    expect(envelope.metadata.readOnly).toBe(true);
     expect(preflight.status).toBe("ready");
     expect(preflight.blockers).toEqual([]);
     expect(preflight.summary.git.dirty).toBe(false);
@@ -587,8 +597,13 @@ describe("handleCommitPreflight", () => {
     mockGitStatus(" M src/mcp-server.ts\n?? src/new.ts\n");
 
     const result = await handleCommitPreflight({ projectRoot: PROJECT_ROOT });
-    const preflight = JSON.parse(result.content[0].text);
+    const envelope = JSON.parse(result.content[0].text);
+    const preflight = envelope.summary;
 
+    expect(envelope.status).toBe("blocked");
+    expect(envelope.findings.some((f: { code: string }) => f.code === "git_dirty")).toBe(
+      true,
+    );
     expect(preflight.status).toBe("blocked");
     expect(preflight.summary.memory.stale).toBe(1);
     expect(preflight.summary.memory.ghostFiles).toBe(1);

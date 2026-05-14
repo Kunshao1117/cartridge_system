@@ -4,6 +4,13 @@ import * as z from "zod";
 import { validateProjectRoot } from "./path-guard.js";
 import { type McpToolResult } from "./mcp-handlers.js";
 import {
+  createToolEnvelope,
+  createToolErrorEnvelope,
+  toMcpTextResult,
+  type CartridgeFinding,
+  type CartridgeToolStatus,
+} from "./mcp-response.js";
+import {
   buildWorkspaceBrief,
   type BriefIndex,
 } from "./workspace-brief-summary.js";
@@ -18,6 +25,16 @@ const projectRootField = z
 export const workspaceBriefSchema = z.object({
   projectRoot: projectRootField,
 });
+
+const TOOL_NAME = "workspace_brief";
+
+function readinessToFindings(reasons: string[]): CartridgeFinding[] {
+  return reasons.map((reason) => ({
+    severity: "warning",
+    code: "workspace_readiness_blocker",
+    message: reason,
+  }));
+}
 
 async function readPackageSummary(projectRoot: string) {
   try {
@@ -53,15 +70,15 @@ export async function handleWorkspaceBrief(
 ): Promise<McpToolResult> {
   const parsed = workspaceBriefSchema.safeParse(args);
   if (!parsed.success) {
-    return {
-      content: [
-        {
-          type: "text",
-          text: "Validation Error: projectRoot is required (must be absolute path without ..)",
-        },
-      ],
-      isError: true,
-    };
+    return toMcpTextResult(
+      createToolErrorEnvelope({
+        tool: TOOL_NAME,
+        projectRoot: "",
+        code: "validation_error",
+        message:
+          "Validation Error: projectRoot is required (must be absolute path without ..)",
+      }),
+    );
   }
 
   try {
@@ -70,19 +87,27 @@ export async function handleWorkspaceBrief(
       readPackageSummary(projectRoot),
       readCartridgeIndex(projectRoot),
     ]);
-    return {
-      content: [
-        {
-          type: "text",
-          text: JSON.stringify(buildWorkspaceBrief(project, index), null, 2),
-        },
-      ],
-    };
+    const brief = buildWorkspaceBrief(project, index);
+    return toMcpTextResult(
+      createToolEnvelope({
+        tool: TOOL_NAME,
+        readOnly: true,
+        projectRoot,
+        status: brief.readiness.status as CartridgeToolStatus,
+        summary: brief,
+        findings: readinessToFindings(brief.readiness.reasons),
+        recommendedActions: brief.recommendedActions,
+      }),
+    );
   } catch (e: unknown) {
     const msg = e instanceof Error ? e.message : String(e);
-    return {
-      content: [{ type: "text", text: `Error: ${msg}` }],
-      isError: true,
-    };
+    return toMcpTextResult(
+      createToolErrorEnvelope({
+        tool: TOOL_NAME,
+        projectRoot: parsed.data.projectRoot,
+        code: "workspace_brief_failed",
+        message: `Error: ${msg}`,
+      }),
+    );
   }
 }

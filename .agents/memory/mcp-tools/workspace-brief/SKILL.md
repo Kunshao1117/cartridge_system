@@ -3,11 +3,12 @@ name: workspace-brief
 description: >
   專案記憶：workspace_brief 高階治理摘要工具。Use when: 處理 AI 開工摘要、記憶卡健康彙整、readiness
   判斷與建議行動排序時載入。
-last_updated: '2026-05-14T00:26:29+08:00'
+last_updated: '2026-05-14T14:38:41+08:00'
 status: stable
 staleness: 0
 dependencies:
   - mcp-tools
+  - mcp-tools.tool-registry
 metadata:
   author: antigravity
   version: '1.0'
@@ -17,7 +18,6 @@ metadata:
     - 'filesystem:read'
     - 'filesystem:write'
 ---
-
 # Workspace Brief — 高階治理摘要記憶
 
 > 本模組提供 `workspace_brief` MCP 工具的摘要彙整邏輯，作為 AI 進入專案時的高階開工入口。
@@ -33,6 +33,8 @@ metadata:
 - D02: Handler 與摘要 builder 分離：`workspace-brief.ts` 負責參數驗證、路徑安全與 I/O；`workspace-brief-summary.ts` 負責記憶卡統計、readiness 判斷與 recommendedActions 排序。
 - D03: readiness 使用保守阻擋模型；只要存在 stale、ghost、untracked 或 indirect stale，即回傳 `blocked` 並列出具體 reasons。
 - D04: recommendedActions 以 P1/P2 排序，優先處理 significant stale、ghost files 與 untracked files，讓 AI 能直接判斷下一步。
+- D05: Handler 回傳改用 `mcp-response.ts` envelope，外層提供 status、summary、findings、recommendedActions 與 metadata；原本的 brief 內容保留在 `summary` 欄位。
+- D06: readiness reasons 會轉成 warning findings，讓 AI 或未來 UI 可直接顯示具體阻擋原因。
 
 ## Known Issues
 
@@ -46,6 +48,7 @@ metadata:
 ## Relations
 
 - mcp-tools（父卡：MCP 工具註冊、路由與工具契約）
+- mcp-tools.tool-registry（共用：MCP 統一回傳 envelope）
 
 ## Applicable Skills
 

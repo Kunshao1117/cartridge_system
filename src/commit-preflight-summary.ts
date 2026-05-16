@@ -1,3 +1,8 @@
+import {
+  buildCompatibilityReport,
+  type CompatibilityReport,
+} from "./memory-compatibility.js";
+
 export interface PreflightCartridgeEntry {
   skillPath?: string;
   staleness?: number;
@@ -27,6 +32,7 @@ type Blocker = {
     | "memory_ghost_files"
     | "memory_untracked_files"
     | "memory_indirect_stale"
+    | "memory_compatibility"
     | "git_dirty";
   target: string;
   reason: string;
@@ -164,8 +170,17 @@ function buildGitGate(entries: GitStatusEntry[]) {
 function buildRecommendedActions(
   memory: ReturnType<typeof buildMemoryGate>,
   git: ReturnType<typeof buildGitGate>,
+  compatibility: CompatibilityReport,
 ): RecommendedAction[] {
   const actions: RecommendedAction[] = [];
+  if (compatibility.mode === "compatibility") {
+    actions.push({
+      priority: "P1",
+      action: "run_memory_audit",
+      target: "workspace",
+      reason: `compatibilityWarnings=${compatibility.warnings.length}`,
+    });
+  }
   for (const blocker of memory.blockers) {
     actions.push({
       priority: blocker.type === "memory_stale" ? "P2" : "P1",
@@ -221,21 +236,34 @@ export function buildCommitPreflight(
     warnings: 0,
     modules: [],
   },
+  options: { indexAvailable?: boolean } = {},
 ) {
   const memory = buildMemoryGate(index);
   const git = buildGitGate(gitStatus);
-  const blockers = [...memory.blockers, ...git.blockers];
+  const compatibility = buildCompatibilityReport(index, options);
+  const compatibilityBlockers: Blocker[] =
+    compatibility.mode === "compatibility"
+      ? [
+          {
+            type: "memory_compatibility",
+            target: "workspace",
+            reason: `compatibilityWarnings=${compatibility.warnings.length}`,
+          },
+        ]
+      : [];
+  const blockers = [...compatibilityBlockers, ...memory.blockers, ...git.blockers];
   const readiness = buildReadiness(blockers, dependencySemantics);
   return {
     status: readiness.status,
     summary: {
       readiness,
+      compatibility,
       memory: memory.summary,
       git: git.summary,
       dependencySemantics,
     },
     blockers,
-    recommendedActions: buildRecommendedActions(memory, git),
+    recommendedActions: buildRecommendedActions(memory, git, compatibility),
     suggestedCommands: buildSuggestedCommands(),
   };
 }

@@ -12,15 +12,20 @@
 - MCP 操作摘要 — 強化依賴拓樸、開工摘要與提交前檢查輸出，分層呈現工程依賴、frontmatter 依賴、提交 readiness 與 dependency semantics 摘要。
 - 治理回傳契約 — 高階治理工具採用統一狀態回傳格式，讓 AI 與未來插件介面可穩定解析摘要、發現項目與建議行動。
 - MCP 報告標準化 — `memory_deps` 採用統一 envelope，並以 `legacy` 欄位保留舊版依賴拓樸輸出，降低 AI 判讀成本與相容風險。
+- MCP 介面收斂 — `memory_list`、`memory_read`、`memory_status`、`memory_commit` 也改採統一 envelope，成功與錯誤回傳都具備 `status`、`summary`、`findings`、`recommendedActions`、`metadata` 與 `legacy`。
 - MCP 依賴圖瘦身 — 抽出共用路徑驗證、時間戳與過期等級工具，並移除高階治理工具對底層 handlers 的不必要型別依賴，讓 Memory Graph 更貼近實際模組分層。
 - MCP 雙重驗證 — 補齊 `dist/mcp-server.js` stdio JSON-RPC E2E 與 `multi-mcp-gateway` 真實工具入口驗證，確認七個 MCP 工具可被協議層與 Gateway 正常列出並呼叫。
-- 文件同步 — README 更新為七個 MCP 工具、17 個測試檔案、149 個測試案例、工具名冊、治理回傳契約、工具防線、依賴語義警告與最新治理架構檔案。
+- 記憶卡完整健檢 — 新增只讀 `memory_audit` MCP 工具，完整掃描記憶卡 frontmatter、Tracked Files、索引漂移、舊格式相容、依賴循環與 dependencies 語義可疑項。
+- 雙層預防架構 — `workspace_brief` 與 `commit_preflight` 新增日常 compatibility warning，遇到舊索引或格式漂移時建議 AI 執行 `memory_audit`，但不自動修復或遷移。
+- 記憶循環來源分層 — `memory_audit` 改以即時 frontmatter graph 與 engineering graph 判斷主要循環，並將 persisted index cycle 降為診斷資訊，避免舊索引殘留誤判專案健康。
+- 文件同步 — README 更新為八個 MCP 工具、18 個測試檔案、161 個測試案例、工具名冊、治理回傳契約、工具防線、依賴語義警告、cycle 來源分層與最新治理架構檔案。
 
 ### fix
 
 - 依賴過期傳播 — 深層依賴的間接過期權重改為平方衰減，降低多層傳播造成的誤報強度。
 - MCP 版本宣告 — MCP server 對外版本同步至目前套件版本，避免 Gateway 與使用者看到過期版本號。
 - GitNexus CLI 環境 — 修復 Windows 使用者層級的 `npx gitnexus` 入口，避免其他專案再次撞到殘缺全域 shim。
+- 記憶工程循環 — 將過期等級判斷移至共用 `staleness.ts`，解除 `writer.ts` 對 `analyzer.ts` 的依賴，讓 `extension.analyzer` 與 `extension.writer` 的工程循環歸零。
 
 ### chore
 
@@ -28,6 +33,9 @@
 - 測試覆蓋 — 新增工具名冊與治理回傳契約單元測試，總測試案例提升至 128 個。
 - 測試覆蓋 — 新增工具分派與記憶依賴語義檢查測試，總測試案例提升至 141 個。
 - 測試覆蓋 — 拆分 workspace_brief、commit_preflight 與 staleness 測試，總測試案例提升至 149 個。
+- 測試覆蓋 — 新增底層 memory_* 工具 envelope 契約測試，總測試案例提升至 154 個。
+- 測試覆蓋 — 新增 memory_audit 與舊索引相容提醒測試，總測試案例提升至 159 個。
+- 測試覆蓋 — 新增 memory_audit cycle 來源分層與 getStalenessLevel 共用語義測試，總測試案例提升至 161 個。
 
 ## [4.1.1] — 2026-05-13
 

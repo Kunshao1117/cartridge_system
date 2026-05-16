@@ -2,9 +2,16 @@
 name: watcher
 description: |
   專案記憶：檔案監聯引擎模組。 Use when: 處理檔案監聽、原生Watcher設定、監聽生命週期管理時載入。
-last_updated: '2026-05-13T15:15:54+08:00'
+last_updated: '2026-05-16T18:03:38+08:00'
 staleness: 0
 status: stable
+metadata:
+  author: antigravity
+  version: '1.0'
+  origin: project
+  memory_awareness: full
+  tool_scope:
+    - 'filesystem:read'
 ---
 
 # Watcher Engine — 監聽引擎記憶

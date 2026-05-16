@@ -106,6 +106,16 @@ export const CARTRIDGE_TOOLS: CartridgeToolDefinition[] = [
     inputSchema: moduleProjectRootSchema,
   },
   {
+    name: "memory_audit",
+    description:
+      "完整健檢專案記憶卡系統，回報舊格式相容、frontmatter、Tracked Files、索引與依賴語義問題。",
+    risk: "medium",
+    capability: "governance",
+    readOnly: true,
+    requiresExplicitApproval: false,
+    inputSchema: projectRootSchema,
+  },
+  {
     name: "workspace_brief",
     description:
       "彙整專案治理狀態：專案身份、記憶卡健康、stale/ghost/untracked 狀態與建議下一步。",

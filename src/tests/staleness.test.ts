@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { stalenessToLevel } from "../staleness.js";
+import { getStalenessLevel, stalenessToLevel } from "../staleness.js";
+import { createConfig } from "../config.js";
 
 describe("stalenessToLevel — 過期等級轉換", () => {
   it("0 以下與 0 應回傳 healthy", () => {
@@ -20,5 +21,14 @@ describe("stalenessToLevel — 過期等級轉換", () => {
   it("30 以上應回傳 critical", () => {
     expect(stalenessToLevel(30)).toBe("critical");
     expect(stalenessToLevel(100)).toBe("critical");
+  });
+
+  it("getStalenessLevel 應維持 config 閾值語義", () => {
+    const config = createConfig("d:/cartridge_system");
+
+    expect(getStalenessLevel(0, config)).toBe("healthy");
+    expect(getStalenessLevel(9, config)).toBe("mild");
+    expect(getStalenessLevel(10, config)).toBe("significant");
+    expect(getStalenessLevel(30, config)).toBe("critical");
   });
 });

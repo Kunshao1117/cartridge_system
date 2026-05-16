@@ -25,6 +25,10 @@ import * as fs from "fs/promises";
 
 const PROJECT_ROOT = "/mock/other-project";
 
+function parseEnvelope(result: { content: Array<{ text: string }> }) {
+  return JSON.parse(result.content[0].text);
+}
+
 beforeEach(() => {
   vi.clearAllMocks();
   // resolveSkillPath 會呼叫 fs.access 驗證路徑存在，預設為成功（平面路徑回退）
@@ -112,7 +116,7 @@ describe("handleMemoryRead", () => {
     });
 
     expect(result.isError).toBeUndefined();
-    expect(result.content[0].text).toBe(mockContent);
+    expect(parseEnvelope(result).summary.content).toBe(mockContent);
   });
 
   it("應使用 projectRoot 組合正確的讀取路徑", async () => {
@@ -274,7 +278,7 @@ describe("handleMemoryStatus", () => {
       moduleName: "mem-analyzer",
       projectRoot: PROJECT_ROOT,
     });
-    const status = JSON.parse(result.content[0].text);
+    const status = parseEnvelope(result).summary;
 
     expect(status.module).toBe("mem-analyzer");
     expect(status.staleness).toBe(15);
@@ -299,7 +303,7 @@ describe("handleMemoryStatus", () => {
       moduleName: "mem-test",
       projectRoot: PROJECT_ROOT,
     });
-    const status = JSON.parse(result.content[0].text);
+    const status = parseEnvelope(result).summary;
 
     expect(status.staleness).toBe(5);
     expect(status.level).toBe("mild");
@@ -359,7 +363,7 @@ describe("handleMemoryList — 增強回傳", () => {
     );
 
     const result = await handleMemoryList({ projectRoot: PROJECT_ROOT });
-    const data = JSON.parse(result.content[0].text);
+    const data = parseEnvelope(result).summary;
     const list = data.cartridges;
 
     expect(list).toHaveLength(2);
@@ -372,6 +376,28 @@ describe("handleMemoryList — 增強回傳", () => {
     expect(data.untrackedFiles).toEqual([]);
   });
 
+  it("有索引時應回傳標準 envelope 並保留 legacy", async () => {
+    const indexData = {
+      cartridges: {
+        "mem-_system": { staleness: 0, pendingChanges: [] },
+      },
+      untrackedFiles: [],
+    };
+    vi.mocked(fs.readFile).mockResolvedValue(
+      JSON.stringify(indexData) as unknown as Awaited<
+        ReturnType<typeof fs.readFile>
+      >,
+    );
+
+    const result = await handleMemoryList({ projectRoot: PROJECT_ROOT });
+    const envelope = parseEnvelope(result);
+
+    expect(envelope.status).toBe("ready");
+    expect(envelope.metadata.tool).toBe("memory_list");
+    expect(envelope.summary.cartridgeCount).toBe(1);
+    expect(envelope.legacy.cartridges[0].module).toBe("mem-_system");
+  });
+
   it("索引不存在時應回退到純文字模式", async () => {
     vi.mocked(fs.readdir).mockResolvedValue([
       { isDirectory: () => true, name: "mem-_system" },
@@ -382,6 +408,84 @@ describe("handleMemoryList — 增強回傳", () => {
 
     expect(result.content[0].text).toContain("Available memories:");
     expect(result.content[0].text).toContain("mem-_system");
+  });
+});
+
+describe("MCP envelope 收斂", () => {
+  it("memory_read 成功時應以 summary 承載內容並以 legacy 保留舊文字", async () => {
+    const mockContent = "---\nname: mem-_system\n---\n# System";
+    vi.mocked(fs.readFile).mockResolvedValue(
+      mockContent as unknown as Awaited<ReturnType<typeof fs.readFile>>,
+    );
+
+    const result = await handleMemoryRead({
+      moduleName: "mem-_system",
+      projectRoot: PROJECT_ROOT,
+    });
+    const envelope = parseEnvelope(result);
+
+    expect(envelope.status).toBe("ready");
+    expect(envelope.metadata.tool).toBe("memory_read");
+    expect(envelope.summary.content).toBe(mockContent);
+    expect(envelope.legacy.text).toBe(mockContent);
+  });
+
+  it("memory_status 成功時應回傳標準 envelope", async () => {
+    const indexData = {
+      cartridges: {
+        "mem-test": {
+          staleness: 0,
+          trackedFiles: ["src/test.ts"],
+          pendingChanges: [],
+        },
+      },
+    };
+    vi.mocked(fs.readFile).mockResolvedValue(
+      JSON.stringify(indexData) as unknown as Awaited<
+        ReturnType<typeof fs.readFile>
+      >,
+    );
+
+    const result = await handleMemoryStatus({
+      moduleName: "mem-test",
+      projectRoot: PROJECT_ROOT,
+    });
+    const envelope = parseEnvelope(result);
+
+    expect(envelope.status).toBe("ready");
+    expect(envelope.metadata.tool).toBe("memory_status");
+    expect(envelope.summary.module).toBe("mem-test");
+    expect(envelope.legacy.module).toBe("mem-test");
+  });
+
+  it("memory_commit 成功時應回傳標準 envelope 並標示寫入工具", async () => {
+    const existing = `---\nname: mem-test\ndescription: test\nlast_updated: "old"\nstaleness: 0\n---\n\n## Tracked Files\n- src/foo.ts\n`;
+    vi.mocked(fs.readFile).mockResolvedValue(
+      existing as unknown as Awaited<ReturnType<typeof fs.readFile>>,
+    );
+    vi.mocked(fs.writeFile).mockResolvedValue(undefined);
+
+    const result = await handleMemoryCommit({
+      moduleName: "mem-test",
+      projectRoot: PROJECT_ROOT,
+    });
+    const envelope = parseEnvelope(result);
+
+    expect(envelope.status).toBe("warning");
+    expect(envelope.metadata.tool).toBe("memory_commit");
+    expect(envelope.metadata.readOnly).toBe(false);
+    expect(envelope.summary.status).toBe("success");
+    expect(envelope.legacy.status).toBe("success");
+  });
+
+  it("validation error 應回傳標準錯誤 envelope", async () => {
+    const result = await handleMemoryRead({ moduleName: "mem-test" });
+    const envelope = parseEnvelope(result);
+
+    expect(result.isError).toBe(true);
+    expect(envelope.status).toBe("error");
+    expect(envelope.metadata.tool).toBe("memory_read");
+    expect(envelope.findings[0].code).toBe("validation_error");
   });
 });
 
@@ -471,7 +575,7 @@ describe("handleMemoryCommit", () => {
       moduleName: "mem-test",
       projectRoot: PROJECT_ROOT,
     });
-    const report = JSON.parse(result.content[0].text);
+    const report = parseEnvelope(result).summary;
 
     expect(report.status).toBe("success");
     expect(report.trackedFilesCount).toBe(2);
@@ -521,7 +625,7 @@ describe("handleMemoryCommit", () => {
       moduleName: "mem-test",
       projectRoot: PROJECT_ROOT,
     });
-    const report = JSON.parse(result.content[0].text);
+    const report = parseEnvelope(result).summary;
 
     expect(report.warnings).toContain("frontmatter 缺少 description 欄位");
     expect(report.warnings).toContain("body 缺少 ## Tracked Files 區段");
@@ -542,7 +646,7 @@ describe("handleMemoryCommit", () => {
       moduleName: "mem-test",
       projectRoot: PROJECT_ROOT,
     });
-    const report = JSON.parse(result.content[0].text);
+    const report = parseEnvelope(result).summary;
 
     expect(report.status).toBe("success");
     expect(result.isError).toBeUndefined();
@@ -568,7 +672,7 @@ describe("handleMemoryCommit", () => {
       moduleName: "mem-test",
       projectRoot: PROJECT_ROOT,
     });
-    const report = JSON.parse(result.content[0].text);
+    const report = parseEnvelope(result).summary;
 
     expect(
       report.warnings.some((w: string) => w.includes("HEADING_TYPO")),
@@ -590,7 +694,7 @@ describe("handleMemoryCommit", () => {
       moduleName: "mem-test",
       projectRoot: PROJECT_ROOT,
     });
-    const report = JSON.parse(result.content[0].text);
+    const report = parseEnvelope(result).summary;
 
     expect(
       report.warnings.some((w: string) => w.includes("HEADING_TYPO")),
@@ -608,7 +712,7 @@ describe("handleMemoryCommit", () => {
       moduleName: "mem-test",
       projectRoot: PROJECT_ROOT,
     });
-    const report = JSON.parse(result.content[0].text);
+    const report = parseEnvelope(result).summary;
 
     expect(
       report.warnings.some((w: string) => w.includes("PATH_ABSOLUTE")),
@@ -627,7 +731,7 @@ describe("handleMemoryCommit", () => {
       moduleName: "mem-test",
       projectRoot: PROJECT_ROOT,
     });
-    const report = JSON.parse(result.content[0].text);
+    const report = parseEnvelope(result).summary;
 
     expect(
       report.warnings.some((w: string) => w.includes("PATH_TRAVERSAL")),
@@ -646,7 +750,7 @@ describe("handleMemoryCommit", () => {
       moduleName: "mem-test",
       projectRoot: PROJECT_ROOT,
     });
-    const report = JSON.parse(result.content[0].text);
+    const report = parseEnvelope(result).summary;
 
     expect(
       report.warnings.some((w: string) => w.includes("PATH_")),
@@ -683,7 +787,7 @@ describe("handleMemoryCommit", () => {
       moduleName: "mcp-tools.dispatcher",
       projectRoot: PROJECT_ROOT,
     });
-    const report = JSON.parse(result.content[0].text);
+    const report = parseEnvelope(result).summary;
 
     expect(
       report.warnings.some((warning: string) =>

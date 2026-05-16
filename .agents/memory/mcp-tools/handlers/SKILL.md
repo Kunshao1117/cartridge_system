@@ -3,7 +3,7 @@ name: mcp-tools.handlers
 description: >
   專案記憶：底層 memory_* MCP handlers。Use when: 處理 mcp-handlers.ts、 底層
   memory_list/read/status/commit/deps 行為或 handler 測試時載入。
-last_updated: '2026-05-15T02:40:02+08:00'
+last_updated: '2026-05-15T03:18:07+08:00'
 status: stable
 staleness: 0
 dependencies:
@@ -45,6 +45,7 @@ metadata:
 - D11: `workspace_brief` 與 `commit_preflight` 測試已拆出 `mcp-handlers.test.ts`，分別由各自子卡追蹤，避免 handlers 記憶卡因測試 import 被推導出高階工具依賴。
 - D12: `timestamp.ts` 已移至 `core-types` 記憶卡持有；handlers 僅消費 `getTaiwanISO`，避免 `index-manager` 與 `mcp-response` 因共用時間戳工具反向依賴 handlers。
 - D13: MCP stdio E2E 與 Gateway 實測均需覆蓋 `memory_deps`；目前 `mcp-tools.handlers`、`mcp-tools.tool-registry`、`index-manager` 的 cycles 驗收值為 0。
+- D14: `memory_list`、`memory_read`、`memory_status` 與 `memory_commit` 已收斂為 `mcp-response.ts` envelope；舊文字、原始狀態與歸卡報告放入 `legacy`，新版 AI 優先讀 `summary/findings/recommendedActions`。
 
 ## Known Issues
 
@@ -62,6 +63,7 @@ metadata:
 - L08: 測試檔同樣會被工程依賴掃描納入 Memory Graph；高階工具測試不可長期混在底層 handler 測試檔內。
 - L09: 時間戳這類跨索引器、handler 與 response envelope 的小工具不應由 handlers 卡持有，否則會製造雙向依賴。
 - L10: 驗證 MCP 工具可用性時，單元測試只能證明 handler 行為；必須另跑 MCP stdio 與 Gateway 入口，才可宣稱工具層實測通過。
+- L11: 底層 memory_* 工具也要遵守同一份回傳契約；否則 AI 在讀 Gateway 結果時仍需為舊工具寫特殊解析邏輯。
 
 ## Relations
 

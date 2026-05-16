@@ -9,6 +9,7 @@ describe("tool-registry — MCP 工具名冊", () => {
       "memory_status",
       "memory_commit",
       "memory_deps",
+      "memory_audit",
       "workspace_brief",
       "commit_preflight",
     ]);

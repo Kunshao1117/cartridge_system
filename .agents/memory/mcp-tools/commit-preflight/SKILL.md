@@ -3,12 +3,13 @@ name: commit-preflight
 description: >
   專案記憶：commit_preflight 提交前治理檢查工具。Use when: 處理 git dirty state、記憶卡健康阻塞、
   提交前建議動作與收尾治理決策時載入。
-last_updated: '2026-05-15T02:40:02+08:00'
+last_updated: '2026-05-15T15:42:06+08:00'
 status: stable
 staleness: 0
 dependencies:
   - core-types
   - mcp-tools.tool-registry
+  - mcp-tools.memory-audit
 metadata:
   author: antigravity
   version: '1.0'
@@ -18,7 +19,6 @@ metadata:
     - 'filesystem:read'
     - 'filesystem:write'
 ---
-
 # Commit Preflight — 提交前治理檢查記憶
 
 > 本模組提供 `commit_preflight` MCP 工具的提交前決策邏輯，作為 `workspace_brief` 之後的收尾治理入口。
@@ -44,6 +44,8 @@ metadata:
 - D11: `core-types` 是 `commit-preflight.ts` 的路徑驗證上游 dependency；若 `core-types` 的 `path-guard.ts` 過期，提交前工具的 projectRoot 防線也必須重新檢查。
 - D12: `commit_preflight` 測試已從 `mcp-handlers.test.ts` 拆至 `commit-preflight.test.ts`，避免底層 handlers 記憶卡因測試 import 被推導依賴本高階工具。
 - D13: MCP stdio E2E 與 Gateway 實測都必須確認 dependency semantics warnings 為 0；若 blocked 只來自 git dirty state，表示工具層可用但尚未封存。
+- D14: `commit_preflight` 新增 compatibility gate；缺索引或舊索引欄位會以 `memory_compatibility` blocker 阻擋封存，並建議先跑 `memory_audit`，避免在記憶判讀不完整時提交。
+- D15: `commit_preflight` 實際依賴 `mcp-tools.memory-audit` 持有的 `memory-compatibility.ts`；若 compatibility warning 規則過期，提交前 compatibility blocker 也必須重新檢查。
 
 ## Known Issues
 
@@ -60,6 +62,7 @@ metadata:
 - L07: projectRoot 驗證是跨 MCP 工具共用防線，應由 core-types 層持有，避免高階工具為路徑驗證依賴 handlers。
 - L08: 提交前工具測試應與功能記憶卡一起維護；測試檔混放在 handlers 卡會製造假的高階依賴。
 - L09: commit_preflight 的 blocked 不等於工具錯誤；封存前需分辨 dirty files、memory blockers、dependency semantics warnings 三種原因。
+- L10: 提交前工具可以因 compatibility mode 阻擋封存，但不應自行執行完整掃描或自動修復；深度診斷交給 `memory_audit`。
 
 ## Relations
 
@@ -67,6 +70,7 @@ metadata:
 - core-types（依賴：projectRoot 路徑驗證）
 - mcp-tools.workspace-brief（前置入口：專案健康摘要）
 - mcp-tools.tool-registry（共用：MCP 統一回傳 envelope）
+- mcp-tools.memory-audit（依賴：compatibility warning 規則）
 
 ## Applicable Skills
 

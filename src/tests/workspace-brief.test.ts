@@ -29,11 +29,17 @@ describe("handleWorkspaceBrief", () => {
           staleness: 10,
           pendingChanges: [{ filePath: "package.json" }],
           trackedFiles: ["package.json"],
+          ghostFiles: [],
+          indirectStaleness: 0,
+          dependencies: [],
         },
         _assets: {
           staleness: 20,
           pendingChanges: [{ filePath: "assets/logo.png" }],
           trackedFiles: ["assets/logo.png"],
+          ghostFiles: [],
+          indirectStaleness: 0,
+          dependencies: [],
         },
         "mcp-tools": {
           staleness: 0,
@@ -55,6 +61,7 @@ describe("handleWorkspaceBrief", () => {
           parent: null,
         },
       },
+      fileMap: {},
       untrackedFiles: [{ filePath: "src/new.ts" }],
     };
 
@@ -114,9 +121,12 @@ describe("handleWorkspaceBrief", () => {
               staleness: 0,
               pendingChanges: [],
               trackedFiles: ["src/mcp-server.ts"],
+              ghostFiles: [],
+              indirectStaleness: 0,
               dependencies: [],
             },
           },
+          fileMap: {},
           untrackedFiles: [],
         }) as unknown as Awaited<ReturnType<typeof fs.readFile>>;
       }
@@ -152,10 +162,13 @@ describe("handleWorkspaceBrief", () => {
               staleness: 0,
               pendingChanges: [],
               trackedFiles: ["src/tool-dispatcher.ts"],
+              ghostFiles: [],
+              indirectStaleness: 0,
               dependencies: ["mcp-tools"],
               parent: "mcp-tools",
             },
           },
+          fileMap: {},
           untrackedFiles: [],
         }) as unknown as Awaited<ReturnType<typeof fs.readFile>>;
       }
@@ -171,7 +184,7 @@ describe("handleWorkspaceBrief", () => {
     expect(brief.recommendedActions).toEqual([]);
   });
 
-  it("索引不存在時應回傳錯誤", async () => {
+  it("索引不存在時應進入相容模式並建議 memory_audit", async () => {
     vi.mocked(fs.readFile).mockImplementation(async (filePath) => {
       const fp = filePath as string;
       if (fp.endsWith("package.json")) {
@@ -183,9 +196,13 @@ describe("handleWorkspaceBrief", () => {
     });
 
     const result = await handleWorkspaceBrief({ projectRoot: PROJECT_ROOT });
+    const envelope = JSON.parse(result.content[0].text);
 
-    expect(result.isError).toBe(true);
-    expect(result.content[0].text).toContain("Error");
+    expect(result.isError).toBeUndefined();
+    expect(envelope.status).toBe("warning");
+    expect(envelope.summary.compatibility.mode).toBe("compatibility");
+    expect(envelope.findings[0].code).toBe("INDEX_MISSING");
+    expect(envelope.recommendedActions[0].action).toBe("run_memory_audit");
   });
 
   it("未傳入 projectRoot 時應回傳 Validation Error", async () => {

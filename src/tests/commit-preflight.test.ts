@@ -36,8 +36,10 @@ describe("handleCommitPreflight", () => {
             staleness: 0,
             ghostFiles: [],
             indirectStaleness: 0,
+            dependencies: [],
           },
         },
+        fileMap: {},
         untrackedFiles: [],
       }) as unknown as Awaited<ReturnType<typeof fs.readFile>>,
     );
@@ -67,13 +69,16 @@ describe("handleCommitPreflight", () => {
             staleness: 10,
             ghostFiles: [],
             indirectStaleness: 0,
+            dependencies: [],
           },
           "mcp-tools": {
             staleness: 0,
             ghostFiles: ["src/old.ts"],
             indirectStaleness: 5,
+            dependencies: [],
           },
         },
+        fileMap: {},
         untrackedFiles: [{ filePath: "src/new.ts" }],
       }) as unknown as Awaited<ReturnType<typeof fs.readFile>>,
     );
@@ -125,7 +130,11 @@ describe("handleCommitPreflight", () => {
 
   it("git status 失敗時應回傳錯誤", async () => {
     vi.mocked(fs.readFile).mockResolvedValue(
-      JSON.stringify({ cartridges: {}, untrackedFiles: [] }) as unknown as Awaited<
+      JSON.stringify({
+        cartridges: {},
+        fileMap: {},
+        untrackedFiles: [],
+      }) as unknown as Awaited<
         ReturnType<typeof fs.readFile>
       >,
     );
@@ -148,6 +157,7 @@ describe("handleCommitPreflight", () => {
           staleness: 0,
           ghostFiles: [],
           indirectStaleness: 0,
+          trackedFiles: ["src/tool-dispatcher.ts"],
           parent: "mcp-tools",
           dependencies: ["mcp-tools"],
         },
@@ -206,5 +216,20 @@ dependencies:
           finding.severity === "warning",
       ),
     ).toBe(true);
+  });
+
+  it("索引不存在時應阻擋封存並建議 memory_audit", async () => {
+    vi.mocked(fs.readFile).mockRejectedValue(new Error("ENOENT"));
+    mockGitStatus("");
+
+    const result = await handleCommitPreflight({ projectRoot: PROJECT_ROOT });
+    const envelope = JSON.parse(result.content[0].text);
+    const preflight = envelope.summary;
+
+    expect(result.isError).toBeUndefined();
+    expect(envelope.status).toBe("blocked");
+    expect(preflight.summary.compatibility.mode).toBe("compatibility");
+    expect(preflight.blockers[0].type).toBe("memory_compatibility");
+    expect(envelope.recommendedActions[0].action).toBe("run_memory_audit");
   });
 });

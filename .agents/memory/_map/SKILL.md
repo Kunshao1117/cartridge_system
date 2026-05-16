@@ -3,9 +3,16 @@ name: _map
 scopePath: null
 description: |
   專案記憶：全局導航卡與模組總覽。 Use when: 查詢架構全貌、模組依賴關係、各子模組層級分配時載入。
-last_updated: "2026-04-12T11:59:28+08:00"
+last_updated: '2026-05-16T18:03:38+08:00'
 status: stable
 staleness: 0
+metadata:
+  author: antigravity
+  version: '1.0'
+  origin: project
+  memory_awareness: full
+  tool_scope:
+    - 'filesystem:read'
 ---
 
 # Map — 全局導航

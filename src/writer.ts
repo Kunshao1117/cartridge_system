@@ -7,7 +7,7 @@ import fs from 'node:fs'
 import path from 'node:path'
 import matter from 'gray-matter'
 import type { CartridgeConfig, StalenessLevel } from './types.js'
-import { getStalenessLevel } from './analyzer.js'
+import { getStalenessLevel } from './staleness.js'
 import { getTaiwanISO } from './timestamp.js'
 
 /** 警報區塊的標記邊界 */

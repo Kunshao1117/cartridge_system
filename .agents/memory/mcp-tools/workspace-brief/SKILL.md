@@ -3,12 +3,13 @@ name: workspace-brief
 description: >
   專案記憶：workspace_brief 高階治理摘要工具。Use when: 處理 AI 開工摘要、記憶卡健康彙整、readiness
   判斷與建議行動排序時載入。
-last_updated: '2026-05-15T02:40:02+08:00'
+last_updated: '2026-05-15T15:42:06+08:00'
 status: stable
 staleness: 0
 dependencies:
   - core-types
   - mcp-tools.tool-registry
+  - mcp-tools.memory-audit
 metadata:
   author: antigravity
   version: '1.0'
@@ -18,7 +19,6 @@ metadata:
     - 'filesystem:read'
     - 'filesystem:write'
 ---
-
 # Workspace Brief — 高階治理摘要記憶
 
 > 本模組提供 `workspace_brief` MCP 工具的摘要彙整邏輯，作為 AI 進入專案時的高階開工入口。
@@ -45,6 +45,8 @@ metadata:
 - D12: `core-types` 是 `workspace-brief.ts` 與 `workspace-brief-summary.ts` 的路徑驗證與 staleness 等級轉換上游 dependency；若 `core-types` 的 `path-guard.ts` 或 `staleness.ts` 過期，workspace 摘要也必須重新檢查。
 - D13: `workspace_brief` 測試已從 `mcp-handlers.test.ts` 拆至 `workspace-brief.test.ts`，避免底層 handlers 記憶卡因測試 import 被推導依賴本高階工具。
 - D14: MCP stdio E2E 與 Gateway 實測都必須確認 `workspace_brief` 記憶健康為 ready，且 stale、ghost、untracked、oversized 皆為 0。
+- D15: `workspace_brief` 新增輕量 compatibility summary；缺索引或舊索引欄位時回 `warning` 並建議 `run_memory_audit`，但不讀取所有 SKILL.md、不執行完整健檢。
+- D16: `workspace_brief` 實際依賴 `mcp-tools.memory-audit` 持有的 `memory-compatibility.ts`；若 compatibility warning 規則過期，workspace 摘要的日常導入提醒也必須重新檢查。
 
 ## Known Issues
 
@@ -61,12 +63,14 @@ metadata:
 - L07: 高階摘要工具只應依賴窄型共用工具與 envelope 契約；避免直接依賴底層 handler 大檔，降低 Memory Graph 循環雜訊。
 - L08: 高階工具的 handler 測試應由對應子卡持有；測試檔 import 也會影響 Memory Graph 的工程依賴推導。
 - L09: workspace_brief 不讀 git state；它可以回報記憶健康 ready，但提交是否可封存仍以 commit_preflight 為準。
+- L10: 日常開工入口只應提示「需要深度健檢」，完整舊格式導入診斷由 `memory_audit` 承擔，避免 workspace_brief 變慢或變成大雜燴。
 
 ## Relations
 
 - mcp-tools（父卡：MCP 工具註冊、路由與工具契約）
 - core-types（依賴：路徑驗證與 staleness 等級轉換）
 - mcp-tools.tool-registry（共用：MCP 統一回傳 envelope）
+- mcp-tools.memory-audit（依賴：compatibility warning 規則）
 
 ## Applicable Skills
 

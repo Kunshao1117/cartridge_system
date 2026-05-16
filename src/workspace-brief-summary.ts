@@ -1,4 +1,8 @@
 import { stalenessToLevel } from "./staleness.js";
+import {
+  buildCompatibilityReport,
+  type CompatibilityReport,
+} from "./memory-compatibility.js";
 
 const STALENESS_SIGNIFICANT = 10;
 
@@ -167,14 +171,37 @@ function buildRecommendedActions(index: BriefIndex): RecommendedAction[] {
   return actions.sort((a, b) => a.priority.localeCompare(b.priority));
 }
 
-export function buildWorkspaceBrief(project: ProjectSummary, index: BriefIndex) {
+function buildCompatibilityActions(
+  compatibility: CompatibilityReport,
+): RecommendedAction[] {
+  if (compatibility.mode === "modern") return [];
+  return [
+    {
+      priority: "P1",
+      action: "run_memory_audit",
+      target: "workspace",
+      reason: `compatibilityWarnings=${compatibility.warnings.length}`,
+    },
+  ];
+}
+
+export function buildWorkspaceBrief(
+  project: ProjectSummary,
+  index: BriefIndex,
+  options: { indexAvailable?: boolean } = {},
+) {
   const memory = buildMemorySummary(index);
   const readiness = buildReadiness(memory);
+  const compatibility = buildCompatibilityReport(index, options);
   return {
     project,
     memory,
+    compatibility,
     readiness,
     submitReadiness: buildSubmitReadiness(readiness),
-    recommendedActions: buildRecommendedActions(index),
+    recommendedActions: [
+      ...buildCompatibilityActions(compatibility),
+      ...buildRecommendedActions(index),
+    ].sort((a, b) => a.priority.localeCompare(b.priority)),
   };
 }

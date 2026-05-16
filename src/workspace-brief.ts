@@ -36,6 +36,16 @@ function readinessToFindings(reasons: string[]): CartridgeFinding[] {
   }));
 }
 
+function compatibilityToFindings(
+  warnings: Array<{ code: string; message: string; target: string }>,
+): CartridgeFinding[] {
+  return warnings.map((warning) => ({
+    severity: "warning",
+    code: warning.code,
+    message: `${warning.target}: ${warning.message}`,
+  }));
+}
+
 async function readPackageSummary(projectRoot: string) {
   try {
     const raw = await fs.readFile(
@@ -57,12 +67,22 @@ async function readPackageSummary(projectRoot: string) {
   }
 }
 
-async function readCartridgeIndex(projectRoot: string): Promise<BriefIndex> {
-  const raw = await fs.readFile(
-    path.join(projectRoot, ".cartridge", "index.json"),
-    "utf-8",
-  );
-  return JSON.parse(raw) as BriefIndex;
+async function readCartridgeIndex(projectRoot: string): Promise<{
+  index: BriefIndex;
+  indexAvailable: boolean;
+}> {
+  try {
+    const raw = await fs.readFile(
+      path.join(projectRoot, ".cartridge", "index.json"),
+      "utf-8",
+    );
+    return { index: JSON.parse(raw) as BriefIndex, indexAvailable: true };
+  } catch {
+    return {
+      index: { cartridges: {}, untrackedFiles: [] },
+      indexAvailable: false,
+    };
+  }
 }
 
 export async function handleWorkspaceBrief(
@@ -83,19 +103,30 @@ export async function handleWorkspaceBrief(
 
   try {
     const projectRoot = validateProjectRoot(parsed.data.projectRoot);
-    const [project, index] = await Promise.all([
+    const [project, indexResult] = await Promise.all([
       readPackageSummary(projectRoot),
       readCartridgeIndex(projectRoot),
     ]);
-    const brief = buildWorkspaceBrief(project, index);
+    const brief = buildWorkspaceBrief(project, indexResult.index, {
+      indexAvailable: indexResult.indexAvailable,
+    });
+    const status =
+      brief.readiness.status === "blocked"
+        ? "blocked"
+        : brief.compatibility.mode === "compatibility"
+          ? "warning"
+          : "ready";
     return toMcpTextResult(
       createToolEnvelope({
         tool: TOOL_NAME,
         readOnly: true,
         projectRoot,
-        status: brief.readiness.status as CartridgeToolStatus,
+        status: status as CartridgeToolStatus,
         summary: brief,
-        findings: readinessToFindings(brief.readiness.reasons),
+        findings: [
+          ...compatibilityToFindings(brief.compatibility.warnings),
+          ...readinessToFindings(brief.readiness.reasons),
+        ],
         recommendedActions: brief.recommendedActions,
       }),
     );

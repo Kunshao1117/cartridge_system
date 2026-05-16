@@ -5,10 +5,16 @@
  */
 
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { getStalenessLevel, StalenessAnalyzer } from "../analyzer.js";
+import { StalenessAnalyzer } from "../analyzer.js";
+import { getStalenessLevel } from "../staleness.js";
 import { CartridgeIndexManager } from "../index-manager.js";
 import { createConfig } from "../config.js";
-import type { MemoryWriter } from "../writer.js";
+
+type TestMemoryWriter = {
+  injectWarning: ReturnType<typeof vi.fn>;
+  removeWarning: ReturnType<typeof vi.fn>;
+  checkAndCleanWarning: ReturnType<typeof vi.fn>;
+};
 
 // ---------------------------------------------------------------------------
 // getStalenessLevel — 過期等級判斷（純函式）
@@ -38,7 +44,7 @@ describe("getStalenessLevel — 過期等級四分支", () => {
 // ---------------------------------------------------------------------------
 describe("StalenessAnalyzer.calculateStaleness — 計分邏輯", () => {
   let manager: CartridgeIndexManager;
-  let writer: MemoryWriter;
+  let writer: TestMemoryWriter;
   let analyzer: StalenessAnalyzer;
 
   beforeEach(() => {
@@ -48,7 +54,7 @@ describe("StalenessAnalyzer.calculateStaleness — 計分邏輯", () => {
       injectWarning: vi.fn(),
       removeWarning: vi.fn(),
       checkAndCleanWarning: vi.fn(),
-    } as unknown as MemoryWriter;
+    };
     analyzer = new StalenessAnalyzer(config, manager, writer);
 
     // 手動注入假索引資料，跳過有 fs 依賴的 scan()
@@ -100,7 +106,7 @@ describe("StalenessAnalyzer.calculateStaleness — 計分邏輯", () => {
 // ---------------------------------------------------------------------------
 describe("StalenessAnalyzer.processFileEvent — 整合流程", () => {
   let manager: CartridgeIndexManager;
-  let writer: MemoryWriter;
+  let writer: TestMemoryWriter;
   let analyzer: StalenessAnalyzer;
   const config = createConfig("d:/cartridge_system");
 
@@ -110,7 +116,7 @@ describe("StalenessAnalyzer.processFileEvent — 整合流程", () => {
       injectWarning: vi.fn().mockResolvedValue(undefined),
       removeWarning: vi.fn(),
       checkAndCleanWarning: vi.fn(),
-    } as unknown as MemoryWriter;
+    };
     analyzer = new StalenessAnalyzer(config, manager, writer);
 
     // 注入假索引：一個 pendingChanges 為空的乾淨卡匣

@@ -2,7 +2,7 @@
 name: core-types
 description: |
   專案記憶：共用型別、設定與跨層小工具模組。 Use when: 處理系統共用型別定義、設定工廠函式、路徑驗證、時間戳或 staleness 等級轉換時載入。
-last_updated: '2026-05-15T02:19:26+08:00'
+last_updated: '2026-05-16T18:18:04+08:00'
 status: stable
 staleness: 0
 scopePath: src/
@@ -41,9 +41,10 @@ metadata:
 - D05: getSkillsAbsPath() 從 config 動態組合操作技能目錄絕對路徑
 - D06: ignoreFiles 清單用於排除系統產物（如 cartridge_index.json）不觸發過期計算
 - D07: v4.0 路徑遷移 — 新增 memoryDir 欄位（預設 .agents/memory），搭配 getMemoryAbsPath() 輔助函式。skillsDir 保留給操作技能
-- D08: `staleness.ts` 提供 MCP 工具與 workspace 摘要共用的 healthy / mild / significant / critical 等級轉換，避免高階工具依賴底層 handler 大檔。
+- D08: `staleness.ts` 提供 MCP 工具、workspace 摘要、analyzer 與 writer 共用的 healthy / mild / significant / critical 等級轉換，避免高階工具或寫入器依賴底層 handler / analyzer 大檔。
 - D09: `path-guard.ts` 提供跨 MCP 工具共用的 projectRoot 路徑安全驗證，歸 core-types 持有可避免 workspace/commit 工具為路徑驗證依賴底層 handlers。
 - D10: `timestamp.ts` 提供跨 index-manager、MCP handlers 與 MCP response envelope 共用的台灣時區時間戳，歸 core-types 持有可避免 tool-registry 或 index-manager 因時間戳工具反向依賴 handlers。
+- D11: `getStalenessLevel()` 已由 `analyzer.ts` 移入 `staleness.ts`，讓 `writer.ts` 可共用過期等級判斷而不再 import analyzer，解除 extension analyzer/writer 工程循環。
 
 ## Known Issues
 
@@ -55,6 +56,7 @@ metadata:
 - D02: config.ts 的 DEFAULT_EXCLUDES 清單需與 watcher 的實際排除邏輯保持一致（例如加入 `.cartridge` 避免無謂掃描）。
 - D08: 新增之 config 管理有效將 memoryDir 和 skillsDir 切開，防止系統本身因結構目錄設計變化（如 v4.0）產生的降級相容錯誤。
 - D09: staleness 等級轉換、path guard 與 timestamp 都屬跨 MCP handler、索引器與高階摘要的共用語義，歸 core-types 可避免 Memory Graph 中的工具層循環雜訊。
+- L10: 過期等級轉換同時服務 analyzer 計分流程與 writer 警報呈現；若放在 analyzer 會讓 writer 反向依賴 analyzer，造成工程依賴循環。
 
 ## Relations
 

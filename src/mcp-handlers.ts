@@ -72,6 +72,32 @@ export const memoryCommitSchema = z.object({
   projectRoot: projectRootField,
 });
 
+function createHandlerErrorResult(args: {
+  tool: string;
+  readOnly: boolean;
+  projectRoot?: string;
+  code: string;
+  message: string;
+}): McpToolResult {
+  return toMcpTextResult(
+    createToolEnvelope({
+      tool: args.tool,
+      readOnly: args.readOnly,
+      projectRoot: args.projectRoot ?? "",
+      status: "error",
+      summary: { error: args.message },
+      findings: [
+        {
+          severity: "error",
+          code: args.code,
+          message: args.message,
+        },
+      ],
+      legacy: { text: args.message },
+    }),
+  );
+}
+
 /**
  * 使用 gray-matter 結構化更新 frontmatter 欄位
  * 取代易碎的正則替換，完整支援單引號、雙引號、無引號格式
@@ -212,15 +238,13 @@ async function findSkillRecursive(
 export async function handleMemoryList(args: unknown): Promise<McpToolResult> {
   const parsed = memoryListSchema.safeParse(args);
   if (!parsed.success) {
-    return {
-      content: [
-        {
-          type: "text",
-          text: "Validation Error: projectRoot is required (must be absolute path without ..)",
-        },
-      ],
-      isError: true,
-    };
+    return createHandlerErrorResult({
+      tool: "memory_list",
+      readOnly: true,
+      code: "validation_error",
+      message:
+        "Validation Error: projectRoot is required (must be absolute path without ..)",
+    });
   }
 
   // 路徑安全二次驗證
@@ -228,10 +252,13 @@ export async function handleMemoryList(args: unknown): Promise<McpToolResult> {
     validateProjectRoot(parsed.data.projectRoot);
   } catch (e: unknown) {
     const msg = e instanceof Error ? e.message : String(e);
-    return {
-      content: [{ type: "text", text: `Path Validation Error: ${msg}` }],
-      isError: true,
-    };
+    return createHandlerErrorResult({
+      tool: "memory_list",
+      readOnly: true,
+      projectRoot: parsed.data.projectRoot,
+      code: "path_validation_error",
+      message: `Path Validation Error: ${msg}`,
+    });
   }
 
   const agentsDir = path.join(parsed.data.projectRoot, ".agents", "memory");
@@ -270,21 +297,24 @@ export async function handleMemoryList(args: unknown): Promise<McpToolResult> {
         };
       });
 
-      return {
-        content: [
-          {
-            type: "text",
-            text: JSON.stringify(
-              {
-                cartridges: enriched,
-                untrackedFiles: index.untrackedFiles ?? [],
-              },
-              null,
-              2,
-            ),
-          },
-        ],
+      const legacy = {
+        cartridges: enriched,
+        untrackedFiles: index.untrackedFiles ?? [],
       };
+      return toMcpTextResult(
+        createToolEnvelope({
+          tool: "memory_list",
+          readOnly: true,
+          projectRoot: parsed.data.projectRoot,
+          status: "ready",
+          summary: {
+            cartridgeCount: enriched.length,
+            cartridges: enriched,
+            untrackedFiles: index.untrackedFiles ?? [],
+          },
+          legacy,
+        }),
+      );
     } catch {
       // 索引不存在 — 回退到目錄掃描（先掃 memory/，再掃 skills/mem-*）
       const modules: string[] = [];
@@ -318,18 +348,31 @@ export async function handleMemoryList(args: unknown): Promise<McpToolResult> {
       } catch {
         /* skills/ 不存在 */
       }
-      return {
-        content: [
-          { type: "text", text: `Available memories:\n${modules.join("\n")}` },
-        ],
-      };
+      const text = `Available memories:\n${modules.join("\n")}`;
+      return toMcpTextResult(
+        createToolEnvelope({
+          tool: "memory_list",
+          readOnly: true,
+          projectRoot: parsed.data.projectRoot,
+          status: "ready",
+          summary: {
+            cartridgeCount: modules.length,
+            cartridges: modules.map((module) => ({ module })),
+            untrackedFiles: [],
+          },
+          legacy: { text, modules },
+        }),
+      );
     }
   } catch (e: unknown) {
     const msg = e instanceof Error ? e.message : String(e);
-    return {
-      content: [{ type: "text", text: `Error: ${msg}` }],
-      isError: true,
-    };
+    return createHandlerErrorResult({
+      tool: "memory_list",
+      readOnly: true,
+      projectRoot: parsed.data.projectRoot,
+      code: "memory_list_failed",
+      message: `Error: ${msg}`,
+    });
   }
 }
 
@@ -339,15 +382,13 @@ export async function handleMemoryList(args: unknown): Promise<McpToolResult> {
 export async function handleMemoryRead(args: unknown): Promise<McpToolResult> {
   const parsed = memoryReadSchema.safeParse(args);
   if (!parsed.success) {
-    return {
-      content: [
-        {
-          type: "text",
-          text: "Validation Error: moduleName and projectRoot are required (projectRoot must be absolute path without ..)",
-        },
-      ],
-      isError: true,
-    };
+    return createHandlerErrorResult({
+      tool: "memory_read",
+      readOnly: true,
+      code: "validation_error",
+      message:
+        "Validation Error: moduleName and projectRoot are required (projectRoot must be absolute path without ..)",
+    });
   }
 
   // 路徑安全二次驗證
@@ -355,10 +396,13 @@ export async function handleMemoryRead(args: unknown): Promise<McpToolResult> {
     validateProjectRoot(parsed.data.projectRoot);
   } catch (e: unknown) {
     const msg = e instanceof Error ? e.message : String(e);
-    return {
-      content: [{ type: "text", text: `Path Validation Error: ${msg}` }],
-      isError: true,
-    };
+    return createHandlerErrorResult({
+      tool: "memory_read",
+      readOnly: true,
+      projectRoot: parsed.data.projectRoot,
+      code: "path_validation_error",
+      message: `Path Validation Error: ${msg}`,
+    });
   }
 
   try {
@@ -367,15 +411,13 @@ export async function handleMemoryRead(args: unknown): Promise<McpToolResult> {
       parsed.data.moduleName,
     );
     if (!filePath) {
-      return {
-        content: [
-          {
-            type: "text",
-            text: `Error: Module "${parsed.data.moduleName}" not found. Searched: index → flat path → recursive scan.`,
-          },
-        ],
-        isError: true,
-      };
+      return createHandlerErrorResult({
+        tool: "memory_read",
+        readOnly: true,
+        projectRoot: parsed.data.projectRoot,
+        code: "module_not_found",
+        message: `Error: Module "${parsed.data.moduleName}" not found. Searched: index → flat path → recursive scan.`,
+      });
     }
     const content = await fs.readFile(filePath, "utf-8");
 
@@ -405,13 +447,31 @@ export async function handleMemoryRead(args: unknown): Promise<McpToolResult> {
     } catch {
       // 索引不存在 — 靜默忽略
     }
-    return { content: [{ type: "text", text: content + parentHint }] };
+    const text = content + parentHint;
+    return toMcpTextResult(
+      createToolEnvelope({
+        tool: "memory_read",
+        readOnly: true,
+        projectRoot: parsed.data.projectRoot,
+        status: "ready",
+        summary: {
+          module: parsed.data.moduleName,
+          skillPath: path.relative(parsed.data.projectRoot, filePath),
+          content: text,
+          hasRelationHint: parentHint.length > 0,
+        },
+        legacy: { text, content: text },
+      }),
+    );
   } catch (e: unknown) {
     const msg = e instanceof Error ? e.message : String(e);
-    return {
-      content: [{ type: "text", text: `Error: ${msg}` }],
-      isError: true,
-    };
+    return createHandlerErrorResult({
+      tool: "memory_read",
+      readOnly: true,
+      projectRoot: parsed.data.projectRoot,
+      code: "memory_read_failed",
+      message: `Error: ${msg}`,
+    });
   }
 }
 
@@ -424,15 +484,13 @@ export async function handleMemoryStatus(
 ): Promise<McpToolResult> {
   const parsed = memoryStatusSchema.safeParse(args);
   if (!parsed.success) {
-    return {
-      content: [
-        {
-          type: "text",
-          text: "Validation Error: moduleName and projectRoot are required (projectRoot must be absolute path without ..)",
-        },
-      ],
-      isError: true,
-    };
+    return createHandlerErrorResult({
+      tool: "memory_status",
+      readOnly: true,
+      code: "validation_error",
+      message:
+        "Validation Error: moduleName and projectRoot are required (projectRoot must be absolute path without ..)",
+    });
   }
 
   // 路徑安全二次驗證
@@ -440,10 +498,13 @@ export async function handleMemoryStatus(
     validateProjectRoot(parsed.data.projectRoot);
   } catch (e: unknown) {
     const msg = e instanceof Error ? e.message : String(e);
-    return {
-      content: [{ type: "text", text: `Path Validation Error: ${msg}` }],
-      isError: true,
-    };
+    return createHandlerErrorResult({
+      tool: "memory_status",
+      readOnly: true,
+      projectRoot: parsed.data.projectRoot,
+      code: "path_validation_error",
+      message: `Path Validation Error: ${msg}`,
+    });
   }
 
   const { moduleName, projectRoot } = parsed.data;
@@ -456,15 +517,13 @@ export async function handleMemoryStatus(
     const entry = index.cartridges?.[moduleName];
 
     if (!entry) {
-      return {
-        content: [
-          {
-            type: "text",
-            text: `Error: Module "${moduleName}" not found in cartridge index.`,
-          },
-        ],
-        isError: true,
-      };
+      return createHandlerErrorResult({
+        tool: "memory_status",
+        readOnly: true,
+        projectRoot,
+        code: "module_not_found",
+        message: `Error: Module "${moduleName}" not found in cartridge index.`,
+      });
     }
 
     const level = stalenessToLevel(entry.staleness ?? 0);
@@ -509,20 +568,45 @@ export async function handleMemoryStatus(
       actionRequired,
     };
 
-    return {
-      content: [{ type: "text", text: JSON.stringify(status, null, 2) }],
-    };
+    return toMcpTextResult(
+      createToolEnvelope({
+        tool: "memory_status",
+        readOnly: true,
+        projectRoot,
+        status: entry.staleness > 0 || ghostFiles.length > 0 ? "warning" : "ready",
+        summary: status,
+        findings: [
+          ...(entry.staleness > 0
+            ? [
+                {
+                  severity: "warning" as const,
+                  code: "memory_stale",
+                  message: `Module ${moduleName} has staleness ${entry.staleness}.`,
+                },
+              ]
+            : []),
+          ...ghostFiles.map((file) => ({
+            severity: "warning" as const,
+            code: "ghost_file",
+            message: `Tracked file no longer exists: ${file}`,
+            file,
+          })),
+        ],
+        legacy: status,
+      }),
+    );
   } catch {
     // 索引檔不存在 — 回退到讀取 SKILL.md frontmatter
     try {
       const filePath = await resolveSkillPath(projectRoot, moduleName);
       if (!filePath) {
-        return {
-          content: [
-            { type: "text", text: `Error: Module "${moduleName}" not found.` },
-          ],
-          isError: true,
-        };
+        return createHandlerErrorResult({
+          tool: "memory_status",
+          readOnly: true,
+          projectRoot,
+          code: "module_not_found",
+          message: `Error: Module "${moduleName}" not found.`,
+        });
       }
       const raw = await fs.readFile(filePath, "utf-8");
       const fmMatch = raw.match(/^---\n([\s\S]*?)\n---/);
@@ -550,15 +634,35 @@ export async function handleMemoryStatus(
           "索引檔不存在，過期資訊來自 SKILL.md frontmatter。pendingChanges 和 trackedFiles 無法提供。",
       };
 
-      return {
-        content: [{ type: "text", text: JSON.stringify(status, null, 2) }],
-      };
+      return toMcpTextResult(
+        createToolEnvelope({
+          tool: "memory_status",
+          readOnly: true,
+          projectRoot,
+          status: staleness > 0 ? "warning" : "ready",
+          summary: status,
+          findings:
+            staleness > 0
+              ? [
+                  {
+                    severity: "warning",
+                    code: "memory_stale",
+                    message: `Module ${moduleName} has staleness ${staleness}.`,
+                  },
+                ]
+              : [],
+          legacy: status,
+        }),
+      );
     } catch (e: unknown) {
       const msg = e instanceof Error ? e.message : String(e);
-      return {
-        content: [{ type: "text", text: `Error: ${msg}` }],
-        isError: true,
-      };
+      return createHandlerErrorResult({
+        tool: "memory_status",
+        readOnly: true,
+        projectRoot,
+        code: "memory_status_failed",
+        message: `Error: ${msg}`,
+      });
     }
   }
 }
@@ -613,15 +717,13 @@ export async function handleMemoryCommit(
 ): Promise<McpToolResult> {
   const parsed = memoryCommitSchema.safeParse(args);
   if (!parsed.success) {
-    return {
-      content: [
-        {
-          type: "text",
-          text: "Validation Error: moduleName and projectRoot are required (projectRoot must be absolute path without ..)",
-        },
-      ],
-      isError: true,
-    };
+    return createHandlerErrorResult({
+      tool: "memory_commit",
+      readOnly: false,
+      code: "validation_error",
+      message:
+        "Validation Error: moduleName and projectRoot are required (projectRoot must be absolute path without ..)",
+    });
   }
 
   // 路徑安全二次驗證
@@ -629,10 +731,13 @@ export async function handleMemoryCommit(
     validateProjectRoot(parsed.data.projectRoot);
   } catch (e: unknown) {
     const msg = e instanceof Error ? e.message : String(e);
-    return {
-      content: [{ type: "text", text: `Path Validation Error: ${msg}` }],
-      isError: true,
-    };
+    return createHandlerErrorResult({
+      tool: "memory_commit",
+      readOnly: false,
+      projectRoot: parsed.data.projectRoot,
+      code: "path_validation_error",
+      message: `Path Validation Error: ${msg}`,
+    });
   }
 
   try {
@@ -642,15 +747,13 @@ export async function handleMemoryCommit(
     // 1. 路徑解析
     const filePath = await resolveSkillPath(projectRoot, moduleName);
     if (!filePath) {
-      return {
-        content: [
-          {
-            type: "text",
-            text: `Error: Module "${moduleName}" not found. Please ensure the SKILL.md file exists before calling memory_commit.`,
-          },
-        ],
-        isError: true,
-      };
+      return createHandlerErrorResult({
+        tool: "memory_commit",
+        readOnly: false,
+        projectRoot,
+        code: "module_not_found",
+        message: `Error: Module "${moduleName}" not found. Please ensure the SKILL.md file exists before calling memory_commit.`,
+      });
     }
 
     // 2. 讀取已寫入的 SKILL.md
@@ -813,15 +916,36 @@ export async function handleMemoryCommit(
       warnings,
     };
 
-    return {
-      content: [{ type: "text", text: JSON.stringify(report, null, 2) }],
-    };
+    return toMcpTextResult(
+      createToolEnvelope({
+        tool: "memory_commit",
+        readOnly: false,
+        projectRoot,
+        status: warnings.length > 0 ? "warning" : "ready",
+        summary: { ...report },
+        findings: warnings.map((warning) => ({
+          severity: "warning",
+          code: "memory_commit_warning",
+          message: warning,
+        })),
+        legacy: { ...report },
+      }),
+    );
   } catch (e: unknown) {
     const msg = e instanceof Error ? e.message : String(e);
-    return {
-      content: [{ type: "text", text: `Error: ${msg}` }],
-      isError: true,
-    };
+    return createHandlerErrorResult({
+      tool: "memory_commit",
+      readOnly: false,
+      projectRoot:
+        typeof args === "object" &&
+        args !== null &&
+        "projectRoot" in args &&
+        typeof (args as { projectRoot?: unknown }).projectRoot === "string"
+          ? (args as { projectRoot: string }).projectRoot
+          : "",
+      code: "memory_commit_failed",
+      message: `Error: ${msg}`,
+    });
   }
 }
 

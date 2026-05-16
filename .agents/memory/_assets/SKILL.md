@@ -3,7 +3,7 @@ name: _assets
 scopePath: null
 description: |
   專案記憶：靜態檔案與一般文檔收納。 Use when: 處理不需要業務邏輯追蹤的靜態圖檔、授權文件或更新日誌等。
-last_updated: '2026-05-15T02:47:32+08:00'
+last_updated: '2026-05-16T18:18:54+08:00'
 status: stable
 staleness: 0
 metadata:
@@ -48,6 +48,9 @@ metadata:
 - L12: (2026-05-14) README 與 CHANGELOG 已同步 MCP 標準 envelope 的 `legacy` 相容欄位，以及 memory_deps 採標準報告格式的說明。
 - L13: (2026-05-14) README 與 CHANGELOG 已同步 MCP 依賴圖瘦身，包含 path guard / timestamp / staleness 共用工具、Memory Graph 分層與測試數 149 passed。
 - L14: (2026-05-15) README 已新增 MCP 驗證層級，明確區分終端單元測試、MCP stdio 協議 E2E 與 multi-mcp-gateway 真實工具入口；CHANGELOG 已同步 MCP 雙重驗證紀錄，確認七個工具可由協議層與 Gateway 正常列出並呼叫。
+- L15: (2026-05-15) README 與 CHANGELOG 已同步 MCP 介面收斂，明確七個工具皆採 envelope，測試數提升至 154 passed。
+- L16: (2026-05-16) README 與 CHANGELOG 已同步 memory_audit cycle 來源分層、analyzer/writer 工程循環解除與測試數 161 passed。
+- L16: (2026-05-15) README 與 CHANGELOG 已同步雙層記憶卡預防架構，新增第八個工具 `memory_audit`，測試數提升至 159 passed。
 
 ## Relations
 

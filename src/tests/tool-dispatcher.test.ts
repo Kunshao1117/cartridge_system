@@ -25,6 +25,12 @@ vi.mock("../workspace-brief.js", () => ({
   })),
 }));
 
+vi.mock("../memory-audit.js", () => ({
+  handleMemoryAudit: vi.fn(async () => ({
+    content: [{ type: "text", text: "memory_audit called" }],
+  })),
+}));
+
 vi.mock("../commit-preflight.js", () => ({
   handleCommitPreflight: vi.fn(async () => ({
     content: [{ type: "text", text: "commit_preflight called" }],

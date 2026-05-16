@@ -6,22 +6,18 @@
 import type {
   CartridgeConfig,
   FileEventType,
-  StalenessLevel,
 } from "./types.js";
 import type { CartridgeIndexManager } from "./index-manager.js";
-import type { MemoryWriter } from "./writer.js";
+import { getStalenessLevel } from "./staleness.js";
 
-/**
- * 取得過期等級
- */
-export function getStalenessLevel(
-  staleness: number,
-  config: CartridgeConfig,
-): StalenessLevel {
-  if (staleness <= 0) return "healthy";
-  if (staleness < config.thresholds.significant) return "mild";
-  if (staleness < config.thresholds.critical) return "significant";
-  return "critical";
+interface WarningWriter {
+  injectWarning(
+    skillRelPath: string,
+    changedFiles: string[],
+    staleness: number,
+  ): Promise<void>;
+  removeWarning(skillRelPath: string): Promise<void>;
+  checkAndCleanWarning(skillRelPath: string): Promise<boolean>;
 }
 
 /**
@@ -30,12 +26,12 @@ export function getStalenessLevel(
 export class StalenessAnalyzer {
   private config: CartridgeConfig;
   private indexManager: CartridgeIndexManager;
-  private writer: MemoryWriter;
+  private writer: WarningWriter;
 
   constructor(
     config: CartridgeConfig,
     indexManager: CartridgeIndexManager,
-    writer: MemoryWriter,
+    writer: WarningWriter,
   ) {
     this.config = config;
     this.indexManager = indexManager;

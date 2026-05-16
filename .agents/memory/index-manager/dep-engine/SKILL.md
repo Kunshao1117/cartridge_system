@@ -2,12 +2,11 @@
 name: dep-engine
 description: |
   專案記憶：依賴推導引擎模組。 Use when: 處理模組間 import 掃描、依賴圖建構、間接過期傳播與循環偵測時載入。
-last_updated: '2026-05-14T16:01:20+08:00'
+last_updated: '2026-05-16T18:03:38+08:00'
 status: stable
 staleness: 0
 dependencies:
   - core-types
-  - index-manager
 metadata:
   author: antigravity
   version: '1.0'
@@ -39,7 +38,7 @@ metadata:
 - D07: 動態 `import()` 載入 — 為防止頂層循環依賴，`mcp-handlers.ts` 中的 `handleMemoryDeps` 採用 `await import()` 非同步載入本模組
 - D08: depth=2 間接過期傳播需由回歸測試鎖定平方衰減；staleness 20 在第二層應傳播為 5。
 - D09: `dependency-semantics.ts` 只提供 warning 型檢查，不取代 `D:\AI_Rules` 的欄位語義；它偵測 dependencies 缺少理由、父子導覽可疑、技能名稱混用與 Relations 鏡像可疑。
-- D10: 本卡 dependencies 依賴 `core-types` 的 CartridgeIndex 型別契約與 `index-manager` 的 trackedFiles / fileMap 資料來源；任一上游過期時需重新檢查依賴圖與語義檢查器。
+- D10: 本卡 frontmatter `dependencies` 僅保留 `core-types`，因依賴圖引擎直接消費的是 `CartridgeIndex` 型別契約；`index-manager` 是執行期資料來源與父卡導覽關係，放在 Relations，避免父子/資料來源關係與工程推導依賴形成記憶圖循環。
 
 ## Known Issues
 
@@ -54,7 +53,7 @@ metadata:
 
 ## Relations
 
-- index-manager（父卡：提供 CartridgeEntry 資料源）
+- index-manager（父卡與資料來源：提供 CartridgeEntry / trackedFiles / fileMap 的執行期索引資料）
 - core-types（根層型別：CartridgeEntry, CartridgeConfig 定義所在）
 - mcp-tools（根層模組：memory_deps 工具呼叫本引擎）
 - mcp-tools.handlers（消費：memory_commit 整合 dependencies 語義警告）

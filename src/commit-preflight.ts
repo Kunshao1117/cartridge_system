@@ -53,12 +53,32 @@ function dependencySemanticsToFindings(
   }));
 }
 
-async function readCartridgeIndex(projectRoot: string): Promise<PreflightIndex> {
-  const raw = await fs.readFile(
-    path.join(projectRoot, ".cartridge", "index.json"),
-    "utf-8",
-  );
-  return JSON.parse(raw) as PreflightIndex;
+function compatibilityToFindings(
+  warnings: Array<{ code: string; message: string; target: string }>,
+): CartridgeFinding[] {
+  return warnings.map((warning) => ({
+    severity: "warning",
+    code: warning.code,
+    message: `${warning.target}: ${warning.message}`,
+  }));
+}
+
+async function readCartridgeIndex(projectRoot: string): Promise<{
+  index: PreflightIndex;
+  indexAvailable: boolean;
+}> {
+  try {
+    const raw = await fs.readFile(
+      path.join(projectRoot, ".cartridge", "index.json"),
+      "utf-8",
+    );
+    return { index: JSON.parse(raw) as PreflightIndex, indexAvailable: true };
+  } catch {
+    return {
+      index: { cartridges: {}, fileMap: {}, untrackedFiles: [] },
+      indexAvailable: false,
+    };
+  }
 }
 
 async function readGitStatus(projectRoot: string) {
@@ -168,19 +188,20 @@ export async function handleCommitPreflight(
 
   try {
     const projectRoot = validateProjectRoot(parsed.data.projectRoot);
-    const [index, gitStatus] = await Promise.all([
+    const [indexResult, gitStatus] = await Promise.all([
       readCartridgeIndex(projectRoot),
       readGitStatus(projectRoot),
     ]);
     const dependencySemantics = await buildDependencySemanticSummary(
       projectRoot,
-      index,
+      indexResult.index,
       gitStatus,
     );
     const preflight = buildCommitPreflight(
-      index,
+      indexResult.index,
       gitStatus,
       dependencySemantics,
+      { indexAvailable: indexResult.indexAvailable },
     );
     return toMcpTextResult(
       createToolEnvelope({
@@ -190,6 +211,7 @@ export async function handleCommitPreflight(
         status: preflight.status as CartridgeToolStatus,
         summary: preflight,
         findings: [
+          ...compatibilityToFindings(preflight.summary.compatibility.warnings),
           ...blockersToFindings(preflight.blockers),
           ...dependencySemanticsToFindings(dependencySemantics),
         ],

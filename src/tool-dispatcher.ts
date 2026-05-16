@@ -12,6 +12,7 @@ import {
   type McpToolResult,
 } from "./mcp-response.js";
 import { handleCommitPreflight } from "./commit-preflight.js";
+import { handleMemoryAudit } from "./memory-audit.js";
 import {
   type CartridgeToolDefinition,
   findToolDefinition,
@@ -26,6 +27,7 @@ const toolHandlers: Record<string, ToolHandler> = {
   memory_status: handleMemoryStatus,
   memory_commit: handleMemoryCommit,
   memory_deps: handleMemoryDeps,
+  memory_audit: handleMemoryAudit,
   workspace_brief: handleWorkspaceBrief,
   commit_preflight: handleCommitPreflight,
 };

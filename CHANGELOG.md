@@ -1,5 +1,44 @@
 # 更新紀錄
 
+## [5.1.0] — 2026-05-17
+
+### feat
+
+- AI 開工清單 — `workspace_brief` 新增 `startupReadiness`，用「可以開工」、「需要先處理記憶卡提醒」、「需要先處理規則檔衝突」這類白話狀態說明下一步。
+- 規則檔檢查 — `context_audit` findings 新增白話原因、相關檔案、是否阻塞、建議工具與建議動作，讓 AI 與側邊欄不用猜測 finding 代表什麼。
+- 側邊欄可讀性 — `治理總覽`、`上下文治理` 與 `待處理項目` 改用使用者看得懂的標籤，例如「AI 開工狀態」、「規則檔檢查」、「歸屬檔案」。
+- MCP 工具安全說明 — 工具名冊新增 `safetySummary`、`safeForStartup` 與 `expectedLatency`，MCP tools/list 描述會包含安全性說明。
+
+### chore
+
+- 版本升級 — package 與 MCP server 版本同步至 5.1.0。
+- 測試覆蓋 — 補強 workspace_brief、context governance、governance sidebar 與 tool registry 測試，總測試案例提升至 175 個。
+- 文件同步 — README 改用「AI 開工檢查」、「規則檔檢查」、「側邊欄提醒」描述 v5.1 功能，並同步 21 個測試檔案、175 個測試案例。
+
+## [5.0.0] — 2026-05-17
+
+### feat
+
+- 上下文治理 OS — 新增 `context_inventory`、`context_audit`、`context_diff`、`context_plan` 四個只讀 MCP 工具，將 Cartridge 從記憶卡健康監控擴展為跨代理上下文治理入口。
+- Context Registry — 掃描 Codex `AGENTS.md`、Claude `CLAUDE.md` / skills / subagents、GitHub Copilot instructions、Antigravity skills 與 `.agents/memory/`，產出 owner、scope、priority、supported agents、tracked files、dependencies、staleness 與 risk。
+- Cross-Agent Drift Audit — 偵測多代理上下文中的語言規則、提交授權與寫入政策衝突；提交與寫入政策衝突列為 blocking，語言差異列為 warning，重複規則列為 informational。
+- Workspace Brief 升級 — `workspace_brief` 新增 context readiness，AI 開工前可同時看到記憶健康與上下文治理狀態。
+- MCP 工具名冊擴充 — tools/list 從八個工具擴充為十二個工具，維持統一 envelope 與 read-only v5.0 範圍。
+- 獨立治理側邊欄 — VS Code Activity Bar 新增 Cartridge container，將 `cartridgeExplorer` 從 Explorer 移入獨立側邊欄，並新增 `治理總覽`、`上下文治理`、`待處理項目` 三個原生 TreeView。
+- 治理側邊欄指令 — 新增 `cartridge.openGovernanceDashboard`、`cartridge.refreshGovernance`、`cartridge.contextAudit`，維持只讀診斷、開檔與引導修復邊界。
+
+### fix
+
+- 未歸屬自動清除 — 記憶卡 `SKILL.md` 變更後會重新 scan、refilter `untrackedFiles` 並 flush index；已加入 `## Tracked Files` 的檔案不再需要手動執行「重新掃描未歸屬檔案」才會從側邊欄消失。
+- 記憶卡事件排除修復 — `.agents/memory/**/SKILL.md` 會在 `.gitignore` / exclude 檢查前優先處理，避免專案 `.gitignore` 的 `.agents/*` 規則擋掉記憶卡同步事件。
+- `memory_commit` 回歸覆蓋 — 補強測試確認 trackedFiles 會同步更新 fileMap、已歸卡檔案會自動移出 `untrackedFiles`，且 `ghostFiles`、`pendingChanges`、`staleness` 仍維持清除行為。
+
+### chore
+
+- 版本升級 — package 與 MCP server 版本同步至 5.0.0。
+- 測試覆蓋 — 新增 context governance、governance sidebar 與 watcher untracked refilter 測試，總測試案例提升至 174 個，測試檔案提升至 21 個。
+- 文件同步 — README 更新為十二個 MCP 工具、21 個測試檔案、174 個測試案例、v5 上下文治理架構、獨立 Activity Bar 側邊欄與未歸屬自動清除行為。
+
 ## [2026-05-14]
 
 ### feat

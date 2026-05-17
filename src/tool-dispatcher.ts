@@ -12,6 +12,12 @@ import {
   type McpToolResult,
 } from "./mcp-response.js";
 import { handleCommitPreflight } from "./commit-preflight.js";
+import {
+  handleContextAudit,
+  handleContextDiff,
+  handleContextInventory,
+  handleContextPlan,
+} from "./context-tools.js";
 import { handleMemoryAudit } from "./memory-audit.js";
 import {
   type CartridgeToolDefinition,
@@ -30,6 +36,10 @@ const toolHandlers: Record<string, ToolHandler> = {
   memory_audit: handleMemoryAudit,
   workspace_brief: handleWorkspaceBrief,
   commit_preflight: handleCommitPreflight,
+  context_inventory: handleContextInventory,
+  context_audit: handleContextAudit,
+  context_diff: handleContextDiff,
+  context_plan: handleContextPlan,
 };
 
 export interface DispatchToolCallRequest {

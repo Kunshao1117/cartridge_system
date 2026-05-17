@@ -3,7 +3,7 @@ name: tool-registry
 description: >
   專案記憶：MCP 工具名冊與統一回傳契約。Use when: 處理工具風險分級、MCP tools 清單生成、治理 envelope
   或高階工具回傳格式時載入。
-last_updated: '2026-05-15T15:41:36+08:00'
+last_updated: '2026-05-17T23:39:40+08:00'
 status: stable
 staleness: 0
 dependencies:
@@ -30,7 +30,7 @@ metadata:
 
 ## Key Decisions
 
-- D01: `tool-registry.ts` 是 MCP tools 定義的單一來源，集中保存 name、description、inputSchema、risk、capability、readOnly 與 requiresExplicitApproval。
+- D01: `tool-registry.ts` 是 MCP tools 定義的單一來源，集中保存 name、description、safetySummary、inputSchema、risk、capability、readOnly、requiresExplicitApproval、safeForStartup 與 expectedLatency。
 - D02: `mcp-server.ts` 的 `ListToolsRequestSchema` 從 registry 生成公開工具清單，避免工具描述散落在 server 入口。
 - D03: `mcp-response.ts` 定義八個 MCP 工具共用的 envelope，標準欄位包含 status、summary、findings、recommendedActions、metadata 與 legacy。
 - D04: `memory_list`、`memory_read`、`memory_status`、`memory_commit`、`memory_deps`、`memory_audit`、`workspace_brief` 與 `commit_preflight` 均採 envelope；舊版文字或原始資料以 `legacy` 保留。
@@ -45,6 +45,9 @@ metadata:
 - D13: MCP tools/list 驗收需回傳八個工具：memory_list、memory_read、memory_status、memory_commit、memory_deps、memory_audit、workspace_brief、commit_preflight。
 - D14: `createToolErrorEnvelope()` 維持讀取型錯誤 helper；寫入型工具的 validation/path/runtime error 由 handler 使用 `createToolEnvelope()` 明確標示 `readOnly: false`。
 - D15: `memory_audit` 登錄為 medium risk、governance capability、readOnly=true，不需要 explicit approval；它只產生完整健檢報告，不進行記憶卡修復。
+- D16: v5.0 tools/list 擴充為十二個工具，新增 `context_inventory`、`context_audit`、`context_diff`、`context_plan`，全部為 readOnly context governance/analyze 工具。
+- D17: `context_diff` 擁有專用 schema，除了 `projectRoot` 也要求 `leftId` 與 `rightId`，避免呼叫者用模組名稱誤傳 context asset id。
+- D18: v5.1 tools/list description 會附加 `安全性：...`，讓 AI 在只看公開工具清單時也能知道哪些工具只讀、哪些工具需要 confirm 或適合開工時使用。
 
 ## Known Issues
 
@@ -61,6 +64,8 @@ metadata:
 - L07: 工具名冊驗證要走協議層 `tools/list`，不能只讀 `CARTRIDGE_TOOLS` 常數，否則無法證明 MCP server 對外公開清單正確。
 - L08: 回傳契約收斂不能只做高階工具；底層 memory_* 工具若維持純文字，Gateway 使用者仍會遇到解析分岔。
 - L09: 工具數量變動時，README、CHANGELOG、tools/list 協議 E2E 與 Gateway 驗證文字都必須同步更新，避免 AI 以舊的七工具假設判斷專案狀態。
+- L10: v5.0 context tools 仍沿用同一份 envelope；新增治理領域不需要為上下文工具建立第二套回傳格式。
+- L11: 安全提示應放在 registry 單一來源，再由 MCP server 公開；不要讓 README、server 與 dispatcher 各自維護不同文字。
 
 ## Relations
 
@@ -70,6 +75,7 @@ metadata:
 - mcp-tools.commit-preflight（消費 envelope 的高階治理工具）
 - mcp-tools.memory-audit（消費 envelope 的完整健檢工具）
 - mcp-tools.dispatcher（消費工具 metadata 並執行明確確認防線）
+- mcp-tools.context-governance（消費工具 metadata 並提供 v5 context tools）
 
 ## Applicable Skills
 

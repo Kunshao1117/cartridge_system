@@ -3,7 +3,7 @@ name: extension
 description: >
   專案記憶：VS Code 外掛入口與 UI 模組。 Use when:
   處理外掛啟動生命週期、指令註冊、狀態列/TreeView/CodeLens/智慧歸屬等 UI 更新時載入。
-last_updated: '2026-05-15T02:21:20+08:00'
+last_updated: '2026-05-17T23:41:06+08:00'
 staleness: 0
 status: stable
 metadata:
@@ -23,6 +23,7 @@ metadata:
 ## Tracked Files
 
 - src/extension.ts
+- src/governance-views.ts
 - src/status-bar.ts
 - src/treeview-provider.ts
 - src/codelens-provider.ts
@@ -60,6 +61,9 @@ metadata:
 - D29: 新增 `cartridge.showGhostFileInfo` 指令 — 由 TreeView 的 💀 幽靈 TreeItem 點擊觸發，顯示 modal 警告框含幽靈路徑、所屬記憶卡、修復說明，提供「開啟記憶卡」快捷按鈕，解決點擊靜音問題。
 - D30: `cartridge.status` 健康報告新增 `💀 幽靈檔案報告` OutputChannel 段落 — 過濾 ghostFiles.length > 0 的記憶卡，列出幽靈路徑與修復指引。
 - D31: treeview-provider.ts 幽靈 TreeItem 補上 `item.command` 綁定 `cartridge.showGhostFileInfo`，參數傳遞 `{ filePath, cartridgeId }`。
+- D32: v5.0 獨立治理側邊欄 — `extension.ts` 改透過 `registerGovernanceViews()` 註冊 Activity Bar 內的四個 TreeView；既有 `cartridgeExplorer` 從 Explorer 移入 `cartridgeGovernance` container。
+- D33: `treeview-provider.ts` 記憶卡節點補上 `vscode.open` command，點擊卡片可直接開啟對應 `SKILL.md`；幽靈檔案仍維持 `cartridge.showGhostFileInfo` 修復指引。
+- D34: `governance-views.ts` 歸 extension 父卡，因它負責註冊 VS Code commands / TreeView providers，且會 import 既有 `treeview-provider.ts`；側邊欄子卡只追蹤 provider/model 純檔案，避免記憶卡依賴循環。
 
 ## Known Issues
 
@@ -74,6 +78,8 @@ metadata:
 - L02: (2026-04-12) v2.0 watcher 棄用 chokidar 改用原生 Watcher。因原生 watcher 的事件參數是 Uri 非 string，所有事件處理器需要 `uri.fsPath` 拉出絕對路徑。
 - L03: (2026-04-12) EventEmitter 不可放 index-manager 內部（MCP Server 共用模組不可依賴 vscode API），改用 `onChanged?: () => void` callback hook 模式。
 - L04: (2026-04-12) 心跳 clearInterval 必須在 deactivate 中明確清除，否則會造成記憶體洩漏。
+- L05: (2026-05-17) 大型 VS Code UI 註冊應抽成 controller（`governance-views.ts`），讓 `activate()` 只保留生命週期編排，避免外掛入口繼續膨脹。
+- L06: 父卡可追蹤 UI 註冊/生命週期 glue code；子卡應追蹤可獨立測試的 provider/model，避免 extension 父卡與子卡互相依賴。
 
 ## Relations
 
@@ -88,7 +94,7 @@ metadata:
 - analyzer（過期分析器，接收監聽事件計算衰退指數）
 - writer（記憶卡寫入器，植入/移除過期警報）
 - gitignore-filter（提供 .gitignore 排除過濾）
-- treeview-provider（v2.0 新增：側邊欄 TreeView 面板）
+- treeview-provider（v2.0 新增，v5.0 移入 Cartridge Activity Bar：記憶卡 TreeView 面板）
 - codelens-provider（v2.0 新增：CodeLens 行內標記）
 - index-manager（含 smart-owner：智慧歸屬推薦引擎）
 

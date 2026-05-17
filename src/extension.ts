@@ -21,8 +21,9 @@ import { MemoryWriter } from "./writer";
 import { CartridgeWatcher } from "./watcher";
 import { CartridgeStatusBar } from "./status-bar";
 import { GitignoreFilter } from "./gitignore-filter";
-import { CartridgeTreeProvider } from "./treeview-provider";
 import { CartridgeCodeLensProvider } from "./codelens-provider";
+import { registerGovernanceViews } from "./governance-views";
+import type { GovernanceViewsController } from "./governance-views";
 import { suggestOwner } from "./smart-owner";
 
 let watcher: CartridgeWatcher | undefined;
@@ -30,7 +31,7 @@ let indexManager: CartridgeIndexManager | undefined;
 let statusBar: CartridgeStatusBar | undefined;
 let gitignoreFilter: GitignoreFilter | undefined;
 let config: ReturnType<typeof createConfig> | undefined;
-let treeProvider: CartridgeTreeProvider | undefined;
+let governanceViews: GovernanceViewsController | undefined;
 let codeLensProvider: CartridgeCodeLensProvider | undefined;
 let heartbeatTimer: NodeJS.Timeout | undefined;
 
@@ -55,6 +56,7 @@ export async function activate(
       await indexManager.flushIfDirty();
       await indexManager.persist();
       statusBar?.update(indexManager.getIndex());
+      governanceViews?.refresh();
       const count = Object.keys(newIndex.cartridges).length;
       vscode.window.showInformationMessage(`記憶卡匣：已掃描 ${count} 個卡匣`);
     }),
@@ -82,6 +84,7 @@ export async function activate(
       indexManager.markDirty();
       await indexManager.flushIfDirty();
       statusBar?.update(indexManager.getIndex());
+      governanceViews?.refresh();
       const count = indexManager.getUntrackedFiles().length;
       vscode.window.showInformationMessage(
         `記憶卡匣：已掃描 ${count} 個未歸屬檔案`,
@@ -318,9 +321,12 @@ export async function activate(
     // v2.0: 立即顯示基礎燈號（不等待幽靈掃描）
     statusBar.update(index);
 
-    // v2.0: TreeView 側邊欄
-    treeProvider = new CartridgeTreeProvider(indexManager, projectRoot);
-    vscode.window.registerTreeDataProvider("cartridgeExplorer", treeProvider);
+    // v5.0: 獨立 Activity Bar 治理側邊欄
+    governanceViews = registerGovernanceViews({
+      context,
+      indexManager,
+      projectRoot,
+    });
 
     // v2.0: CodeLens 行內標記
     codeLensProvider = new CartridgeCodeLensProvider(indexManager, projectRoot);
@@ -331,7 +337,7 @@ export async function activate(
     // v2.0: 記憶體變動通知 hook（連動 UI 三兄弟）
     indexManager.onChanged = () => {
       statusBar?.update(indexManager?.getIndex());
-      treeProvider?.refresh();
+      governanceViews?.refresh();
       codeLensProvider?.refresh();
     };
 
@@ -384,6 +390,6 @@ export async function deactivate(): Promise<void> {
   if (heartbeatTimer) clearInterval(heartbeatTimer);
   await indexManager?.flushIfDirty();
   statusBar?.dispose();
-  treeProvider?.dispose();
+  governanceViews?.dispose();
   codeLensProvider?.dispose();
 }

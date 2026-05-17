@@ -98,12 +98,17 @@ describe("handleWorkspaceBrief", () => {
     expect(brief.memory.oversized[0].module).toBe("mcp-tools");
     expect(brief.memory.dependencies.totalEdges).toBe(1);
     expect(brief.readiness.status).toBe("blocked");
+    expect(brief.startupReadiness.label).toBe("需要先處理記憶卡提醒");
+    expect(brief.startupReadiness.nextTool).toBe("memory_audit");
     expect(brief.readiness.reasons).toContain("_system staleness=10");
     expect(brief.submitReadiness.status).toBe("blocked");
     expect(brief.submitReadiness.reason).toBe("memory readiness is blocked");
+    expect(brief.submitReadiness.label).toBe("記憶卡還有待處理項目，先不要提交");
     expect(brief.submitReadiness.nextAction).toBeNull();
     expect(brief.submitReadiness.nextTool).toBeNull();
     expect(brief.recommendedActions[0].priority).toBe("P1");
+    expect(brief.recommendedActions[0].label).toBeDefined();
+    expect(brief.recommendedActions[0].blocking).toBe(true);
   });
 
   it("健康專案應回傳 ready", async () => {
@@ -139,9 +144,11 @@ describe("handleWorkspaceBrief", () => {
 
     expect(envelope.status).toBe("ready");
     expect(brief.readiness.status).toBe("ready");
+    expect(brief.startupReadiness.label).toBe("可以開工");
     expect(brief.readiness.reasons).toEqual([]);
     expect(brief.submitReadiness.status).toBe("needs_review");
     expect(brief.submitReadiness.reason).toBe("git state not inspected");
+    expect(brief.submitReadiness.label).toBe("提交前還要跑 commit_preflight");
     expect(brief.submitReadiness.nextAction).toBe("run_commit_preflight");
     expect(brief.submitReadiness.nextTool).toBe("commit_preflight");
     expect(brief.recommendedActions).toEqual([]);

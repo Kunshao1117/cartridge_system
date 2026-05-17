@@ -115,6 +115,12 @@ export class CartridgeWatcher {
       return;
     }
 
+    // 記憶卡 SKILL.md 即使被 .gitignore 的 .agents/* 規則涵蓋，也必須優先處理。
+    if (this.isMemorySkillPath(relPath)) {
+      await this.handleSkillFileChange(relPath);
+      return;
+    }
+
     // 安全網排除（DEFAULT_EXCLUDES）+ Gitignore 動態排除
     if (
       this.config.excludeDirs.some((d) => relPath.startsWith(d)) ||
@@ -129,16 +135,6 @@ export class CartridgeWatcher {
       !relPath.includes(".agents/memory/") &&
       !relPath.includes(".agents/skills/mem-")
     ) {
-      return;
-    }
-
-    // 檢查是否為記憶卡匣本身的變動（AI 重設 staleness）
-    if (
-      (relPath.includes(".agents/memory/") ||
-        relPath.includes(".agents/skills/mem-")) &&
-      relPath.endsWith("SKILL.md")
-    ) {
-      await this.handleSkillFileChange(relPath);
       return;
     }
 
@@ -199,9 +195,19 @@ export class CartridgeWatcher {
     await this.writer.checkAndCleanWarning(relPath);
 
     await this.indexManager.scan();
+    this.indexManager.refilterUntrackedFiles(this.gitignoreFilter);
     this.indexManager.markDirty(); // 強制觸發 UI 變動通知 (onChanged)
+    await this.indexManager.flushIfDirty();
     this.refresh();
     console.log(`[監聽引擎] 偵測到記憶卡重設: ${relPath}`);
     this.onUpdate?.();
+  }
+
+  private isMemorySkillPath(relPath: string): boolean {
+    return (
+      (relPath.includes(".agents/memory/") ||
+        relPath.includes(".agents/skills/mem-")) &&
+      relPath.endsWith("SKILL.md")
+    );
   }
 }

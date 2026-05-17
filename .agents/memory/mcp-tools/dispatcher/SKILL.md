@@ -3,7 +3,7 @@ name: mcp-tools.dispatcher
 description: >
   專案記憶：MCP 工具分派與工具層防線。Use when: 處理 MCP tool routing、unknown tool 錯誤、 high-risk
   tool 明確確認與 dispatcher 測試時載入。
-last_updated: '2026-05-15T16:03:44+08:00'
+last_updated: '2026-05-17T21:37:02+08:00'
 status: stable
 staleness: 0
 dependencies:
@@ -12,6 +12,7 @@ dependencies:
   - mcp-tools.workspace-brief
   - mcp-tools.commit-preflight
   - mcp-tools.memory-audit
+  - mcp-tools.context-governance
 metadata:
   author: antigravity
   version: '1.0'
@@ -21,6 +22,7 @@ metadata:
     - 'filesystem:read'
     - 'filesystem:write'
 ---
+
 # Tool Dispatcher — MCP 工具分派與防線記憶
 
 > 本模組把 MCP tool name 到 handler 的執行分派集中化，讓 `tool-registry.ts` 的治理 metadata 真正進入執行路徑。
@@ -43,6 +45,9 @@ metadata:
 - D09: dispatcher 產生的 unknown tool 與 explicit approval required 仍使用統一 envelope；底層 handler 也已收斂 envelope，因此 dispatcher 不需要為舊工具做格式轉換。
 - D10: dispatcher 已將 `memory_audit` 加入 handler map；此工具是 read-only governance tool，不需 `confirm:true`，但仍必須先通過 registry 登錄檢查。
 - D11: dispatcher 實際 import `mcp-tools.memory-audit` 的 handler；若 `mcp-tools.memory-audit` 過期，dispatcher 的 handler map 與第八工具路由也必須重新檢查。
+- D12: v5.0 dispatcher 加入四個 context governance handler：`context_inventory`、`context_audit`、`context_diff`、`context_plan`；全部 read-only，不需要 `confirm:true`。
+- D13: dispatcher 測試新增 context tool routing，確保 tools/list 擴充後 tools/call 不會落入 unknown tool。
+- D14: `mcp-tools.context-governance` 是 dispatcher 的實際 handler dependency；context tools 的 handler export、名稱或 read-only 契約改變時，dispatcher handler map 與 route tests 必須同步檢查。
 
 ## Known Issues
 
@@ -57,6 +62,7 @@ metadata:
 - L05: dispatcher 的責任是路由與防線，不應承擔工具結果格式修補；回傳格式應由 `mcp-response.ts` 與各 handler 共同保證。
 - L06: 每新增一個 MCP tool，都要同時更新 registry、dispatcher handler map 與 dispatcher 測試 mock，避免 tools/list 已公開但 tools/call 找不到 handler。
 - L07: Director 指定 Gateway MCP 真實呼叫時，若 Gateway 工具入口、參數或提示不明，AI 必須先回報卡點並等待授權；不得自行改用 stdio、終端 handler 或其他替代方案宣稱完成原驗證。
+- L08: 新增 MCP tool 時，dispatcher mock 測試必須同步新增 handler mock，否則路由測試會在 import 階段失真。
 
 ## Relations
 
@@ -66,6 +72,7 @@ metadata:
 - mcp-tools.workspace-brief（依賴：workspace_brief handler）
 - mcp-tools.commit-preflight（依賴：commit_preflight handler）
 - mcp-tools.memory-audit（依賴：memory_audit handler）
+- mcp-tools.context-governance（依賴：context governance handlers）
 
 ## Applicable Skills
 

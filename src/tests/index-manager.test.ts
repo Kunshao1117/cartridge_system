@@ -10,6 +10,7 @@ import {
 } from "../index-manager.js";
 import { CartridgeIndexManager } from "../index-manager.js";
 import { createConfig } from "../config.js";
+import type { GitignoreFilter } from "../gitignore-filter.js";
 
 // ---------------------------------------------------------------------------
 // parseTrackedFiles — 路徑淨化邏輯
@@ -356,5 +357,70 @@ describe("CartridgeIndexManager — resolveModulePath", () => {
 
   it("索引中不存在的模組應回傳 null", () => {
     expect(manager.resolveModulePath("mem-nonexistent")).toBeNull();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// CartridgeIndexManager — refilterUntrackedFiles 自動清理
+// ---------------------------------------------------------------------------
+describe("CartridgeIndexManager — refilterUntrackedFiles 自動清理", () => {
+  function makeFilter(ignored: string[] = []): GitignoreFilter {
+    return {
+      isIgnored: (filePath: string) => ignored.includes(filePath),
+    } as GitignoreFilter;
+  }
+
+  it("scan 後應能移除已被 trackedFiles 收編的未歸屬檔案", () => {
+    const manager = new CartridgeIndexManager(createConfig("d:/test-project"));
+    manager["index"] = {
+      version: 1,
+      lastScanned: "",
+      cartridges: {
+        "mem-test": {
+          skillPath: ".agents/memory/mem-test/SKILL.md",
+          description: "",
+          trackedFiles: ["src/owned.ts"],
+          staleness: 0,
+          lastUpdated: "",
+          pendingChanges: [],
+          ghostFiles: [],
+          dependencies: [],
+          indirectStaleness: 0,
+          depth: 1,
+          parent: null,
+        },
+      },
+      fileMap: { "src/owned.ts": ["mem-test"] },
+      untrackedFiles: [
+        { filePath: "src/owned.ts", suggestedOwner: "mem-test", detectedAt: "now", lastEvent: "add" },
+        { filePath: "src/orphan.ts", suggestedOwner: null, detectedAt: "now", lastEvent: "add" },
+      ],
+    };
+
+    manager.refilterUntrackedFiles(makeFilter());
+
+    expect(manager.getUntrackedFiles().map((entry) => entry.filePath)).toEqual([
+      "src/orphan.ts",
+    ]);
+  });
+
+  it("應移除已被 gitignore 排除的未歸屬檔案且保留未追蹤檔案", () => {
+    const manager = new CartridgeIndexManager(createConfig("d:/test-project"));
+    manager["index"] = {
+      version: 1,
+      lastScanned: "",
+      cartridges: {},
+      fileMap: {},
+      untrackedFiles: [
+        { filePath: "dist/out.js", suggestedOwner: null, detectedAt: "now", lastEvent: "add" },
+        { filePath: "src/new.ts", suggestedOwner: null, detectedAt: "now", lastEvent: "add" },
+      ],
+    };
+
+    manager.refilterUntrackedFiles(makeFilter(["dist/out.js"]));
+
+    expect(manager.getUntrackedFiles().map((entry) => entry.filePath)).toEqual([
+      "src/new.ts",
+    ]);
   });
 });

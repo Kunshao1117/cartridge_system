@@ -37,6 +37,21 @@ vi.mock("../commit-preflight.js", () => ({
   })),
 }));
 
+vi.mock("../context-tools.js", () => ({
+  handleContextInventory: vi.fn(async () => ({
+    content: [{ type: "text", text: "context_inventory called" }],
+  })),
+  handleContextAudit: vi.fn(async () => ({
+    content: [{ type: "text", text: "context_audit called" }],
+  })),
+  handleContextDiff: vi.fn(async () => ({
+    content: [{ type: "text", text: "context_diff called" }],
+  })),
+  handleContextPlan: vi.fn(async () => ({
+    content: [{ type: "text", text: "context_plan called" }],
+  })),
+}));
+
 describe("tool-dispatcher — MCP 工具分派與防線", () => {
   it("應將已登錄工具分派到對應 handler", async () => {
     const result = await dispatchToolCall({
@@ -95,5 +110,15 @@ describe("tool-dispatcher — MCP 工具分派與防線", () => {
     expect(hasExplicitApproval({ confirm: false })).toBe(false);
     expect(hasExplicitApproval({ confirm: "true" })).toBe(false);
     expect(hasExplicitApproval(null)).toBe(false);
+  });
+
+  it("應分派 v5 context governance 工具", async () => {
+    const result = await dispatchToolCall({
+      name: "context_audit",
+      args: { projectRoot: "/mock/project" },
+    });
+
+    expect(result.isError).toBeUndefined();
+    expect(result.content[0].text).toBe("context_audit called");
   });
 });

@@ -561,6 +561,7 @@ export class CartridgeIndexManager {
   refilterUntrackedFiles(gitignoreFilter: GitignoreFilter): void {
     if (!this.index.untrackedFiles) return;
     const allTracked = new Set(this.getAllTrackedFiles());
+    const beforeCount = this.index.untrackedFiles.length;
     this.index.untrackedFiles = this.index.untrackedFiles.filter((entry) => {
       // 若已被 .gitignore 排除，移除
       if (gitignoreFilter.isIgnored(entry.filePath)) return false;
@@ -568,6 +569,9 @@ export class CartridgeIndexManager {
       if (allTracked.has(entry.filePath)) return false;
       return true;
     });
+    if (this.index.untrackedFiles.length !== beforeCount) {
+      this.markDirty();
+    }
   }
 
   /**

@@ -10,7 +10,7 @@ import { dispatchToolCall } from "./tool-dispatcher.js";
 const server = new Server(
   {
     name: "cartridge-system",
-    version: "4.1.1",
+    version: "5.1.0",
   },
   {
     capabilities: {
@@ -23,7 +23,7 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
   return {
     tools: CARTRIDGE_TOOLS.map((tool) => ({
       name: tool.name,
-      description: tool.description,
+      description: `${tool.description}\n安全性：${tool.safetySummary}`,
       inputSchema: tool.inputSchema,
     })),
   };

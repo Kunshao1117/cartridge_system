@@ -1,7 +1,7 @@
 {
   "name": "cartridge-system",
   "displayName": "記憶卡匣監控系統",
-  "version": "4.1.1",
+  "version": "5.1.0",
   "description": "記憶卡匣動態熱處理外掛 — 主動式檔案監聽與記憶過期防禦系統",
   "publisher": "cartridge-system",
   "repository": {
@@ -41,14 +41,53 @@
       {
         "command": "cartridge.showGhostFileInfo",
         "title": "記憶卡匣：查看幽靈詳情"
+      },
+      {
+        "command": "cartridge.openGovernanceDashboard",
+        "title": "Cartridge：開啟治理總覽"
+      },
+      {
+        "command": "cartridge.refreshGovernance",
+        "title": "Cartridge：重新整理治理側邊欄"
+      },
+      {
+        "command": "cartridge.contextAudit",
+        "title": "Cartridge：查看上下文治理報告"
       }
     ],
+    "viewsContainers": {
+      "activitybar": [
+        {
+          "id": "cartridgeGovernance",
+          "title": "Cartridge",
+          "icon": "assets/cartridge-activity.svg"
+        }
+      ]
+    },
     "views": {
-      "explorer": [
+      "cartridgeGovernance": [
+        {
+          "id": "cartridgeGovernanceOverview",
+          "name": "治理總覽",
+          "icon": "$(dashboard)",
+          "when": "workspaceFolderCount > 0"
+        },
         {
           "id": "cartridgeExplorer",
           "name": "記憶卡匣",
           "icon": "$(server)",
+          "when": "workspaceFolderCount > 0"
+        },
+        {
+          "id": "cartridgeContextExplorer",
+          "name": "上下文治理",
+          "icon": "$(symbol-event)",
+          "when": "workspaceFolderCount > 0"
+        },
+        {
+          "id": "cartridgeActionItems",
+          "name": "待處理項目",
+          "icon": "$(warning)",
           "when": "workspaceFolderCount > 0"
         }
       ]

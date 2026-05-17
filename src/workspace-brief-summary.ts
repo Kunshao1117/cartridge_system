@@ -3,6 +3,7 @@ import {
   buildCompatibilityReport,
   type CompatibilityReport,
 } from "./memory-compatibility.js";
+import type { ContextAuditFinding, ContextInventory } from "./context-types.js";
 
 const STALENESS_SIGNIFICANT = 10;
 
@@ -32,6 +33,9 @@ type RecommendedAction = {
   action: string;
   target: string;
   reason: string;
+  label: string;
+  nextTool?: string;
+  blocking: boolean;
 };
 
 type SubmitReadiness = {
@@ -40,6 +44,26 @@ type SubmitReadiness = {
   reasons: string[];
   nextAction: "run_commit_preflight" | null;
   nextTool: "commit_preflight" | null;
+  label: string;
+};
+
+export interface ContextBrief {
+  inventory: ContextInventory["totals"];
+  readiness: {
+    status: "ready" | "warning" | "blocked";
+    blockers: number;
+    warnings: number;
+    informational: number;
+  };
+  findings: ContextAuditFinding[];
+}
+
+type StartupReadiness = {
+  status: "ready" | "needs_review" | "blocked";
+  label: string;
+  reasons: string[];
+  nextTool: string | null;
+  nextAction: string | null;
 };
 
 function buildMemorySummary(index: BriefIndex) {
@@ -112,6 +136,53 @@ function buildReadiness(memory: ReturnType<typeof buildMemorySummary>) {
   return { status: reasons.length > 0 ? "blocked" : "ready", reasons };
 }
 
+function buildStartupReadiness(args: {
+  memoryReadiness: ReturnType<typeof buildReadiness>;
+  context?: ContextBrief;
+}): StartupReadiness {
+  if (args.memoryReadiness.status === "blocked") {
+    return {
+      status: "blocked",
+      label: "需要先處理記憶卡提醒",
+      reasons: args.memoryReadiness.reasons,
+      nextTool: "memory_audit",
+      nextAction: "review_action_items",
+    };
+  }
+
+  if (args.context?.readiness.status === "blocked") {
+    return {
+      status: "blocked",
+      label: "需要先處理規則檔衝突",
+      reasons: args.context.findings
+        .filter((finding) => finding.severity === "error")
+        .map((finding) => finding.message),
+      nextTool: "context_audit",
+      nextAction: "review_context_findings",
+    };
+  }
+
+  if (args.context?.readiness.status === "warning") {
+    return {
+      status: "needs_review",
+      label: "可以開工，但建議先看規則檔提醒",
+      reasons: args.context.findings
+        .filter((finding) => finding.severity === "warning")
+        .map((finding) => finding.message),
+      nextTool: "context_audit",
+      nextAction: "review_context_findings",
+    };
+  }
+
+  return {
+    status: "ready",
+    label: "可以開工",
+    reasons: [],
+    nextTool: null,
+    nextAction: null,
+  };
+}
+
 function buildSubmitReadiness(
   readiness: ReturnType<typeof buildReadiness>,
 ): SubmitReadiness {
@@ -122,6 +193,7 @@ function buildSubmitReadiness(
       reasons: readiness.reasons,
       nextAction: null,
       nextTool: null,
+      label: "記憶卡還有待處理項目，先不要提交",
     };
   }
 
@@ -134,6 +206,7 @@ function buildSubmitReadiness(
     ],
     nextAction: "run_commit_preflight",
     nextTool: "commit_preflight",
+    label: "提交前還要跑 commit_preflight",
   };
 }
 
@@ -147,6 +220,9 @@ function buildRecommendedActions(index: BriefIndex): RecommendedAction[] {
         action: "repair_stale_memory",
         target: module,
         reason: `staleness=${staleness}`,
+        label: `更新記憶卡：${module}`,
+        nextTool: "memory_status",
+        blocking: staleness >= STALENESS_SIGNIFICANT,
       });
     }
     const ghostCount = entry.ghostFiles?.length ?? 0;
@@ -156,6 +232,9 @@ function buildRecommendedActions(index: BriefIndex): RecommendedAction[] {
         action: "clean_ghost_files",
         target: module,
         reason: `ghostFiles=${ghostCount}`,
+        label: `清理幽靈檔案：${module}`,
+        nextTool: "memory_status",
+        blocking: true,
       });
     }
   }
@@ -166,6 +245,9 @@ function buildRecommendedActions(index: BriefIndex): RecommendedAction[] {
       action: "attribute_untracked_files",
       target: "workspace",
       reason: `untrackedFiles=${untrackedCount}`,
+      label: "歸屬未歸屬檔案",
+      nextTool: "memory_audit",
+      blocking: true,
     });
   }
   return actions.sort((a, b) => a.priority.localeCompare(b.priority));
@@ -181,27 +263,55 @@ function buildCompatibilityActions(
       action: "run_memory_audit",
       target: "workspace",
       reason: `compatibilityWarnings=${compatibility.warnings.length}`,
+      label: "執行記憶卡完整健檢",
+      nextTool: "memory_audit",
+      blocking: false,
     },
   ];
+}
+
+function buildContextActions(context?: ContextBrief): RecommendedAction[] {
+  if (!context) return [];
+  return context.findings
+    .filter((finding) => finding.severity !== "info")
+    .map((finding) => ({
+      priority: finding.severity === "error" ? "P1" : ("P2" as const),
+      action: finding.recommendedAction ?? "review_context_finding",
+      target: finding.paths?.[0] ?? "workspace",
+      reason: finding.message,
+      label:
+        finding.severity === "error"
+          ? `處理規則檔衝突：${finding.code}`
+          : `檢查規則檔提醒：${finding.code}`,
+      nextTool: finding.recommendedTool ?? "context_audit",
+      blocking: finding.severity === "error",
+    }));
 }
 
 export function buildWorkspaceBrief(
   project: ProjectSummary,
   index: BriefIndex,
-  options: { indexAvailable?: boolean } = {},
+  options: { indexAvailable?: boolean; context?: ContextBrief } = {},
 ) {
   const memory = buildMemorySummary(index);
   const readiness = buildReadiness(memory);
   const compatibility = buildCompatibilityReport(index, options);
+  const startupReadiness = buildStartupReadiness({
+    memoryReadiness: readiness,
+    context: options.context,
+  });
   return {
     project,
     memory,
+    context: options.context,
     compatibility,
     readiness,
+    startupReadiness,
     submitReadiness: buildSubmitReadiness(readiness),
     recommendedActions: [
       ...buildCompatibilityActions(compatibility),
       ...buildRecommendedActions(index),
+      ...buildContextActions(options.context),
     ].sort((a, b) => a.priority.localeCompare(b.priority)),
   };
 }

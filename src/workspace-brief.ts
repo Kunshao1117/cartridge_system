@@ -3,6 +3,11 @@ import * as path from "path";
 import * as z from "zod";
 import { validateProjectRoot } from "./path-guard.js";
 import {
+  auditContextInventory,
+  summarizeContextReadiness,
+} from "./context-audit.js";
+import { scanContextRegistry } from "./context-registry.js";
+import {
   createToolEnvelope,
   createToolErrorEnvelope,
   toMcpTextResult,
@@ -43,6 +48,25 @@ function compatibilityToFindings(
     severity: "warning",
     code: warning.code,
     message: `${warning.target}: ${warning.message}`,
+  }));
+}
+
+function contextToFindings(
+  warnings: Array<{
+    code: string;
+    message: string;
+    severity: "info" | "warning" | "error";
+    explanation?: string;
+    paths?: string[];
+  }>,
+): CartridgeFinding[] {
+  return warnings.map((warning) => ({
+    severity: warning.severity,
+    code: warning.code,
+    message: warning.explanation
+      ? `${warning.message} ${warning.explanation}`
+      : warning.message,
+    file: warning.paths?.[0],
   }));
 }
 
@@ -103,17 +127,27 @@ export async function handleWorkspaceBrief(
 
   try {
     const projectRoot = validateProjectRoot(parsed.data.projectRoot);
-    const [project, indexResult] = await Promise.all([
+    const [project, indexResult, contextInventory] = await Promise.all([
       readPackageSummary(projectRoot),
       readCartridgeIndex(projectRoot),
+      scanContextRegistry(projectRoot),
     ]);
+    const contextFindings = auditContextInventory(contextInventory);
+    const contextReadiness = summarizeContextReadiness(contextFindings);
     const brief = buildWorkspaceBrief(project, indexResult.index, {
       indexAvailable: indexResult.indexAvailable,
+      context: {
+        inventory: contextInventory.totals,
+        readiness: contextReadiness,
+        findings: contextFindings,
+      },
     });
     const status =
-      brief.readiness.status === "blocked"
+      brief.readiness.status === "blocked" ||
+      contextReadiness.status === "blocked"
         ? "blocked"
-        : brief.compatibility.mode === "compatibility"
+        : brief.compatibility.mode === "compatibility" ||
+            contextReadiness.status === "warning"
           ? "warning"
           : "ready";
     return toMcpTextResult(
@@ -125,6 +159,7 @@ export async function handleWorkspaceBrief(
         summary: brief,
         findings: [
           ...compatibilityToFindings(brief.compatibility.warnings),
+          ...contextToFindings(contextFindings),
           ...readinessToFindings(brief.readiness.reasons),
         ],
         recommendedActions: brief.recommendedActions,

@@ -543,6 +543,7 @@ describe("handleMemoryCommit", () => {
           staleness: 10,
           pendingChanges: [{ filePath: "src/foo.ts" }],
           trackedFiles: ["src/foo.ts"],
+          ghostFiles: ["src/gone.ts"],
           lastUpdated: "old",
           indirectStaleness: 5,
         },
@@ -584,10 +585,13 @@ describe("handleMemoryCommit", () => {
     expect(parsed.cartridges["mem-test"].pendingChanges).toEqual([]);
     expect(parsed.cartridges["mem-test"].staleness).toBe(0);
     expect(parsed.cartridges["mem-test"].indirectStaleness).toBe(0);
+    expect(parsed.cartridges["mem-test"].ghostFiles).toEqual([]);
     expect(parsed.cartridges["mem-test"].trackedFiles).toEqual([
       "src/foo.ts",
       "src/bar.ts",
     ]);
+    expect(parsed.fileMap["src/foo.ts"]).toEqual(["mem-test"]);
+    expect(parsed.fileMap["src/bar.ts"]).toEqual(["mem-test"]);
     expect(parsed.untrackedFiles).toEqual([{ filePath: "src/other.ts" }]);
   });
 

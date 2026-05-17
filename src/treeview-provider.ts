@@ -66,6 +66,11 @@ export class CartridgeTreeProvider implements vscode.TreeDataProvider<CartridgeT
         { cartridgeId: id },
       );
       item.tooltip = `過期指數: ${entry.staleness} | 追蹤 ${entry.trackedFiles.length} 個檔案`;
+      item.command = {
+        command: "vscode.open",
+        title: "開啟記憶卡",
+        arguments: [vscode.Uri.file(path.resolve(this.projectRoot, entry.skillPath))],
+      };
       items.push(item);
     }
 
@@ -95,14 +100,21 @@ export class CartridgeTreeProvider implements vscode.TreeDataProvider<CartridgeT
     for (const [childId, childEntry] of Object.entries(index.cartridges)) {
       if (childEntry.parent !== id) continue;
       const icon = this.stalenessIcon(childEntry.staleness);
-      items.push(
-        new CartridgeTreeItem(
-          `${icon} ${childId.split(".").pop()}`,
-          "cartridge",
-          vscode.TreeItemCollapsibleState.Collapsed,
-          { cartridgeId: childId },
-        ),
+      const item = new CartridgeTreeItem(
+        `${icon} ${childId.split(".").pop()}`,
+        "cartridge",
+        vscode.TreeItemCollapsibleState.Collapsed,
+        { cartridgeId: childId },
       );
+      item.tooltip = `過期指數: ${childEntry.staleness} | 追蹤 ${childEntry.trackedFiles.length} 個檔案`;
+      item.command = {
+        command: "vscode.open",
+        title: "開啟記憶卡",
+        arguments: [
+          vscode.Uri.file(path.resolve(this.projectRoot, childEntry.skillPath)),
+        ],
+      };
+      items.push(item);
     }
 
     // 追蹤檔案

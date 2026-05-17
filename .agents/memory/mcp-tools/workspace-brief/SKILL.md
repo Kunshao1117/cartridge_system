@@ -3,13 +3,14 @@ name: workspace-brief
 description: >
   專案記憶：workspace_brief 高階治理摘要工具。Use when: 處理 AI 開工摘要、記憶卡健康彙整、readiness
   判斷與建議行動排序時載入。
-last_updated: '2026-05-15T15:42:06+08:00'
+last_updated: '2026-05-17T23:39:29+08:00'
 status: stable
 staleness: 0
 dependencies:
   - core-types
   - mcp-tools.tool-registry
   - mcp-tools.memory-audit
+  - mcp-tools.context-governance
 metadata:
   author: antigravity
   version: '1.0'
@@ -31,7 +32,7 @@ metadata:
 
 ## Key Decisions
 
-- D01: `workspace_brief` 採用純檔案讀取設計，只讀 `package.json` 與 `.cartridge/index.json`，不隱性執行 git、npm audit、GitNexus 或索引重建，確保 MCP 呼叫快速且副作用為零。
+- D01: `workspace_brief` 採用純檔案讀取設計，只讀 `package.json`、`.cartridge/index.json` 與 v5 AI 規則來源，不隱性執行 git、npm audit、GitNexus 或索引重建，確保 MCP 呼叫快速且副作用為零。
 - D02: Handler 與摘要 builder 分離：`workspace-brief.ts` 負責參數驗證、路徑安全與 I/O；`workspace-brief-summary.ts` 負責記憶卡統計、readiness 判斷與 recommendedActions 排序。
 - D03: readiness 使用保守阻擋模型；只要存在 stale、ghost、untracked 或 indirect stale，即回傳 `blocked` 並列出具體 reasons。
 - D04: recommendedActions 以 P1/P2 排序，優先處理 significant stale、ghost files 與 untracked files，讓 AI 能直接判斷下一步。
@@ -47,6 +48,11 @@ metadata:
 - D14: MCP stdio E2E 與 Gateway 實測都必須確認 `workspace_brief` 記憶健康為 ready，且 stale、ghost、untracked、oversized 皆為 0。
 - D15: `workspace_brief` 新增輕量 compatibility summary；缺索引或舊索引欄位時回 `warning` 並建議 `run_memory_audit`，但不讀取所有 SKILL.md、不執行完整健檢。
 - D16: `workspace_brief` 實際依賴 `mcp-tools.memory-audit` 持有的 `memory-compatibility.ts`；若 compatibility warning 規則過期，workspace 摘要的日常導入提醒也必須重新檢查。
+- D17: v5.0 `workspace_brief` 新增 `context` summary，揭露規則來源數量、規則檔 readiness 與規則提醒，讓 AI 開工前同時看到記憶健康與跨代理規則健康。
+- D18: context readiness 若為 blocked，`workspace_brief` 外層 status 也回 blocked；若只有 warning，外層 status 回 warning，但不把語言或重複規則直接升級成記憶健康阻塞。
+- D19: `mcp-tools.context-governance` 是 workspace_brief 的實際 dependency；context registry、audit finding severity 或 readiness summary 改變時，開工摘要狀態與 recommendedActions 必須重新檢查。
+- D20: v5.1 `workspace_brief` 新增 `startupReadiness`，用白話標籤表達 AI 開工狀態：可以開工、需要先處理記憶卡提醒、需要先處理規則檔衝突。
+- D21: v5.1 recommendedActions 增加 `label`、`nextTool` 與 `blocking`，讓側邊欄與 AI 不需要自行推測下一步。
 
 ## Known Issues
 
@@ -64,6 +70,8 @@ metadata:
 - L08: 高階工具的 handler 測試應由對應子卡持有；測試檔 import 也會影響 Memory Graph 的工程依賴推導。
 - L09: workspace_brief 不讀 git state；它可以回報記憶健康 ready，但提交是否可封存仍以 commit_preflight 為準。
 - L10: 日常開工入口只應提示「需要深度健檢」，完整舊格式導入診斷由 `memory_audit` 承擔，避免 workspace_brief 變慢或變成大雜燴。
+- L11: 開工摘要可承接 context readiness，但不能替代 `context_audit`；完整上下文差異仍由 v5 context tools 回報。
+- L12: 使用者面向的開工摘要應優先顯示可執行語句，例如「可以開工」或「提交前還要跑 commit_preflight」，避免只輸出抽象狀態碼。
 
 ## Relations
 
@@ -71,6 +79,7 @@ metadata:
 - core-types（依賴：路徑驗證與 staleness 等級轉換）
 - mcp-tools.tool-registry（共用：MCP 統一回傳 envelope）
 - mcp-tools.memory-audit（依賴：compatibility warning 規則）
+- mcp-tools.context-governance（依賴：規則來源掃描與規則衝突檢查）
 
 ## Applicable Skills
 

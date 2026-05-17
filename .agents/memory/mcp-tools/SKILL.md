@@ -2,7 +2,7 @@
 name: mcp-tools
 description: |
   專案記憶：MCP 工具介面模組（第三階段）。 Use when: 處理MCP伺服器註冊、工具路由、AI工具呼叫介面時載入。
-last_updated: '2026-05-15T15:40:56+08:00'
+last_updated: '2026-05-17T23:39:49+08:00'
 status: stable
 staleness: 0
 dependencies: null
@@ -64,6 +64,8 @@ metadata:
 - D42: `mcp-server.ts` 的工具呼叫路由改由 `dispatchToolCall()` 統一分派；server 層只保留 SDK request handler 與 registry-driven list tools。
 - D43: 依照新版核心規範，`mcp-tools` 轉為父層總覽卡，不再以 `dependencies` 表示父子導覽關係；實作檔案下放至 `mcp-tools.server`、`mcp-tools.handlers`、`mcp-tools.dispatcher` 與 `mcp-tools.tool-registry` 等子卡。
 - D44: `memory_audit` 成為第八個 MCP 工具，定位為只讀記憶卡完整健檢；日常 compatibility warning 由 `workspace_brief` / `commit_preflight` 提醒，深度掃描由 `mcp-tools.memory-audit` 子卡承接。
+- D45: v5.0 新增 `mcp-tools.context-governance` 子卡，承接 `context_inventory`、`context_audit`、`context_diff`、`context_plan` 四個只讀上下文治理工具。
+- D46: v5.0 MCP 工具總數提升至十二個；新增工具仍走 registry-driven list tools 與 dispatcher routing，不回到 server 手寫路由。
 
 ## Known Issues
 
@@ -87,6 +89,8 @@ metadata:
 - L11: (2026-05-14) mcp-server.ts 的 SDK metadata 版本不會自動讀 package.json；版本升級時需同步檢查硬編碼宣告。
 - L12: (2026-05-14) `dependencies` 只保留會觸發過期傳播的工程依賴；父子卡、導覽關係與建議一起閱讀改放 `Relations`。
 - L13: (2026-05-15) 舊專案導入需要雙層預防：日常工具給提醒，完整健檢工具給診斷；兩者都不應自動修改記憶卡。
+- L14: (2026-05-17) v5 規則檔檢查是 MCP 工具層能力擴充，不恢復 v3.0 已移除的框架注入責任。
+- L15: (2026-05-17) v5.1 沒有新增工具數量，仍維持十二個 MCP 工具；本次只增加白話 finding、開工安全性 metadata 與 tools/list 安全說明。
 
 ## Relations
 
@@ -97,6 +101,7 @@ metadata:
 - mcp-tools.workspace-brief（子卡：workspace_brief 高階治理摘要）
 - mcp-tools.commit-preflight（子卡：commit_preflight 提交前治理檢查）
 - mcp-tools.memory-audit（子卡：memory_audit 完整健檢與 compatibility 規則）
+- mcp-tools.context-governance（子卡：v5 規則檔檢查工具）
 - mcp-tools.tool-registry（子卡：MCP 工具名冊與統一回傳契約）
 - mcp-tools.dispatcher（子卡：MCP 工具分派與 high-risk tool guardrail）
 

@@ -3,7 +3,7 @@ name: index-manager
 description: >
   專案記憶：記憶索引管理器模組。管理卡匣索引、檔案反向映射、離線偵測、未歸屬檔案池、Cache-First 持久化。Use when:
   處理卡匣索引、檔案反向映射、持久化讀寫時載入。
-last_updated: '2026-05-15T02:21:20+08:00'
+last_updated: '2026-05-17T21:52:22+08:00'
 status: stable
 staleness: 0
 dependencies:
@@ -63,6 +63,8 @@ metadata:
 - D33: `shouldWarnEmptyTrackedFiles()` 區分格式偏差與刻意空追蹤卡；父層總覽、導航與歸檔卡若明確宣告不追蹤檔案，不再觸發 Tracked Files 解析為空警告。
 - D34: 本卡 frontmatter `dependencies` 保留 `core-types`，因 `index-manager.ts` 實際匯入 `types.ts`、`config.ts` 與 `timestamp.ts`；若 core-types 過期，索引資料結構、路徑設定或時間戳語義都必須重新檢查。
 - D35: `smart-owner.ts` 歸屬本卡，因它根據 `CartridgeIndex` 與 trackedFiles 提供未歸屬檔案推薦；extension 只消費推薦結果，不持有推薦演算法。
+- D36: `refilterUntrackedFiles()` 是未歸屬池整理的共用入口；它只移除已被最新 fileMap 追蹤或已被 GitignoreFilter 排除的舊項目，不新增新的 untracked entry。
+- D37: `refilterUntrackedFiles()` 若實際清掉項目會呼叫 `markDirty()`，確保 watcher / extension UI 與 `.cartridge/index.json` 可以在後續 flush 反映狀態。
 
 ## Key Decisions Addendum
 
@@ -84,6 +86,7 @@ metadata:
 - L07: (2026-05-13) scanRecursive 的 readFileSync 與 matter() 解析各自需要獨立 try-catch，因為 readFileSync 可能拋 ENOENT/EPERM，而 matter() 可能拋 YAML syntax error，兩種 catch 行為相同（skip + warn）但原因不同，需要分開捕獲以便 debug 時區分原因。
 - L08: (2026-05-15) Tracked Files 空區塊警告必須排除「刻意不追蹤」的父卡、導航卡與歸檔卡，否則 `memory_deps` 每次重建索引都會輸出無效噪音。
 - L09: (2026-05-15) smart-owner 屬索引歸屬演算法，不屬 UI 層；放在 index-manager 可避免 extension 與 index-manager 的 Memory Graph 雙向依賴。
+- L10: (2026-05-17) `scan()` 會保留既有 untracked pool，因此任何「記憶卡內容已變更」流程都必須在 scan 後呼叫 `refilterUntrackedFiles()`，否則已歸卡檔案仍會殘留於側邊欄待處理項目。
 
 ## Relations
 

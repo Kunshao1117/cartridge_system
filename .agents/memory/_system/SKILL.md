@@ -2,7 +2,7 @@
 name: _system
 description: |
   專案記憶：系統技術堆疊與部署設定。 Use when: 確認技術選型、環境設定、部署組態時載入。
-last_updated: '2026-05-14T00:50:22+08:00'
+last_updated: '2026-05-17T23:39:41+08:00'
 status: stable
 staleness: 0
 metadata:
@@ -47,8 +47,9 @@ metadata:
 - Entry: `src/extension.ts` 及 `src/mcp-server.ts`
 - Output: `dist/extension.js` 及 `dist/mcp-server.js`
 - Activation: `workspaceContains:.agents` + `onStartupFinished`
-- Commands: `cartridge.scan`、`cartridge.status`、`cartridge.scanGhosts`、`cartridge.attributeFile`
-- Views: `cartridgeExplorer` (TreeView 側邊欄，v2.0 新增)
+- Commands: `cartridge.scan`、`cartridge.status`、`cartridge.scanGhosts`、`cartridge.attributeFile`、`cartridge.showGhostFileInfo`、`cartridge.openGovernanceDashboard`、`cartridge.refreshGovernance`、`cartridge.contextAudit`
+- Views Container: `cartridgeGovernance` (Activity Bar，v5.0 新增)
+- Views: `cartridgeGovernanceOverview`、`cartridgeExplorer`、`cartridgeContextExplorer`、`cartridgeActionItems`
 - Engine: `vscode ^1.85.0`
 - Publisher: `cartridge-system`
 
@@ -69,7 +70,7 @@ metadata:
 
 ## Config Files
 
-- `package.json` — VS Code Extension 元數據（含 activationEvents / contributes），當前版本 **4.1.1**
+- `package.json` — VS Code Extension 元數據（含 activationEvents / contributes），當前版本 **5.1.0**
 - `tsconfig.json` — CommonJS + node 模組解析
 - `tsup.config.ts` — entry: extension.ts / format: cjs / external: vscode / noExternal: gray-matter, ignore（v3.0 已移除 onSuccess 範本複製邏輯）
 - `eslint.config.js` — ESLint v9 Flat Config（CJS 格式，@typescript-eslint）
@@ -116,6 +117,9 @@ D14: v4.0.1 狀態列 Tooltip 幽靈感知修復 — 補齊狀態列懸浮健康
 - L10: v4.1.0 (2026-05-08) — 健康合約升級：memory_commit 新增標題精確匹配驗證（HEADING_TYPO）與路徑基準驗證（PATH_ABSOLUTE / PATH_TRAVERSAL），測試 106→112。
 - L11: v4.1.1 (2026-05-14) — package.json 已確認維持 extension metadata、MCP server 入口、commands 與依賴設定；系統記憶同步至目前版本狀態。
 - L12: (2026-05-14) GitNexus CLI 環境修復 — npm Roaming 全域 shim 曾指向殘缺的 `node_modules/gitnexus/dist/cli/index.js`，導致 `npx gitnexus` 失敗；已將 npm shim 改為優先委派 pnpm 全域 GitNexus，缺失時 fallback 到 `pnpm dlx --allow-build=... gitnexus`。
+- L13: v5.0.0 (2026-05-17) — package.json 與 MCP server metadata 同步升級至 5.0.0；本版主軸為只讀上下文治理 OS，不新增生產依賴。
+- L14: v5.0.0 (2026-05-17) — package.json contributes 新增 `viewsContainers.activitybar` 的 `cartridgeGovernance`，並新增三個治理 commands；`cartridgeExplorer` 不再掛在 Explorer。
+- L15: v5.1.0 (2026-05-17) — package.json 與 MCP server metadata 同步升級至 5.1.0；本版主軸為 AI 開工清單、規則檔檢查白話化、側邊欄提醒可讀性與 MCP 工具安全說明。
 
 ## Applicable Skills
 

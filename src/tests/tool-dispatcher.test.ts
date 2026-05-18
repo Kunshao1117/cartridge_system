@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 import { dispatchToolCall, hasExplicitApproval } from "../tool-dispatcher.js";
+import { handleMemoryCommit, handleMemoryList } from "../mcp-handlers.js";
 
 vi.mock("../mcp-handlers.js", () => ({
   handleMemoryList: vi.fn(async () => ({
@@ -53,6 +54,47 @@ vi.mock("../context-tools.js", () => ({
 }));
 
 describe("tool-dispatcher — MCP 工具分派與防線", () => {
+  it("有預設 workspace 時應補入 projectRoot 後再進入 handler", async () => {
+    const result = await dispatchToolCall({
+      name: "memory_list",
+      args: {},
+      defaultProjectRoot: "D:\\mock\\project",
+    });
+
+    expect(result.isError).toBeUndefined();
+    expect(vi.mocked(handleMemoryList)).toHaveBeenCalledWith({
+      projectRoot: "D:\\mock\\project",
+    });
+  });
+
+  it("workspace 與 arguments.projectRoot 不同時應拒絕呼叫", async () => {
+    const result = await dispatchToolCall({
+      name: "memory_list",
+      args: { projectRoot: "D:\\other\\project" },
+      defaultProjectRoot: "D:\\mock\\project",
+    });
+    const envelope = JSON.parse(result.content[0].text);
+
+    expect(result.isError).toBe(true);
+    expect(envelope.status).toBe("error");
+    expect(envelope.findings[0].code).toBe(
+      "workspace_project_root_conflict",
+    );
+  });
+
+  it("預設 workspace 不合法時應在 dispatcher 層拒絕", async () => {
+    const result = await dispatchToolCall({
+      name: "memory_list",
+      args: {},
+      defaultProjectRoot: "relative-project",
+    });
+    const envelope = JSON.parse(result.content[0].text);
+
+    expect(result.isError).toBe(true);
+    expect(envelope.status).toBe("error");
+    expect(envelope.findings[0].code).toBe("workspace_validation_error");
+  });
+
   it("應將已登錄工具分派到對應 handler", async () => {
     const result = await dispatchToolCall({
       name: "memory_list",
@@ -103,6 +145,39 @@ describe("tool-dispatcher — MCP 工具分派與防線", () => {
 
     expect(result.isError).toBeUndefined();
     expect(result.content[0].text).toBe("memory_commit called");
+  });
+
+  it("memory_commit 可使用預設 workspace 補齊 projectRoot", async () => {
+    const result = await dispatchToolCall({
+      name: "memory_commit",
+      args: {
+        moduleName: "mcp-tools",
+        confirm: true,
+      },
+      defaultProjectRoot: "D:\\mock\\project",
+    });
+
+    expect(result.isError).toBeUndefined();
+    expect(vi.mocked(handleMemoryCommit)).toHaveBeenCalledWith({
+      moduleName: "mcp-tools",
+      confirm: true,
+      projectRoot: "D:\\mock\\project",
+    });
+  });
+
+  it("memory_commit 未確認時仍應在 dispatcher 層阻擋", async () => {
+    const result = await dispatchToolCall({
+      name: "memory_commit",
+      args: {
+        moduleName: "mcp-tools",
+      },
+      defaultProjectRoot: "D:\\mock\\project",
+    });
+    const envelope = JSON.parse(result.content[0].text);
+
+    expect(result.isError).toBe(true);
+    expect(envelope.findings[0].code).toBe("explicit_approval_required");
+    expect(envelope.metadata.projectRoot).toBe("D:\\mock\\project");
   });
 
   it("hasExplicitApproval 只接受 confirm: true", () => {

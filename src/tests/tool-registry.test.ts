@@ -1,4 +1,6 @@
 import { describe, expect, it } from "vitest";
+import fs from "node:fs";
+import path from "node:path";
 import { CARTRIDGE_TOOLS } from "../tool-registry.js";
 
 describe("tool-registry — MCP 工具名冊", () => {
@@ -24,7 +26,10 @@ describe("tool-registry — MCP 工具名冊", () => {
       expect(tool.description.length).toBeGreaterThan(0);
       expect(tool.safetySummary.length).toBeGreaterThan(0);
       expect(tool.inputSchema.type).toBe("object");
-      expect(tool.inputSchema.required).toContain("projectRoot");
+      expect(tool.inputSchema.properties.projectRoot).toEqual(
+        expect.objectContaining({ type: "string" }),
+      );
+      expect(tool.inputSchema.required).not.toContain("projectRoot");
       expect(["low", "medium", "high"]).toContain(tool.risk);
       expect(["read", "analyze", "governance", "write"]).toContain(
         tool.capability,
@@ -43,6 +48,8 @@ describe("tool-registry — MCP 工具名冊", () => {
     expect(memoryCommit?.requiresExplicitApproval).toBe(true);
     expect(memoryCommit?.safeForStartup).toBe(false);
     expect(memoryCommit?.inputSchema.required).toContain("confirm");
+    expect(memoryCommit?.inputSchema.required).toContain("moduleName");
+    expect(memoryCommit?.inputSchema.required).not.toContain("projectRoot");
     expect(memoryCommit?.inputSchema.properties.confirm).toEqual(
       expect.objectContaining({ type: "boolean" }),
     );
@@ -60,5 +67,31 @@ describe("tool-registry — MCP 工具名冊", () => {
     expect(workspaceBrief?.safetySummary).toContain("開工檢查");
     expect(contextAudit?.safeForStartup).toBe(true);
     expect(contextAudit?.description).toContain("規則檔檢查");
+  });
+
+  it("npm 發布 manifest 應公開 MCP bin 並限制打包範圍", () => {
+    const packageJson = JSON.parse(
+      fs.readFileSync(path.resolve(process.cwd(), "package.json"), "utf-8"),
+    );
+
+    expect(packageJson.version).toBe("5.2.0");
+    expect(packageJson.bin).toEqual({
+      "cartridge-system": "dist/mcp-server.js",
+      "cartridge-mcp": "dist/mcp-server.js",
+    });
+    expect(packageJson.repository.url).toBe(
+      "git+https://github.com/Kunshao1117/cartridge_system.git",
+    );
+    expect(packageJson.files).toEqual(
+      expect.arrayContaining([
+        "dist/*.js",
+        "README.md",
+        "CHANGELOG.md",
+        "LICENSE",
+      ]),
+    );
+    expect(packageJson.files).not.toEqual(
+      expect.arrayContaining(["src/**", ".agents/**", ".github/**"]),
+    );
   });
 });

@@ -32,3 +32,20 @@ export function validateProjectRoot(raw: string): string {
 
   return normalized
 }
+
+/**
+ * 產生可比較的 projectRoot 身分字串。
+ * Windows 路徑大小寫不敏感，需先統一大小寫，避免相同工作區被誤判為衝突。
+ */
+export function getProjectRootIdentity(raw: string): string {
+  const normalized = validateProjectRoot(raw)
+  const resolved = path.resolve(normalized)
+  return process.platform === 'win32' ? resolved.toLowerCase() : resolved
+}
+
+/**
+ * 比較兩個 projectRoot 是否指向同一個工作區。
+ */
+export function isSameProjectRoot(left: string, right: string): boolean {
+  return getProjectRootIdentity(left) === getProjectRootIdentity(right)
+}

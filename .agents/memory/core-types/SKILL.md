@@ -2,7 +2,7 @@
 name: core-types
 description: |
   專案記憶：共用型別、設定與跨層小工具模組。 Use when: 處理系統共用型別定義、設定工廠函式、路徑驗證、時間戳或 staleness 等級轉換時載入。
-last_updated: '2026-05-16T18:18:04+08:00'
+last_updated: '2026-05-18T19:37:08+08:00'
 status: stable
 staleness: 0
 scopePath: src/
@@ -15,7 +15,6 @@ metadata:
     - 'filesystem:read'
     - 'filesystem:write'
 ---
-
 
 # Core Types & Config — 共用型別與設定記憶
 
@@ -45,6 +44,7 @@ metadata:
 - D09: `path-guard.ts` 提供跨 MCP 工具共用的 projectRoot 路徑安全驗證，歸 core-types 持有可避免 workspace/commit 工具為路徑驗證依賴底層 handlers。
 - D10: `timestamp.ts` 提供跨 index-manager、MCP handlers 與 MCP response envelope 共用的台灣時區時間戳，歸 core-types 持有可避免 tool-registry 或 index-manager 因時間戳工具反向依賴 handlers。
 - D11: `getStalenessLevel()` 已由 `analyzer.ts` 移入 `staleness.ts`，讓 `writer.ts` 可共用過期等級判斷而不再 import analyzer，解除 extension analyzer/writer 工程循環。
+- D12: v5.2 `path-guard.ts` 新增 projectRoot 身分比較 helper；Windows 會以 resolved path 小寫化比較，讓 Gateway/CLI workspace 與 tool argument 能判斷是否指向同一工作區。
 
 ## Known Issues
 
@@ -57,6 +57,7 @@ metadata:
 - D08: 新增之 config 管理有效將 memoryDir 和 skillsDir 切開，防止系統本身因結構目錄設計變化（如 v4.0）產生的降級相容錯誤。
 - D09: staleness 等級轉換、path guard 與 timestamp 都屬跨 MCP handler、索引器與高階摘要的共用語義，歸 core-types 可避免 Memory Graph 中的工具層循環雜訊。
 - L10: 過期等級轉換同時服務 analyzer 計分流程與 writer 警報呈現；若放在 analyzer 會讓 writer 反向依賴 analyzer，造成工程依賴循環。
+- L11: projectRoot 驗證與 workspace 身分比較必須同屬 core-types，否則 dispatcher、commit_preflight、workspace_brief 會各自長出不一致的路徑判斷。
 
 ## Relations
 

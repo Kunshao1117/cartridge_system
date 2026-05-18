@@ -3,7 +3,11 @@
  */
 
 import { describe, it, expect } from 'vitest'
-import { validateProjectRoot } from '../path-guard.js'
+import {
+  getProjectRootIdentity,
+  isSameProjectRoot,
+  validateProjectRoot,
+} from '../path-guard.js'
 
 describe('validateProjectRoot — 路徑安全驗證', () => {
   // ---- 合法路徑 ----
@@ -41,5 +45,13 @@ describe('validateProjectRoot — 路徑安全驗證', () => {
 
   it('純空白應拋出錯誤', () => {
     expect(() => validateProjectRoot('   ')).toThrow('不可為空')
+  })
+
+  it('相同路徑含尾端斜線時應視為同一個工作區', () => {
+    expect(isSameProjectRoot('D:\\cartridge_system', 'D:\\cartridge_system\\')).toBe(true)
+  })
+
+  it('工作區身分字串應先通過安全驗證', () => {
+    expect(() => getProjectRootIdentity('D:\\foo\\..\\etc')).toThrow('路徑穿越')
   })
 })

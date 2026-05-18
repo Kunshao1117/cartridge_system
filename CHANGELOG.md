@@ -2,18 +2,27 @@
 
 ## [Unreleased]
 
+### feat
+
+- Gateway-first workspace — MCP dispatcher 會以 Gateway 每次呼叫提供的 `workspace` 或 CLI `--workspace` 補齊 `projectRoot`；若可信 workspace 與 `arguments.projectRoot` 不一致，會回傳 `workspace_project_root_conflict`，避免多專案路徑污染。
+- npm MCP runtime — package 新增 `cartridge-system` / `cartridge-mcp` bin，可用 `npx cartridge-system --workspace <projectRoot>` 啟動 MCP server；MCP server 同步支援 `--help`、`--version` 與 `--workspace`。
+- 公開 schema 相容 — 十二個 MCP tools/list schema 保留 `projectRoot` 欄位但不再列為 required，讓 Gateway / CLI 可集中補路徑，同時維持舊客戶端手動傳參相容。
+
 ### fix
 
 - 依賴安全修補 — 更新 lockfile 中 `fast-uri`、`hono`、`express-rate-limit`、`ip-address` 與 `postcss` 的相容版本，`npm audit` 由 1 high / 4 moderate 降為 0 vulnerabilities。
 - MCP 輸入防線 — `memory_read`、`memory_status`、`memory_commit`、`memory_deps` 共用 `moduleName` 驗證，拒絕 `/`、`\`、`..` 等路徑片段；`memory_commit` handler 層也要求 `confirm:true`，與 dispatcher 防線一致。
 - 記憶索引一致性 — `memory_audit` 新增 `INDEX_PENDING_WITH_ZERO_STALENESS`，可偵測 staleness 已歸零但 pendingChanges 未清的索引漂移。
 - Windows npm script 穩定性 — 文件補上 User 層 `ComSpec=C:\Windows\System32\cmd.exe` 修復方式，避免 `npm run lint/test/build` 只輸出 script header 後以 `ERR_INVALID_ARG_TYPE` 結束。
+- 記憶 watcher 穩定性 — `SKILL.md` 變更事件會正規化 Windows 路徑分隔符後比對索引 `skillPath`，並同步清除 pending 與 ghost，避免 extension RAM index 覆寫 `memory_commit` 已清理的磁碟索引。
 
 ### chore
 
+- npm 發布白名單 — `package.json` 新增 `files` 與 `prepublishOnly`，npm tarball 僅包含 runtime JS、assets 與公開文件，避免 `.agents/`、`src/`、測試、source map 與 GitHub workflow 被發布。
+- npm manifest 正規化 — package repository URL 與 `bin` path 對齊 `npm publish --dry-run` 實際正規化結果，避免發布前測試與 npm 產物形狀不一致。
 - VSIX 自動發版 — 新增 GitHub Actions 發布流程，支援推送 `v*` tag 自動建立 / 更新 Release，也支援手動輸入版本補發並覆蓋 VSIX 附件。
 - 發布文件 — README 新增 GitHub Releases 下載入口、tag 發版步驟與 Actions 手動補發說明。
-- 測試覆蓋 — 補強 moduleName 路徑片段拒絕、memory_commit confirm 驗證與 memory_audit 索引漂移偵測，總測試案例提升至 181 個。
+- 測試覆蓋 — 補強 moduleName 路徑片段拒絕、memory_commit confirm 驗證、memory_audit 索引漂移偵測、Gateway workspace 注入、MCP server CLI 解析與 watcher 路徑分隔符同步，總測試案例提升至 195 個。
 
 ## [5.1.0] — 2026-05-17
 

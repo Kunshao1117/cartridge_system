@@ -183,13 +183,15 @@ export class CartridgeWatcher {
    */
   private async handleSkillFileChange(relPath: string): Promise<void> {
     // 偵測記憶卡匣變動時，重新掃描索引以同步快取
+    const normalizedRelPath = relPath.replace(/\\/g, "/");
     const index = this.indexManager.getIndex();
     const cartridgeEntry = Object.entries(index.cartridges).find(
-      ([, entry]) => entry.skillPath === relPath,
+      ([, entry]) => entry.skillPath.replace(/\\/g, "/") === normalizedRelPath,
     );
 
     if (cartridgeEntry) {
       this.indexManager.clearPendingChanges(cartridgeEntry[0]);
+      this.indexManager.clearGhostFiles(cartridgeEntry[0]);
     }
 
     await this.writer.checkAndCleanWarning(relPath);

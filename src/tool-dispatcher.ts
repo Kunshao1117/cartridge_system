@@ -24,6 +24,7 @@ import {
   findToolDefinition,
 } from "./tool-registry.js";
 import { handleWorkspaceBrief } from "./workspace-brief.js";
+import { extractProjectRoot, prepareToolArgs } from "./tool-workspace.js";
 
 type ToolHandler = (args: unknown) => Promise<McpToolResult>;
 
@@ -45,6 +46,7 @@ const toolHandlers: Record<string, ToolHandler> = {
 export interface DispatchToolCallRequest {
   name: string;
   args: unknown;
+  defaultProjectRoot?: string;
 }
 
 export function hasExplicitApproval(args: unknown): boolean {
@@ -56,20 +58,15 @@ export function hasExplicitApproval(args: unknown): boolean {
   );
 }
 
-function extractProjectRoot(args: unknown): string {
-  if (typeof args !== "object" || args === null || !("projectRoot" in args)) {
-    return "";
-  }
-
-  const projectRoot = (args as { projectRoot?: unknown }).projectRoot;
-  return typeof projectRoot === "string" ? projectRoot : "";
-}
-
-function createUnknownToolResult(name: string, args: unknown): McpToolResult {
+function createUnknownToolResult(
+  name: string,
+  args: unknown,
+  defaultProjectRoot?: string,
+): McpToolResult {
   return toMcpTextResult(
     createToolErrorEnvelope({
       tool: name,
-      projectRoot: extractProjectRoot(args),
+      projectRoot: extractProjectRoot(args, defaultProjectRoot),
       code: "unknown_tool",
       message: `Unknown tool: ${name}`,
     }),
@@ -115,17 +112,34 @@ export async function dispatchToolCall(
   const tool = findToolDefinition(request.name);
 
   if (!tool) {
-    return createUnknownToolResult(request.name, request.args);
+    return createUnknownToolResult(
+      request.name,
+      request.args,
+      request.defaultProjectRoot,
+    );
   }
 
   const handler = toolHandlers[request.name];
   if (!handler) {
-    return createUnknownToolResult(request.name, request.args);
+    return createUnknownToolResult(
+      request.name,
+      request.args,
+      request.defaultProjectRoot,
+    );
   }
 
-  if (tool.requiresExplicitApproval && !hasExplicitApproval(request.args)) {
-    return createApprovalRequiredResult(tool, request.args);
+  const prepared = prepareToolArgs(
+    tool,
+    request.args,
+    request.defaultProjectRoot,
+  );
+  if (!prepared.ok) {
+    return prepared.result;
   }
 
-  return handler(request.args);
+  if (tool.requiresExplicitApproval && !hasExplicitApproval(prepared.args)) {
+    return createApprovalRequiredResult(tool, prepared.args);
+  }
+
+  return handler(prepared.args);
 }

@@ -1,12 +1,12 @@
 {
   "name": "cartridge-system",
   "displayName": "記憶卡匣監控系統",
-  "version": "5.1.0",
+  "version": "5.2.0",
   "description": "記憶卡匣動態熱處理外掛 — 主動式檔案監聽與記憶過期防禦系統",
   "publisher": "cartridge-system",
   "repository": {
     "type": "git",
-    "url": "https://github.com/Kunshao1117/cartridge_system.git"
+    "url": "git+https://github.com/Kunshao1117/cartridge_system.git"
   },
   "engines": {
     "vscode": "^1.85.0"
@@ -15,11 +15,22 @@
     "Other"
   ],
   "icon": "assets/logo.png",
+  "files": [
+    "dist/*.js",
+    "assets/**",
+    "README.md",
+    "CHANGELOG.md",
+    "LICENSE"
+  ],
   "activationEvents": [
     "workspaceContains:.agents",
     "onStartupFinished"
   ],
   "main": "./dist/extension.js",
+  "bin": {
+    "cartridge-system": "dist/mcp-server.js",
+    "cartridge-mcp": "dist/mcp-server.js"
+  },
   "contributes": {
     "commands": [
       {
@@ -107,6 +118,7 @@
     "build": "tsup",
     "lint": "eslint src/",
     "package": "vsce package",
+    "prepublishOnly": "npm run lint && npm test && npm run build && npx tsc --noEmit && npm pack --dry-run",
     "test": "vitest run",
     "test:watch": "vitest"
   },

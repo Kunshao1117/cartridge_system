@@ -3,7 +3,7 @@ name: tool-registry
 description: >
   專案記憶：MCP 工具名冊與統一回傳契約。Use when: 處理工具風險分級、MCP tools 清單生成、治理 envelope
   或高階工具回傳格式時載入。
-last_updated: '2026-05-17T23:39:40+08:00'
+last_updated: '2026-05-18T19:54:13+08:00'
 status: stable
 staleness: 0
 dependencies:
@@ -17,6 +17,7 @@ metadata:
     - 'filesystem:read'
     - 'filesystem:write'
 ---
+
 # Tool Registry — MCP 工具名冊與回傳契約記憶
 
 > 本模組承接 MCP 工具治理中介層，讓工具定義與高階治理回傳格式有單一來源。
@@ -48,6 +49,9 @@ metadata:
 - D16: v5.0 tools/list 擴充為十二個工具，新增 `context_inventory`、`context_audit`、`context_diff`、`context_plan`，全部為 readOnly context governance/analyze 工具。
 - D17: `context_diff` 擁有專用 schema，除了 `projectRoot` 也要求 `leftId` 與 `rightId`，避免呼叫者用模組名稱誤傳 context asset id。
 - D18: v5.1 tools/list description 會附加 `安全性：...`，讓 AI 在只看公開工具清單時也能知道哪些工具只讀、哪些工具需要 confirm 或適合開工時使用。
+- D19: v5.2 公開 inputSchema 保留 `projectRoot` property 但不列為 required；Gateway `workspace` 或 CLI `--workspace` 會由 dispatcher 補入，舊客戶端仍可手動傳入相同路徑。
+- D20: `memory_commit` 的公開 required 欄位維持 `moduleName` 與 `confirm`；projectRoot 選填不代表放寬寫入授權，dispatcher 仍先檢查 `confirm:true`。
+- D21: npm 發布 manifest 測試以 npm 正規化後的 `bin` 與 `repository.url` 為準；`bin` path 使用 `dist/mcp-server.js`，repository 使用 `git+https://github.com/Kunshao1117/cartridge_system.git`。
 
 ## Known Issues
 
@@ -66,6 +70,8 @@ metadata:
 - L09: 工具數量變動時，README、CHANGELOG、tools/list 協議 E2E 與 Gateway 驗證文字都必須同步更新，避免 AI 以舊的七工具假設判斷專案狀態。
 - L10: v5.0 context tools 仍沿用同一份 envelope；新增治理領域不需要為上下文工具建立第二套回傳格式。
 - L11: 安全提示應放在 registry 單一來源，再由 MCP server 公開；不要讓 README、server 與 dispatcher 各自維護不同文字。
+- L12: tools/list schema 應描述呼叫契約，不應重複 Gateway 的工作區欄位；projectRoot 可選化能讓 Gateway-first 使用者少傳一份重複路徑，同時不破壞舊客戶端。
+- L13: `npm publish --dry-run` 在 npm 11 會正規化 package manifest；測試應驗證實際發布形狀，而不是只驗證手寫 JSON 的偏好格式。
 
 ## Relations
 

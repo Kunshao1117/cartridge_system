@@ -3,10 +3,11 @@ name: mcp-tools.dispatcher
 description: >
   專案記憶：MCP 工具分派與工具層防線。Use when: 處理 MCP tool routing、unknown tool 錯誤、 high-risk
   tool 明確確認與 dispatcher 測試時載入。
-last_updated: '2026-05-17T21:37:02+08:00'
+last_updated: '2026-05-18T19:37:47+08:00'
 status: stable
 staleness: 0
 dependencies:
+  - core-types
   - mcp-tools.handlers
   - mcp-tools.tool-registry
   - mcp-tools.workspace-brief
@@ -30,6 +31,7 @@ metadata:
 ## Tracked Files
 
 - src/tool-dispatcher.ts
+- src/tool-workspace.ts
 - src/tests/tool-dispatcher.test.ts
 
 ## Key Decisions
@@ -48,6 +50,9 @@ metadata:
 - D12: v5.0 dispatcher 加入四個 context governance handler：`context_inventory`、`context_audit`、`context_diff`、`context_plan`；全部 read-only，不需要 `confirm:true`。
 - D13: dispatcher 測試新增 context tool routing，確保 tools/list 擴充後 tools/call 不會落入 unknown tool。
 - D14: `mcp-tools.context-governance` 是 dispatcher 的實際 handler dependency；context tools 的 handler export、名稱或 read-only 契約改變時，dispatcher handler map 與 route tests 必須同步檢查。
+- D15: v5.2 `tool-workspace.ts` 承接 Gateway-first workspace 注入：`defaultProjectRoot` 由 server 或 Gateway 提供時，dispatcher 會先補齊 `projectRoot` 再進入 handler。
+- D16: v5.2 若可信 workspace 與 `arguments.projectRoot` 正規化後不同，dispatcher 回傳 `workspace_project_root_conflict`，避免多專案 Gateway 呼叫被 tool argument 覆蓋。
+- D17: `core-types` 持有 projectRoot 路徑驗證與工作區身分比較；若 `core-types` 的路徑語義變更，dispatcher 的 Gateway/CLI workspace 注入與衝突判斷必須重新檢查，因此列為 staleness propagation dependency。
 
 ## Known Issues
 
@@ -63,6 +68,7 @@ metadata:
 - L06: 每新增一個 MCP tool，都要同時更新 registry、dispatcher handler map 與 dispatcher 測試 mock，避免 tools/list 已公開但 tools/call 找不到 handler。
 - L07: Director 指定 Gateway MCP 真實呼叫時，若 Gateway 工具入口、參數或提示不明，AI 必須先回報卡點並等待授權；不得自行改用 stdio、終端 handler 或其他替代方案宣稱完成原驗證。
 - L08: 新增 MCP tool 時，dispatcher mock 測試必須同步新增 handler mock，否則路由測試會在 import 階段失真。
+- L09: Gateway workspace 與下游 tool argument 屬於兩個信任層；相容舊客戶端時可接受 `projectRoot`，但不能讓它覆蓋 Gateway/CLI 的可信 workspace。
 
 ## Relations
 
@@ -73,6 +79,7 @@ metadata:
 - mcp-tools.commit-preflight（依賴：commit_preflight handler）
 - mcp-tools.memory-audit（依賴：memory_audit handler）
 - mcp-tools.context-governance（依賴：context governance handlers）
+- core-types（依賴：projectRoot 路徑驗證與工作區身分比較）
 
 ## Applicable Skills
 

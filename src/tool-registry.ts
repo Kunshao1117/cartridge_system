@@ -20,7 +20,8 @@ export interface CartridgeToolDefinition {
 
 const projectRootProperty = {
   type: "string",
-  description: "目標專案的根目錄絕對路徑",
+  description:
+    "目標專案的根目錄絕對路徑；Gateway workspace 或 CLI --workspace 會自動補入，舊客戶端可手動傳入。",
 };
 
 const moduleNameProperty = {
@@ -33,7 +34,7 @@ const projectRootSchema = {
   properties: {
     projectRoot: projectRootProperty,
   },
-  required: ["projectRoot"],
+  required: [],
 };
 
 const moduleProjectRootSchema = {
@@ -42,7 +43,7 @@ const moduleProjectRootSchema = {
     moduleName: moduleNameProperty,
     projectRoot: projectRootProperty,
   },
-  required: ["moduleName", "projectRoot"],
+  required: ["moduleName"],
 };
 
 const memoryCommitSchema = {
@@ -56,7 +57,7 @@ const memoryCommitSchema = {
         "確認已完成 SKILL.md 內容寫入，並允許同步記憶卡後設資料。",
     },
   },
-  required: ["moduleName", "projectRoot", "confirm"],
+  required: ["moduleName", "confirm"],
 };
 
 const contextDiffSchema = {
@@ -72,7 +73,7 @@ const contextDiffSchema = {
       description: "右側 context asset id，例如 claude.project",
     },
   },
-  required: ["projectRoot", "leftId", "rightId"],
+  required: ["leftId", "rightId"],
 };
 
 export const CARTRIDGE_TOOLS: CartridgeToolDefinition[] = [

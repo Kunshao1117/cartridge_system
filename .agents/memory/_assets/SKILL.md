@@ -3,7 +3,7 @@ name: _assets
 scopePath: null
 description: |
   專案記憶：靜態檔案與一般文檔收納。 Use when: 處理不需要業務邏輯追蹤的靜態圖檔、授權文件或更新日誌等。
-last_updated: '2026-05-18T16:38:49+08:00'
+last_updated: '2026-05-18T19:54:21+08:00'
 status: stable
 staleness: 0
 metadata:
@@ -41,6 +41,7 @@ metadata:
 - L17: (2026-05-17) README.md 與 CHANGELOG.md 已同步 v5.1.0：AI 開工檢查、規則檔檢查白話化、側邊欄提醒可讀性、MCP 工具安全說明、21 個測試檔案與 175 個測試案例。
 - L18: (2026-05-18) README.md 新增 GitHub Releases 下載入口、tag 自動發版與 Actions 手動補發說明；CHANGELOG.md 新增 Unreleased 的 VSIX 自動發版紀錄。
 - L19: (2026-05-18) README.md 與 CHANGELOG.md 已同步穩定性強化：npm audit 歸零、Windows `ComSpec` 修復、moduleName 路徑片段防線、memory_audit 索引漂移偵測、Gateway 未註冊限制，以及 21 個測試檔案 / 181 個測試案例。
+- L20: (2026-05-18) README.md 與 CHANGELOG.md 已同步 v5.2 npm MCP runtime 與 Gateway-first workspace：新增 `npx cartridge-system --workspace`、projectRoot 選填契約、npm dry-run 發布流程、npm manifest 正規化紀錄、22 個測試檔案 / 195 個測試案例。
 - L03: (2026-05-14) README 已補齊 `workspace_brief` 與 `commit_preflight` 高階 MCP 工具說明，並同步測試數 123 passed 與架構樹新檔案。
 - L04: (2026-05-14) CHANGELOG 已新增 2026-05-14 治理工具、依賴衰減、MCP 版本同步與 GitNexus CLI 修復紀錄。
 - L05: (2026-05-14) README 已同步 MCP 工具名冊、統一治理回傳 envelope、測試數 128 passed 與新架構檔案。

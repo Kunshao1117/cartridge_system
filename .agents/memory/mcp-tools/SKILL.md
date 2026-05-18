@@ -2,7 +2,7 @@
 name: mcp-tools
 description: |
   專案記憶：MCP 工具介面模組（第三階段）。 Use when: 處理MCP伺服器註冊、工具路由、AI工具呼叫介面時載入。
-last_updated: '2026-05-17T23:39:49+08:00'
+last_updated: '2026-05-18T19:38:14+08:00'
 status: stable
 staleness: 0
 dependencies: null
@@ -66,6 +66,8 @@ metadata:
 - D44: `memory_audit` 成為第八個 MCP 工具，定位為只讀記憶卡完整健檢；日常 compatibility warning 由 `workspace_brief` / `commit_preflight` 提醒，深度掃描由 `mcp-tools.memory-audit` 子卡承接。
 - D45: v5.0 新增 `mcp-tools.context-governance` 子卡，承接 `context_inventory`、`context_audit`、`context_diff`、`context_plan` 四個只讀上下文治理工具。
 - D46: v5.0 MCP 工具總數提升至十二個；新增工具仍走 registry-driven list tools 與 dispatcher routing，不回到 server 手寫路由。
+- D47: v5.2 採 Gateway-first workspace 模型；公開 tools/list 的 `projectRoot` 不再必填，Gateway `workspace` 或 npm CLI `--workspace` 由 dispatcher 補入，舊客戶端仍可傳相同 `projectRoot`。
+- D48: v5.2 新增 npm MCP runtime 發布面，`cartridge-system` / `cartridge-mcp` bin 都指向 `dist/mcp-server.js`，npm tarball 以 `files` 白名單排除 `.agents`、source、tests 與 CI workflow。
 
 ## Known Issues
 
@@ -76,7 +78,7 @@ metadata:
 - D03: MCP 伺服器使用 `process.cwd()` 作為工作區路徑會導致 Gateway 啟動時讀取到錯誤的工作區。**正確做法**：透過 `--workspace` 命令列參數接受工作區路徑。（現已由 D07 取代）
 - D04: `npm run package`（vsce package）不會重新執行 tsup 編譯。修改 `src/mcp-server.ts` 後，必須先執行 `npm run build` 更新 `dist/`，再執行 `gateway__rescan` 才能使修復生效。
 - D06: 測試 mcp-handlers 時使用 `vi.mock('fs/promises')` 搭配 `vi.mocked().mockResolvedValue()` 即可完全隔離磁碟 I/O。
-- D08: 跨專案參數必填設計原則 — 共用 MCP 工具若與工作目錄相關，應將路徑設為必填而非選填 fallback。
+- D08: 跨專案參數必填設計原則（歷史）— 早期要求每個工具必填 `projectRoot`，v5.2 起由 D47 的 Gateway-first workspace 模型取代。
 - D09: 路徑驗證需雙層防禦：Zod refine 做格式守衛（快速失敗），`validateProjectRoot` 做語意守衛（正規化 + 穿越檢查）。
 - D10: `toLocaleString('sv', { timeZone })` 是取得近似 ISO 格式最簡潔的方法。
 - D11: `gray-matter` 的 `matter.stringify(content, frontmatter)` 會自動處理 YAML 序列化。
@@ -91,6 +93,7 @@ metadata:
 - L13: (2026-05-15) 舊專案導入需要雙層預防：日常工具給提醒，完整健檢工具給診斷；兩者都不應自動修改記憶卡。
 - L14: (2026-05-17) v5 規則檔檢查是 MCP 工具層能力擴充，不恢復 v3.0 已移除的框架注入責任。
 - L15: (2026-05-17) v5.1 沒有新增工具數量，仍維持十二個 MCP 工具；本次只增加白話 finding、開工安全性 metadata 與 tools/list 安全說明。
+- L16: (2026-05-18) Gateway 會在真實呼叫層提供 `workspace`；下游工具若仍強制 `arguments.projectRoot`，使用者會重複填路徑且容易產生多專案混淆，應由 dispatcher 做單一注入與衝突檢查。
 
 ## Relations
 

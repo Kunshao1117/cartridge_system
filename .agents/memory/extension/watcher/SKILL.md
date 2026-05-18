@@ -2,7 +2,7 @@
 name: watcher
 description: |
   專案記憶：檔案監聯引擎模組。 Use when: 處理檔案監聽、原生Watcher設定、監聽生命週期管理時載入。
-last_updated: '2026-05-17T23:10:54+08:00'
+last_updated: '2026-05-18T19:46:54+08:00'
 staleness: 0
 status: stable
 metadata:
@@ -38,6 +38,7 @@ metadata:
 - D13: `handleSkillFileChange()` 在 `indexManager.scan()` 後必須呼叫 `indexManager.refilterUntrackedFiles(gitignoreFilter)`，讓已加入 `## Tracked Files` 的檔案立即移出未歸屬池。
 - D14: `handleSkillFileChange()` 在 markDirty 後立即 `flushIfDirty()`，確保 `.cartridge/index.json` 與側邊欄狀態同步，不需要手動跑「重新掃描未歸屬檔案」。
 - D15: 記憶卡 `SKILL.md` 事件必須在 `.gitignore` / exclude 檢查前優先處理；本 repo `.gitignore` 有 `.agents/*`，若先套 gitignore，`.agents/memory/**/SKILL.md` 會被擋掉，導致自動清除未歸屬提醒失效。
+- D16: `handleSkillFileChange()` 比對索引 `skillPath` 時必須先正規化 Windows `\` 為 `/`，並在命中記憶卡後同時清除 pendingChanges 與 ghostFiles，避免 extension RAM index 在 MCP `memory_commit` 之後把舊索引狀態覆寫回磁碟。
 
 ## Known Issues
 
@@ -52,6 +53,7 @@ metadata:
 - L05: (2026-05-13) markGhostFile() 本身不呼叫 markDirty()，所以在 handleEvent 中每次幽靈標記後都必須手動補呼叫 markDirty()，否則 UI 無法反映最新幽靈狀態。
 - L06: (2026-05-17) 記憶卡變更事件與 memory_commit 是兩條不同同步路徑；watcher 需負責 extension RAM index / UI refresh，memory_commit 負責 MCP 磁碟索引同步，兩者都要清理 untrackedFiles。
 - L07: (2026-05-17) `.agents/memory` 雖是 Git 白名單保留目錄，但 `.gitignore` 的 `.agents/*` 仍可能讓 runtime GitignoreFilter 回傳 ignored；watcher 的記憶卡路徑判斷不可放在 gitignore 檢查後面。
+- L08: (2026-05-18) `.cartridge/index.json` 的 `skillPath` 可能由 Windows path relative 產生反斜線；watcher 接收到的 `relPath` 已被轉為斜線，未正規化會導致 `clearPendingChanges()` 漏跑，進而讓已存在的 ghost/pending drift 重新落地。
 
 ## Relations
 

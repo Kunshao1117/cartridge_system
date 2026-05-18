@@ -3,16 +3,16 @@ name: gitignore-filter
 description: >
   專案記憶：Gitignore 排除引擎模組。讀取 .gitignore 規則進行路徑排除過濾。Use when:
   涉及檔案掃描、監聽排除、未歸屬檔案偵測時載入。
-last_updated: "2026-05-18T15:35:34+08:00"
+last_updated: '2026-05-18T19:38:43+08:00'
 status: stable
 staleness: 0
 metadata:
   author: antigravity
-  version: "1.0"
+  version: '1.0'
   origin: project
   memory_awareness: full
   tool_scope:
-    - "filesystem:read"
+    - 'filesystem:read'
 ---
 
 # GitignoreFilter — Gitignore 排除引擎記憶

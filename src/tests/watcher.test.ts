@@ -27,11 +27,12 @@ describe("CartridgeWatcher — 記憶卡變更後未歸屬清理", () => {
       getIndex: vi.fn(() => ({
         cartridges: {
           "mem-test": {
-            skillPath: ".agents/memory/mem-test/SKILL.md",
+            skillPath: ".agents\\memory\\mem-test\\SKILL.md",
           },
         },
       })),
       clearPendingChanges: vi.fn(),
+      clearGhostFiles: vi.fn(),
       scan: vi.fn(async () => undefined),
       refilterUntrackedFiles: vi.fn(),
       markDirty: vi.fn(),
@@ -66,6 +67,7 @@ describe("CartridgeWatcher — 記憶卡變更後未歸屬清理", () => {
     );
 
     expect(indexManager.clearPendingChanges).toHaveBeenCalledWith("mem-test");
+    expect(indexManager.clearGhostFiles).toHaveBeenCalledWith("mem-test");
     expect(writer.checkAndCleanWarning).toHaveBeenCalledWith(
       ".agents/memory/mem-test/SKILL.md",
     );
@@ -76,6 +78,17 @@ describe("CartridgeWatcher — 記憶卡變更後未歸屬清理", () => {
     expect(indexManager.markDirty).toHaveBeenCalled();
     expect(indexManager.flushIfDirty).toHaveBeenCalled();
     expect(onUpdate).toHaveBeenCalled();
+  });
+
+  it("索引 skillPath 使用 Windows 分隔符時仍應清除同一卡匣的 pending 與 ghost", async () => {
+    const { watcher, indexManager } = createWatcherFixture();
+
+    await (watcher as unknown as SkillChangeHandler).handleSkillFileChange(
+      ".agents/memory/mem-test/SKILL.md",
+    );
+
+    expect(indexManager.clearPendingChanges).toHaveBeenCalledWith("mem-test");
+    expect(indexManager.clearGhostFiles).toHaveBeenCalledWith("mem-test");
   });
 
   it("被 .gitignore 忽略的 .agents/memory/SKILL.md 仍應進入記憶卡同步流程", async () => {

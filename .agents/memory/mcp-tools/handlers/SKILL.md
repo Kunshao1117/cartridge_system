@@ -3,7 +3,7 @@ name: mcp-tools.handlers
 description: >
   專案記憶：底層 memory_* MCP handlers。Use when: 處理 mcp-handlers.ts、 底層
   memory_list/read/status/commit/deps 行為或 handler 測試時載入。
-last_updated: '2026-05-17T21:52:22+08:00'
+last_updated: '2026-05-18T16:37:50+08:00'
 status: stable
 staleness: 0
 dependencies:
@@ -35,7 +35,7 @@ metadata:
 - D01: `mcp-handlers.ts` 保持 MCP SDK 解耦，輸出純函式 handler；`McpToolResult` 型別由 `mcp-response.ts` 持有，避免高階治理工具為型別依賴底層 handler。
 - D02: `path-guard.ts` 已移至 `core-types` 記憶卡持有；handlers 僅消費 `validateProjectRoot`，並在各 handler 內保留 Zod schema 共同提供路徑安全雙層防禦。
 - D03: handlers 消費 `core-types` 持有的 `timestamp.ts` 產生台灣時區 ISO timestamp，供記憶卡歸卡使用。
-- D04: `memory_commit` 的 `confirm: true` 授權檢查不放在 handler，而由 `mcp-tools.dispatcher` 在 server 入口層執行。
+- D04: `memory_commit` 的 `confirm: true` 授權檢查同時存在於 dispatcher 與 handler schema；dispatcher 擋住 MCP 入口未授權呼叫，handler schema 則防止測試或內部直接呼叫繞過公開契約。
 - D05: 本卡的 `dependencies` 只保留實際工程依賴 `index-manager` 與 `core-types`；父卡脈絡放在 Relations。
 - D06: `memory_commit` 會整合 `index-manager.dep-engine` 所持有的 `dependency-semantics.ts` warning-only 檢查；因此 `index-manager.dep-engine` 過期時本卡也需重新檢查。此檢查回報 dependencies 缺少理由、父子導覽可疑、技能名稱混用與 Relations 鏡像可疑，但不阻斷歸卡。
 - D07: `memory_commit` 同步 trackedFiles 後會從 `untrackedFiles` 移除已歸屬路徑，並重算全域 `indirectStaleness`，避免 workspace_brief 顯示舊索引狀態。
@@ -47,6 +47,7 @@ metadata:
 - D13: MCP stdio E2E 與 Gateway 實測均需覆蓋 `memory_deps`；目前 `mcp-tools.handlers`、`mcp-tools.tool-registry`、`index-manager` 的 cycles 驗收值為 0。
 - D14: `memory_list`、`memory_read`、`memory_status` 與 `memory_commit` 已收斂為 `mcp-response.ts` envelope；舊文字、原始狀態與歸卡報告放入 `legacy`，新版 AI 優先讀 `summary/findings/recommendedActions`。
 - D15: `memory_commit` 的回歸測試必須同時覆蓋 trackedFiles、fileMap、untrackedFiles、ghostFiles、pendingChanges 與 staleness，避免歸卡同步只修一半導致 workspace_brief 或側邊欄殘留舊提醒。
+- D16: `moduleNameSchema` 是底層 memory_* handlers 的共同輸入防線；允許英數、底線、連字號與點號分隔，拒絕 `/`、`\`、`..` 等路徑片段，避免 moduleName 被當成相對路徑穿越到其他 `.agents` 區域。
 
 ## Known Issues
 
@@ -66,6 +67,7 @@ metadata:
 - L10: 驗證 MCP 工具可用性時，單元測試只能證明 handler 行為；必須另跑 MCP stdio 與 Gateway 入口，才可宣稱工具層實測通過。
 - L11: 底層 memory_* 工具也要遵守同一份回傳契約；否則 AI 在讀 Gateway 結果時仍需為舊工具寫特殊解析邏輯。
 - L12: `memory_commit` 清理的是磁碟 `.cartridge/index.json`；VS Code extension 的 RAM index 仍需 watcher 在 SKILL.md 變更事件中自行 scan/refilter/flush。
+- L13: handler 測試若大量呼叫 `handleMemoryCommit`，可用測試 helper 預設補 `confirm:true`，並另保留一個 raw handler 測試覆蓋未確認呼叫會被拒絕。
 
 ## Relations
 

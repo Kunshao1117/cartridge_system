@@ -49,6 +49,14 @@ const projectRootField = z
     message: "必須為絕對路徑且不含路徑穿越符號",
   });
 
+/** moduleName 共用驗證規則：只允許記憶卡 ID，不允許路徑片段 */
+const moduleNameSchema = z
+  .string()
+  .min(1)
+  .regex(/^[A-Za-z0-9_-]+(?:\.[A-Za-z0-9_-]+)*$/, {
+    message: "moduleName 只能包含英數、底線、連字號與點號分隔，不得包含路徑片段",
+  });
+
 /** memory_list 工具參數驗證 Schema */
 export const memoryListSchema = z.object({
   projectRoot: projectRootField,
@@ -56,20 +64,21 @@ export const memoryListSchema = z.object({
 
 /** memory_read 工具參數驗證 Schema */
 export const memoryReadSchema = z.object({
-  moduleName: z.string().min(1),
+  moduleName: moduleNameSchema,
   projectRoot: projectRootField,
 });
 
 /** memory_status 工具參數驗證 Schema */
 export const memoryStatusSchema = z.object({
-  moduleName: z.string().min(1),
+  moduleName: moduleNameSchema,
   projectRoot: projectRootField,
 });
 
 /** memory_commit 工具參數驗證 Schema */
 export const memoryCommitSchema = z.object({
-  moduleName: z.string().min(1),
+  moduleName: moduleNameSchema,
   projectRoot: projectRootField,
+  confirm: z.literal(true),
 });
 
 function createHandlerErrorResult(args: {
@@ -722,7 +731,7 @@ export async function handleMemoryCommit(
       readOnly: false,
       code: "validation_error",
       message:
-        "Validation Error: moduleName and projectRoot are required (projectRoot must be absolute path without ..)",
+        "Validation Error: moduleName, projectRoot, and confirm:true are required (projectRoot must be absolute path without ..)",
     });
   }
 
@@ -951,7 +960,7 @@ export async function handleMemoryCommit(
 
 /** memory_deps 工具參數驗證 Schema */
 export const memoryDepsSchema = z.object({
-  moduleName: z.string().min(1),
+  moduleName: moduleNameSchema,
   projectRoot: projectRootField,
 });
 

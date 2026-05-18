@@ -78,6 +78,58 @@ metadata:
     expect(envelope.findings).toEqual([]);
   });
 
+  it("staleness 歸零但 pendingChanges 未清時應回報索引漂移", async () => {
+    const skill = `---
+name: _assets
+description: test
+last_updated: '2026-05-15T00:00:00+08:00'
+staleness: 0
+metadata:
+  author: test
+  version: '1.0'
+  origin: test
+  memory_awareness: full
+  tool_scope: []
+---
+
+## Tracked Files
+
+- README.md
+
+## Key Decisions
+
+- D01: test.
+`;
+    await writeFile(".agents/memory/_assets/SKILL.md", skill);
+    await writeFile(
+      ".cartridge/index.json",
+      JSON.stringify({
+        cartridges: {
+          _assets: {
+            skillPath: ".agents/memory/_assets/SKILL.md",
+            staleness: 0,
+            trackedFiles: ["README.md"],
+            pendingChanges: [{ filePath: "README.md", eventType: "change" }],
+            ghostFiles: [],
+            dependencies: [],
+            indirectStaleness: 0,
+          },
+        },
+        fileMap: { "README.md": ["_assets"] },
+        untrackedFiles: [],
+      }),
+    );
+
+    const result = await handleMemoryAudit({ projectRoot });
+    const envelope = parseEnvelope(result);
+    const codes = envelope.findings.map((finding: { code: string }) => finding.code);
+
+    expect(envelope.status).toBe("warning");
+    expect(envelope.summary.summary.pendingWithZeroStaleness).toBe(1);
+    expect(codes).toContain("INDEX_PENDING_WITH_ZERO_STALENESS");
+    expect(envelope.recommendedActions[0].action).toBe("resync_memory_index");
+  });
+
   it("舊格式專案應回傳 compatibility warning", async () => {
     const skill = `---
 name: old-card

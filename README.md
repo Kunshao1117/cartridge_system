@@ -3,7 +3,7 @@
 > **現實感知 AI 記憶防禦引擎** — 自動偵測記憶卡過期、幽靈檔案、跨模組依賴傳播，確保 AI 不讀取失效的上下文。
 
 [![version](https://img.shields.io/badge/version-5.1.0-blue)](./CHANGELOG.md)
-[![tests](https://img.shields.io/badge/tests-175%20passed-brightgreen)](#-執行測試)
+[![tests](https://img.shields.io/badge/tests-181%20passed-brightgreen)](#-執行測試)
 [![license](https://img.shields.io/badge/license-MIT-green)](#)
 
 ---
@@ -111,6 +111,14 @@ npm run build
 npm run package
 ```
 
+> Windows 若 `npm run *` 只印出 script header 後以 `ERR_INVALID_ARG_TYPE` 結束，先確認 `ComSpec` 指向 `C:\Windows\System32\cmd.exe`。本機修復命令：
+>
+> ```powershell
+> $cmd = "$env:SystemRoot\System32\cmd.exe"
+> $env:ComSpec = $cmd
+> [Environment]::SetEnvironmentVariable('ComSpec', $cmd, 'User')
+> ```
+
 3. 推送版本 tag：
 
 ```bash
@@ -152,11 +160,11 @@ Cartridge System 提供 MCP（Model Context Protocol）工具伺服器，供 AI 
 | 工具名稱 | 說明 |
 |----------|------|
 | `memory_list` | 列出所有記憶卡匣（含過期指數、幽靈計數、依賴數量、間接過期指數） |
-| `memory_read` | 讀取特定記憶技能的完整 SKILL.md 內容（自動解析巢狀點分隔路徑） |
+| `memory_read` | 讀取特定記憶技能的完整 SKILL.md 內容（自動解析巢狀點分隔路徑）；`moduleName` 只接受卡匣 ID，不接受 `/`、`\` 或 `..` 路徑片段 |
 | `memory_status` | 查詢過期修復診斷：過期指數、待處理異動、**幽靈檔案清單**及清理行動指引 |
-| `memory_commit` | AI 寫入 SKILL.md 後呼叫，自動完成：時間戳注入、staleness 歸零、索引同步、**幽靈清除**、未歸屬池清理與間接過期重算。**v4.1.1 強化格式容錯、I/O 防護、明確確認防線與 dependencies 語義警告**。 |
-| `memory_deps` | **v4.1.1 增強** — 查詢卡匣依賴拓樸，分層回傳工程依賴、frontmatter 依賴、過期傳播與循環依賴警告，並保留舊欄位相容 |
-| `memory_audit` | **v4.1.1 新增** — 只讀完整健檢專案記憶卡，回報舊格式相容、frontmatter 缺欄位、Tracked Files 問題、索引漂移、依賴循環與 dependencies 語義可疑項；主要循環依據即時 frontmatter / engineering graph，舊索引循環只作診斷 |
+| `memory_commit` | AI 寫入 SKILL.md 後呼叫，自動完成：時間戳注入、staleness 歸零、索引同步、**幽靈清除**、未歸屬池清理與間接過期重算。**v5.1.x 強化 handler 層 `confirm:true` 驗證、moduleName 路徑片段拒絕、格式容錯、I/O 防護與 dependencies 語義警告**。 |
+| `memory_deps` | **v4.1.1 增強** — 查詢卡匣依賴拓樸，分層回傳工程依賴、frontmatter 依賴、過期傳播與循環依賴警告，並保留舊欄位相容；`moduleName` 同樣拒絕路徑片段 |
+| `memory_audit` | **v5.1.x 增強** — 只讀完整健檢專案記憶卡，回報舊格式相容、frontmatter 缺欄位、Tracked Files 問題、索引漂移、依賴循環、dependencies 語義可疑項，以及 `staleness=0` 但 `pendingChanges` 未清的索引同步異常；主要循環依據即時 frontmatter / engineering graph，舊索引循環只作診斷 |
 | `workspace_brief` | **v5.1 增強** — 彙整專案身份、記憶卡健康、規則檔提醒、AI 開工狀態、提交前提醒與建議下一步 |
 | `commit_preflight` | **v4.1.1 新增** — 提交前治理檢查，彙整 git dirty state、記憶卡健康阻塞、dependency semantics warning、建議行動與驗證命令 |
 | `context_inventory` | **v5.1 增強** — 掃描 AI 規則來源，回傳檔案位置、負責代理、適用範圍、優先序、追蹤檔案、依賴、過期狀態與風險。 |
@@ -196,7 +204,7 @@ Cartridge System 提供 MCP（Model Context Protocol）工具伺服器，供 AI 
 | MCP stdio 協議 E2E | 驗證 `dist/mcp-server.js` 真的能透過 MCP JSON-RPC 對外提供工具 | 啟動 `node dist/mcp-server.js`，呼叫 `initialize`、`tools/list`、`tools/call` |
 | Gateway 真實工具入口 | 驗證 `multi-mcp-gateway` 能找到並呼叫 `cartridge-system` 工具 | 呼叫 `cartridge-system__memory_deps`、`cartridge-system__workspace_brief`、`cartridge-system__commit_preflight`、`cartridge-system__memory_audit`、`cartridge-system__context_audit` |
 
-目前已實測：`tools/list` 會列出十二個工具；`memory_deps` 對 `mcp-tools.handlers`、`mcp-tools.tool-registry`、`index-manager`、`index-manager.dep-engine`、`extension.analyzer`、`extension.writer` 的 cycles 為 0；`workspace_brief` 記憶健康為 ready，stale、ghost、untracked、oversized 皆為 0，並新增 context readiness；`commit_preflight` 的 dependency semantics warnings 為 0，blocked 僅來自尚未提交的工作區變更。`memory_audit` 作為只讀深度健檢入口，補上舊專案導入、格式漂移診斷與 persisted index cycle 診斷。
+目前已實測：MCP stdio `tools/list` 會列出十二個工具；`memory_audit`、`workspace_brief`、`commit_preflight` 在乾淨工作樹下回傳 ready；`memory_audit` 可偵測 `staleness=0` 但 `pendingChanges` 未清的索引漂移。Gateway 驗證需 `multi-mcp-gateway` 已註冊 `cartridge-system` 下游 server；若 Gateway 回報 server 未註冊，不得把 handler 或 stdio 測試替代宣稱為 Gateway 通過。
 
 ### 跨專案支援
 
@@ -285,16 +293,16 @@ npm test
 npm run test:watch
 ```
 
-測試涵蓋 21 個測試檔案（**175 個案例**）：
+測試涵蓋 21 個測試檔案（**181 個案例**）：
 
 | 測試模組 | 案例數 | 涵蓋範圍 |
 |----------|--------|----------|
 | 索引管理器 | 22 | 掃描、addPendingChange 去重、getChildren、resolveModulePath、空追蹤卡誤報防護、未歸屬池 refilter 自動清理 |
-| MCP 工具介面 | 60 | 正常流程、路徑穿越防禦、時間戳驗證、過期狀態診斷、十二工具 envelope 契約、memory_commit 後設同步、workspace_brief 專案健康摘要、AI 開工狀態、提交 readiness、commit_preflight 提交前治理檢查與 dependency semantics 摘要、**標題錯字偵測 (HEADING_TYPO)**、**路徑格式驗證 (PATH_ABSOLUTE / PATH_TRAVERSAL)**、**dependencies 語義警告**、**未歸屬池清理**、**fileMap 同步**、**間接過期重算**、**警告區塊自動清除** |
+| MCP 工具介面 | 65 | 正常流程、路徑穿越防禦、moduleName 路徑片段拒絕、handler 層 `confirm:true` 驗證、時間戳驗證、過期狀態診斷、十二工具 envelope 契約、memory_commit 後設同步、workspace_brief 專案健康摘要、AI 開工狀態、提交 readiness、commit_preflight 提交前治理檢查與 dependency semantics 摘要、**標題錯字偵測 (HEADING_TYPO)**、**路徑格式驗證 (PATH_ABSOLUTE / PATH_TRAVERSAL)**、**dependencies 語義警告**、**未歸屬池清理**、**fileMap 同步**、**間接過期重算**、**警告區塊自動清除** |
 | 監聽引擎 | 2 | `SKILL.md` 變更後重新 scan、refilter untracked、flush index 並觸發側邊欄刷新；`.agents/memory` 被 `.gitignore` 覆蓋時仍優先處理記憶卡變更 |
 | 規則檔檢查 | 4 | 多代理指令掃描、規則來源摘要、提交授權衝突 blocking、context_diff 訊號比對與語言提醒 |
 | 治理側邊欄 | 4 | Activity Bar view container、四個 Cartridge TreeView、公開 commands、governance summary 與白話 action items 轉換 |
-| 記憶卡完整健檢 | 5 | memory_audit 現代格式 ready、舊格式 compatibility warning、缺索引 fallback、frontmatter 依賴循環 finding、舊索引循環診斷不誤報主要 cycle |
+| 記憶卡完整健檢 | 6 | memory_audit 現代格式 ready、舊格式 compatibility warning、缺索引 fallback、frontmatter 依賴循環 finding、舊索引循環診斷不誤報主要 cycle、staleness 歸零但 pendingChanges 未清的索引漂移 |
 | 過期分析器 | 11 | 過期等級四分支、三種事件計分、閾值觸發 |
 | 路徑安全驗證 | 8 | 絕對/相對路徑、穿越攻擊拒絕 |
 | 時間戳格式 | 3 | ISO 8601 格式、台灣時區後綴 |

@@ -2,10 +2,18 @@
 
 ## [Unreleased]
 
+### fix
+
+- 依賴安全修補 — 更新 lockfile 中 `fast-uri`、`hono`、`express-rate-limit`、`ip-address` 與 `postcss` 的相容版本，`npm audit` 由 1 high / 4 moderate 降為 0 vulnerabilities。
+- MCP 輸入防線 — `memory_read`、`memory_status`、`memory_commit`、`memory_deps` 共用 `moduleName` 驗證，拒絕 `/`、`\`、`..` 等路徑片段；`memory_commit` handler 層也要求 `confirm:true`，與 dispatcher 防線一致。
+- 記憶索引一致性 — `memory_audit` 新增 `INDEX_PENDING_WITH_ZERO_STALENESS`，可偵測 staleness 已歸零但 pendingChanges 未清的索引漂移。
+- Windows npm script 穩定性 — 文件補上 User 層 `ComSpec=C:\Windows\System32\cmd.exe` 修復方式，避免 `npm run lint/test/build` 只輸出 script header 後以 `ERR_INVALID_ARG_TYPE` 結束。
+
 ### chore
 
 - VSIX 自動發版 — 新增 GitHub Actions 發布流程，支援推送 `v*` tag 自動建立 / 更新 Release，也支援手動輸入版本補發並覆蓋 VSIX 附件。
 - 發布文件 — README 新增 GitHub Releases 下載入口、tag 發版步驟與 Actions 手動補發說明。
+- 測試覆蓋 — 補強 moduleName 路徑片段拒絕、memory_commit confirm 驗證與 memory_audit 索引漂移偵測，總測試案例提升至 181 個。
 
 ## [5.1.0] — 2026-05-17
 

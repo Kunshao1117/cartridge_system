@@ -8,7 +8,8 @@ import {
   handleMemoryList,
   handleMemoryRead,
   handleMemoryStatus,
-  handleMemoryCommit,
+  handleMemoryCommit as handleMemoryCommitRaw,
+  handleMemoryDeps,
   updateFrontmatterFields,
 } from "../mcp-handlers.js";
 import { stalenessToLevel } from "../staleness.js";
@@ -27,6 +28,14 @@ const PROJECT_ROOT = "/mock/other-project";
 
 function parseEnvelope(result: { content: Array<{ text: string }> }) {
   return JSON.parse(result.content[0].text);
+}
+
+function handleMemoryCommit(args: unknown) {
+  if (typeof args !== "object" || args === null) {
+    return handleMemoryCommitRaw(args);
+  }
+
+  return handleMemoryCommitRaw({ ...args, confirm: true });
 }
 
 beforeEach(() => {
@@ -160,6 +169,16 @@ describe("handleMemoryRead", () => {
   it("moduleName 為空字串時應回傳 Validation Error", async () => {
     const result = await handleMemoryRead({
       moduleName: "",
+      projectRoot: PROJECT_ROOT,
+    });
+
+    expect(result.isError).toBe(true);
+    expect(result.content[0].text).toContain("Validation Error");
+  });
+
+  it("moduleName 含路徑片段時應回傳 Validation Error", async () => {
+    const result = await handleMemoryRead({
+      moduleName: "../skills/08-audit-健檢",
       projectRoot: PROJECT_ROOT,
     });
 
@@ -618,6 +637,26 @@ describe("handleMemoryCommit", () => {
     expect(result.content[0].text).toContain("Validation Error");
   });
 
+  it("未帶 confirm:true 直接呼叫 handler 時應回傳 Validation Error", async () => {
+    const result = await handleMemoryCommitRaw({
+      moduleName: "mem-test",
+      projectRoot: PROJECT_ROOT,
+    });
+
+    expect(result.isError).toBe(true);
+    expect(result.content[0].text).toContain("confirm:true");
+  });
+
+  it("moduleName 含路徑片段時應回傳 Validation Error", async () => {
+    const result = await handleMemoryCommit({
+      moduleName: "mem-test/../../escape",
+      projectRoot: PROJECT_ROOT,
+    });
+
+    expect(result.isError).toBe(true);
+    expect(result.content[0].text).toContain("Validation Error");
+  });
+
   it("缺少必要欄位時應回傳 warnings", async () => {
     const existing = `---\nname: mem-test\nstaleness: 0\n---\n\n# No Tracked Files section\n`;
     vi.mocked(fs.readFile).mockResolvedValue(
@@ -827,5 +866,27 @@ describe("handleMemoryCommit", () => {
     expect(writtenContent).not.toContain("CARTRIDGE_SYSTEM_WARNING_START");
     expect(writtenContent).not.toContain("CARTRIDGE_SYSTEM_WARNING_END");
     expect(writtenContent).toContain("## Tracked Files");
+  });
+});
+
+describe("moduleName schema — MCP path segment 防線", () => {
+  it("memory_status 應拒絕路徑片段 moduleName", async () => {
+    const result = await handleMemoryStatus({
+      moduleName: "..\\memory\\_system",
+      projectRoot: PROJECT_ROOT,
+    });
+
+    expect(result.isError).toBe(true);
+    expect(result.content[0].text).toContain("Validation Error");
+  });
+
+  it("memory_deps 應拒絕路徑片段 moduleName", async () => {
+    const result = await handleMemoryDeps({
+      moduleName: "mcp-tools/handlers",
+      projectRoot: PROJECT_ROOT,
+    });
+
+    expect(result.isError).toBe(true);
+    expect(result.content[0].text).toContain("Validation Error");
   });
 });

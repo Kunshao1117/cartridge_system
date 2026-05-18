@@ -3,7 +3,7 @@ name: mcp-tools.memory-audit
 description: >
   專案記憶：memory_audit 記憶卡完整健檢工具與舊格式相容提醒規則。Use when: 處理專案記憶卡 audit、compatibility
   mode、舊索引導入提醒或完整健檢測試時載入。
-last_updated: '2026-05-16T18:18:05+08:00'
+last_updated: '2026-05-18T16:37:50+08:00'
 status: stable
 staleness: 0
 dependencies:
@@ -39,6 +39,7 @@ metadata:
 - D05: 舊專案缺 `.cartridge/index.json` 不視為工具錯誤；`memory_audit` 應回 `warning` 與 compatibility mode，讓 AI 知道目前是導入整理問題。
 - D06: 本卡實際依賴 `core-types` 的路徑驗證與 envelope metadata、`index-manager` 的 Tracked Files 解析、`index-manager.dep-engine` 的 dependency cycle/semantic 檢查，以及 `mcp-tools.tool-registry` 的 MCP envelope 契約；任一上游過期時，memory_audit 的健檢準確度都必須重新檢查。
 - D07: `memory_audit` 的主要 cycle 判斷改用即時 frontmatter graph 與 engineering graph；`.cartridge/index.json` 的 persisted dependencies 只回報為 `persistedIndexCycles` 診斷資訊，不再讓舊索引殘留造成主要 warning。
+- D08: `memory_audit` 會把 `staleness=0` 但 `pendingChanges` 未清的索引項標成 `INDEX_PENDING_WITH_ZERO_STALENESS`；這不是記憶內容過期，而是 `.cartridge/index.json` 同步狀態不一致，建議對該卡重新執行 `memory_commit`。
 
 ## Known Issues
 
@@ -49,6 +50,7 @@ metadata:
 - L01: 舊專案導入提醒不應全部塞進 `workspace_brief`；日常入口只提示，完整細節交給 `memory_audit`。
 - L02: `memory_audit` 可以檢查欄位語義可疑項，但不得取代 `D:\AI_Rules` 對 dependencies / Relations / Applicable Skills 的核心規範定義。
 - L03: 全域 audit 與單卡 `memory_deps` 必須使用一致的主要 graph 口徑；persisted index 可協助追蹤索引殘留，但不可直接代表目前記憶卡語義或工程依賴。
+- L04: 索引漂移測試應使用現代格式卡片加 `pendingChanges`，避免 compatibility warning 干擾 `INDEX_PENDING_WITH_ZERO_STALENESS` 的行為判讀。
 
 ## Relations
 

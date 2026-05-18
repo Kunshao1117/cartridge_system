@@ -47,6 +47,7 @@ export interface MemoryAuditReport {
     ghostFiles: number;
     untrackedFiles: number;
     oversized: number;
+    pendingWithZeroStaleness: number;
     cycles: number;
     persistedIndexCycles: number;
     dependencySemanticWarnings: number;
@@ -61,6 +62,7 @@ interface AuditIndexEntry {
   skillPath?: string;
   staleness?: number;
   trackedFiles?: string[];
+  pendingChanges?: unknown[];
   ghostFiles?: string[];
   indirectStaleness?: number;
   dependencies?: string[];
@@ -353,6 +355,15 @@ function auditIndexEntries(
         });
       }
     }
+    if ((entry.staleness ?? 0) === 0 && (entry.pendingChanges?.length ?? 0) > 0) {
+      findings.push({
+        severity: "warning",
+        code: "INDEX_PENDING_WITH_ZERO_STALENESS",
+        message: `${card.module} 索引仍有 pendingChanges，但 staleness 已歸零，可能是記憶提交後索引未同步乾淨。`,
+        module: card.module,
+        file: ".cartridge/index.json",
+      });
+    }
   }
   for (const moduleName of Object.keys(index.cartridges ?? {})) {
     if (!cardModules.has(moduleName)) {
@@ -527,6 +538,10 @@ function buildReport(
       untrackedFiles: index.untrackedFiles?.length ?? 0,
       oversized: entries.filter((entry) => (entry.trackedFiles?.length ?? 0) > 8)
         .length,
+      pendingWithZeroStaleness: entries.filter(
+        (entry) =>
+          (entry.staleness ?? 0) === 0 && (entry.pendingChanges?.length ?? 0) > 0,
+      ).length,
       cycles: cycles.length,
       persistedIndexCycles: persistedIndexCycles.length,
       dependencySemanticWarnings,
@@ -579,6 +594,14 @@ function buildRecommendedActions(report: MemoryAuditReport) {
       action: "review_dependency_semantics",
       target: "dependencies",
       reason: `warnings=${report.summary.dependencySemanticWarnings}`,
+    });
+  }
+  if (report.summary.pendingWithZeroStaleness > 0) {
+    actions.push({
+      priority: "P2",
+      action: "resync_memory_index",
+      target: "memory_commit",
+      reason: `pendingWithZeroStaleness=${report.summary.pendingWithZeroStaleness}`,
     });
   }
   return actions;

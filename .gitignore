@@ -9,7 +9,6 @@ dist/
 .markdownlint.yaml
 .agents/*
 !.agents/memory/
-.vscodeignore
 .gitnexus/
 .claude/
 AGENTS.md

@@ -59,7 +59,17 @@ Cartridge System 是一個為 [Antigravity 框架](https://github.com/Kunshao111
 
 ## 🚀 安裝方式
 
-### 方法一：透過 Antigravity IDE 安裝（推薦）
+### 方法一：下載正式版 VSIX（推薦）
+
+1. 前往 [GitHub Releases](https://github.com/Kunshao1117/cartridge_system/releases)。
+2. 下載最新版本的 `cartridge-system-*.vsix`。
+3. 在 VS Code / Antigravity 使用 **Install from VSIX** 安裝，或使用 CLI：
+
+```bash
+antigravity --install-extension cartridge-system-5.1.0.vsix --force
+```
+
+### 方法二：本機打包安裝
 
 ```bash
 # 先建構外掛安裝檔
@@ -71,7 +81,7 @@ npm run package
 antigravity --install-extension cartridge-system-5.1.0.vsix --force
 ```
 
-### 方法二：開發模式
+### 方法三：開發模式
 
 ```bash
 git clone https://github.com/Kunshao1117/cartridge_system.git
@@ -82,6 +92,37 @@ npm run build
 ```
 
 > ⚠️ **注意**：修改 `src/` 後必須重新執行 `npm run build`，外掛才會載入新版本。
+
+---
+
+## 📦 發布 VSIX
+
+Cartridge System 使用 GitHub Actions 自動發布 VSIX。正式版本不需要手動開 GitHub Release 拖檔案。
+
+### 自動發布正式版
+
+1. 更新 `package.json` 版本與 `CHANGELOG.md` 對應版本段落。
+2. 完成本機驗證：
+
+```bash
+npm test
+npm run lint
+npm run build
+npm run package
+```
+
+3. 推送版本 tag：
+
+```bash
+git tag v5.1.1
+git push origin v5.1.1
+```
+
+GitHub Actions 會自動執行測試、打包 `cartridge-system-*.vsix`、建立或更新 Release，並把 VSIX 掛到 Release 附件。
+
+### 手動補發
+
+如果需要補發目前版本，進入 GitHub 的 **Actions → Release VSIX → Run workflow**，輸入版本號，例如 `5.1.0` 或 `v5.1.0`。Workflow 會確認輸入版本與 `package.json` 一致，然後重新打包並覆蓋 Release 裡的 VSIX 附件。
 
 ---
 

@@ -2,7 +2,7 @@
 name: _system
 description: |
   專案記憶：系統技術堆疊與部署設定。 Use when: 確認技術選型、環境設定、部署組態時載入。
-last_updated: '2026-05-17T23:39:41+08:00'
+last_updated: '2026-05-18T15:35:34+08:00'
 status: stable
 staleness: 0
 metadata:
@@ -24,6 +24,8 @@ metadata:
 - eslint.config.js
 - vitest.config.ts
 - package-lock.json
+- .vscodeignore
+- .github/workflows/release.yml
 
 ## Runtime & Host
 
@@ -75,6 +77,7 @@ metadata:
 - `tsup.config.ts` — entry: extension.ts / format: cjs / external: vscode / noExternal: gray-matter, ignore（v3.0 已移除 onSuccess 範本複製邏輯）
 - `eslint.config.js` — ESLint v9 Flat Config（CJS 格式，@typescript-eslint）
 - `.vscodeignore` — 打包排除清單（含 .agents/ 排除）
+- `.github/workflows/release.yml` — VSIX 自動發版流程：推送 `v*` tag 或手動輸入版本後執行 test/lint/build/package，並建立或更新 GitHub Release 附件
 - `.cartridge/index.json` — 執行期產生（索引檔）
 
 ## 專案身份與工作模式
@@ -82,7 +85,7 @@ metadata:
 - **Project Identity**: Cartridge System — A VS Code extension + MCP tool server for the Antigravity framework, providing automated detection of stale memory, ghost files, and cross-module dependency propagation.
 - **Work Mode**: Core extension logic development (TypeScript + vitest), MCP tool interface maintenance, and evolution of memory card specifications.
 - **Director Role**: Traditional Chinese commander, acting as framework architect and quality supervisor.
-- **Deployment Environment**: Local development on Windows 11, VSIX installation into Antigravity IDE, no cloud CI/CD.
+- **Deployment Environment**: Local development on Windows 11, VSIX installation into Antigravity IDE, GitHub Actions publishes VSIX release assets.
 - **MCP Toolchain**: cartridge-system (native), gitnexus (knowledge graph), multi-mcp-gateway (tool routing).
 
 ## Key Decisions
@@ -98,6 +101,10 @@ D13: v4.0.0 次世代依賴拓樸與幽靈感知 — 導入 import-resolver + de
 ### D14
 
 D14: v4.0.1 狀態列 Tooltip 幽靈感知修復 — 補齊狀態列懸浮健康報告中 `💀 幽靈檔案 (需清理)` 區塊的顯示，與 TreeView 側邊欄達成視覺一致性。
+
+### D15
+
+D15: VSIX 發布自動化 — GitHub Actions `Release VSIX` workflow 成為正式插件發布入口。推送 `v*` tag 或手動輸入版本會執行 `npm ci`、測試、lint、build、package，並將 `cartridge-system-*.vsix` 建立或覆蓋到 GitHub Release；workflow 不自動 bump version、不自動 commit。`.vscodeignore` 需納入版本控制，確保 CI 打包時保留相同排除規則。
 
 ## Known Issues
 
@@ -120,6 +127,7 @@ D14: v4.0.1 狀態列 Tooltip 幽靈感知修復 — 補齊狀態列懸浮健康
 - L13: v5.0.0 (2026-05-17) — package.json 與 MCP server metadata 同步升級至 5.0.0；本版主軸為只讀上下文治理 OS，不新增生產依賴。
 - L14: v5.0.0 (2026-05-17) — package.json contributes 新增 `viewsContainers.activitybar` 的 `cartridgeGovernance`，並新增三個治理 commands；`cartridgeExplorer` 不再掛在 Explorer。
 - L15: v5.1.0 (2026-05-17) — package.json 與 MCP server metadata 同步升級至 5.1.0；本版主軸為 AI 開工清單、規則檔檢查白話化、側邊欄提醒可讀性與 MCP 工具安全說明。
+- L16: (2026-05-18) — `.github/workflows/release.yml` 新增 VSIX 自動發版；正式發布以 `package.json` 版本與 `v*` tag 一致為門檻，Release notes 優先取 `CHANGELOG.md` 對應版本段落。
 
 ## Applicable Skills
 

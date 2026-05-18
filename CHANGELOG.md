@@ -1,5 +1,12 @@
 # 更新紀錄
 
+## [Unreleased]
+
+### chore
+
+- VSIX 自動發版 — 新增 GitHub Actions 發布流程，支援推送 `v*` tag 自動建立 / 更新 Release，也支援手動輸入版本補發並覆蓋 VSIX 附件。
+- 發布文件 — README 新增 GitHub Releases 下載入口、tag 發版步驟與 Actions 手動補發說明。
+
 ## [5.1.0] — 2026-05-17
 
 ### feat

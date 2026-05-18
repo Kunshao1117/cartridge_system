@@ -1,19 +1,27 @@
+# [產物 | 忽略] Node / 建置 / 發布檔案
 node_modules/
 dist/
 *.vsix
 .vscode-test/
 .DS_Store
+
+# [本機執行狀態 | 忽略] Cartridge / GitNexus / Trunk 產生狀態
 .cartridge/
+.gitnexus/
 .trunk/
+
+# [本機編輯器 | 忽略] 機器專屬編輯器與 lint 設定
 .vscode/
 .markdownlint.yaml
+
+# [治理框架 | 部分追蹤] 保留專案記憶卡，忽略框架執行期檔案
 .agents/*
 !.agents/memory/
-.gitnexus/
+!.agents/memory/**
+.agents/logs/
+
+# [本機代理設定 | 忽略] 機器與 session 專屬 AI 治理檔
+.codex/
 .claude/
 AGENTS.md
 CLAUDE.md
-.vscode/
-.agents/logs/
-.codex/
-.cartridge/

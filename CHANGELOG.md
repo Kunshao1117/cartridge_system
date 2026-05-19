@@ -2,6 +2,10 @@
 
 ## [Unreleased]
 
+### chore
+
+- Release workflow — 將 GitHub Actions `checkout` / `setup-node` 升級到 Node 24 相容版本，並改用 Node 24 打包 VSIX，避免 Release workflow 再出現 Node.js 20 runtime deprecation warning。
+
 ## [5.3.5] — 2026-05-19
 
 ### feat

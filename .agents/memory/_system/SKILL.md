@@ -2,7 +2,7 @@
 name: _system
 description: |
   專案記憶：系統技術堆疊與部署設定。 Use when: 確認技術選型、環境設定、部署組態時載入。
-last_updated: '2026-05-19T21:03:06+08:00'
+last_updated: '2026-05-19T21:30:27+08:00'
 status: stable
 staleness: 0
 metadata:
@@ -78,7 +78,7 @@ metadata:
 - `tsup.config.ts` — entry: extension.ts / mcp-server.ts 使用 cjs；cabinet-webview.ts 使用 browser iife；external: vscode / noExternal: gray-matter、ignore、cytoscape
 - `eslint.config.js` — ESLint v9 Flat Config（CJS 格式，@typescript-eslint）
 - `package.json files` — npm runtime 發布白名單：`dist/*.js`、`assets/**`、README、CHANGELOG、LICENSE；排除 `.agents/`、`src/`、測試、source map 與 GitHub workflow；卡匣機櫃 Webview 產物為 `dist/cabinet-webview.global.js`
-- `.github/workflows/release.yml` — VSIX 自動發版流程：推送 `v*` tag 或手動輸入版本後執行 test/lint/build/package，並建立或更新 GitHub Release 附件
+- `.github/workflows/release.yml` — VSIX 自動發版流程：推送 `v*` tag 或手動輸入版本後執行 test/lint/build/package，並建立或更新 GitHub Release 附件；workflow 使用 Node 24 相容 GitHub Actions 與 Node 24 打包環境
 - `.cartridge/index.json` — 執行期產生（索引檔）
 
 ## 專案身份與工作模式
@@ -131,6 +131,7 @@ D23: v5.3.3 為卡匣機櫃縮放控制與 AI 記憶圖譜工具版；package/pa
 
 D24: v5.3.4 插件更新檢查 — VSIX extension manifest 新增 `cartridge.checkForUpdates` 與 `cartridge.updateCheck.enabled`；更新來源只信任 GitHub Release，不追 main 分支或未完成打包的 tag。package/package-lock、README、CHANGELOG 與 VSIX 檔名同步至 5.3.4。
 D25: v5.3.5 插件更新檢查按鈕 — `package.json` 讓 `cartridge.checkForUpdates` 使用 `$(cloud-download)` icon，並掛到 `cartridgeGovernanceOverview` 與 `cartridgeExplorer` 的 `view/title` navigation 區，讓側邊欄可直接點按鈕手動檢查；package/package-lock、README、CHANGELOG 與 VSIX 檔名同步至 5.3.5。
+D26: Release workflow Node 24 升級 — `.github/workflows/release.yml` 改用 `actions/checkout@v6`、`actions/setup-node@v6` 與 `node-version: "24"`，保留既有 tag / workflow_dispatch 發版契約，但避免 Node.js 20 action runtime deprecation warning。
 
 ## Known Issues
 

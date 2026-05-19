@@ -1,7 +1,7 @@
 {
   "name": "cartridge-system",
   "displayName": "記憶卡匣監控系統",
-  "version": "5.3.3",
+  "version": "5.3.4",
   "description": "記憶卡匣動態熱處理外掛 — 主動式檔案監聽與記憶過期防禦系統",
   "publisher": "cartridge-system",
   "repository": {
@@ -32,6 +32,17 @@
     "cartridge-mcp": "dist/mcp-server.js"
   },
   "contributes": {
+    "configuration": {
+      "title": "Cartridge",
+      "properties": {
+        "cartridge.updateCheck.enabled": {
+          "type": "boolean",
+          "scope": "window",
+          "default": true,
+          "description": "啟用或停用 Cartridge System 啟動時的 GitHub Release 更新檢查。手動檢查命令不受此設定影響。"
+        }
+      }
+    },
     "commands": [
       {
         "command": "cartridge.scan",
@@ -68,6 +79,10 @@
       {
         "command": "cartridge.contextAudit",
         "title": "Cartridge：查看上下文治理報告"
+      },
+      {
+        "command": "cartridge.checkForUpdates",
+        "title": "Cartridge：檢查插件更新"
       }
     ],
     "viewsContainers": {

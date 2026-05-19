@@ -3,7 +3,7 @@ name: tool-registry
 description: >
   專案記憶：MCP 工具名冊與統一回傳契約。Use when: 處理工具風險分級、MCP tools 清單生成、治理 envelope
   或高階工具回傳格式時載入。
-last_updated: '2026-05-19T07:59:28+08:00'
+last_updated: '2026-05-19T20:29:43+08:00'
 status: stable
 staleness: 0
 dependencies:
@@ -54,6 +54,7 @@ metadata:
 - D21: npm 發布 manifest 測試以 npm 正規化後的 `bin` 與 `repository.url` 為準；`bin` path 使用 `dist/mcp-server.js`，repository 使用 `git+https://github.com/Kunshao1117/cartridge_system.git`。
 - D22: v5.3.2 發版時 `src/tests/tool-registry.test.ts` 的 manifest 版本斷言需與 `package.json` 同步，避免版本升級後測試仍釘在舊版號。
 - D23: v5.3.3 新增第十三個 MCP 工具 `memory_graph`，登錄為 low risk、readOnly、analyze、safeForStartup，用於輸出 AI 可讀整體記憶圖譜摘要。
+- D24: v5.3.4 發版時 `src/tests/tool-registry.test.ts` 的 package manifest 版本斷言同步更新為 5.3.4；此為 VSIX 版本 bump，不改 MCP server runtime 版本常數。
 
 ## Known Issues
 
@@ -78,6 +79,7 @@ metadata:
 - L15: (2026-05-19) v5.3.1 版本 bump 後，manifest 測試需同步從 5.3.0 改為 5.3.1，否則全量測試會只剩版本斷言失敗。
 - L16: (2026-05-19) v5.3.2 版本 bump 後，manifest 測試需同步改為 5.3.2；MCP server runtime 版本常數維持既有測試契約，不在卡匣機櫃 VSIX 修補版中擴張範圍。
 - L17: (2026-05-19) 新增 MCP tool 時需同步更新 `CARTRIDGE_TOOLS`、dispatcher handler map、README 工具表、工具數文字與測試硬編碼工具清單。
+- L18: (2026-05-19) VSIX/package 版本 bump 後要搜尋 `packageJson.version` 與 `5.x.x` 斷言；`tool-registry.test.ts` 是目前固定 package manifest 版本的測試點。
 
 ## Relations
 

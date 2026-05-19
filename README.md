@@ -2,8 +2,8 @@
 
 > **現實感知 AI 記憶防禦引擎** — 自動偵測記憶卡過期、幽靈檔案、跨模組依賴傳播，確保 AI 不讀取失效的上下文。
 
-[![version](https://img.shields.io/badge/version-5.3.3-blue)](./CHANGELOG.md)
-[![tests](https://img.shields.io/badge/tests-212%20passed-brightgreen)](#-執行測試)
+[![version](https://img.shields.io/badge/version-5.3.4-blue)](./CHANGELOG.md)
+[![tests](https://img.shields.io/badge/tests-220%20passed-brightgreen)](#-執行測試)
 [![license](https://img.shields.io/badge/license-MIT-green)](#)
 
 ---
@@ -41,6 +41,7 @@ Cartridge System 是一個為 [Antigravity 框架](https://github.com/Kunshao111
 | 🌳 **獨立治理側邊欄**| **v5.1 增強** — Activity Bar 新增 Cartridge 入口，內含治理總覽、記憶卡匣、規則檔檢查與待處理項目四個原生 TreeView。 |
 | 🗄️ **卡匣機櫃工作台** | **v5.3.3 改善** — 從 Cartridge 側邊欄開啟編輯區 WebviewPanel，以維護艙、記憶艙、結構艙三種視角呈現卡匣熱度、知識內容與工程結構，並提供加減號、百分比與穩定縮放控制。 |
 | 🔍 **CodeLens 標記**| 編輯器頂部行內標記，即時顯示當前檔案所屬的記憶卡與過期狀態 |
+| 🔄 **插件更新檢查** | **v5.3.4 新增** — 每次啟動自動查詢 GitHub Release 是否有新版 VSIX，也可用命令面板手動檢查並開啟 Release。 |
 | 🛠️ **MCP 工具介面** | 提供十三個標準化 AI 工具（記憶治理 + 上下文治理 + 提交前治理），支援跨專案動態路徑解析 |
 | 📦 **npm MCP Runtime** | **v5.2 新增** — 可用 `npx cartridge-system --workspace ...` 直接啟動 MCP server，方便線上安裝與多專案接入。 |
 | 🧭 **規則檔檢查** | **v5.1 增強** — 掃描 Codex `AGENTS.md`、Claude `CLAUDE.md` / skills / subagents、GitHub Copilot instructions、Antigravity skills 與 `.agents/memory/`，用白話列出規則衝突、原因、相關檔案與建議工具。 |
@@ -68,7 +69,7 @@ Cartridge System 是一個為 [Antigravity 框架](https://github.com/Kunshao111
 3. 在 VS Code / Antigravity 使用 **Install from VSIX** 安裝，或使用 CLI：
 
 ```bash
-antigravity --install-extension cartridge-system-5.3.3.vsix --force
+antigravity --install-extension cartridge-system-5.3.4.vsix --force
 ```
 
 ### 方法二：本機打包安裝
@@ -80,7 +81,7 @@ npm run build
 npm run package
 
 # 使用 Antigravity IDE CLI 安裝（注意：不可用 code 指令）
-antigravity --install-extension cartridge-system-5.3.3.vsix --force
+antigravity --install-extension cartridge-system-5.3.4.vsix --force
 ```
 
 ### 方法三：開發模式
@@ -94,6 +95,14 @@ npm run build
 ```
 
 > ⚠️ **注意**：修改 `src/` 後必須重新執行 `npm run build`，外掛才會載入新版本。
+
+---
+
+### 插件更新檢查
+
+VSIX 安裝版會在每次啟動時查詢 GitHub Releases 的最新正式版；若發現新版且 Release 內含 `cartridge-system-*.vsix`，會提示開啟 Release 頁面下載更新。也可透過指令面板執行 `Cartridge：檢查插件更新` 手動檢查。
+
+若不希望啟動時自動檢查，可在 VS Code / Antigravity 設定中關閉 `cartridge.updateCheck.enabled`。手動檢查命令不受此設定影響。
 
 ---
 
@@ -154,15 +163,15 @@ npm run package
 3. 推送版本 tag：
 
 ```bash
-git tag v5.3.3
-git push origin v5.3.3
+git tag v5.3.4
+git push origin v5.3.4
 ```
 
 GitHub Actions 會自動執行測試、打包 `cartridge-system-*.vsix`、建立或更新 Release，並把 VSIX 掛到 Release 附件。
 
 ### 手動補發
 
-如果需要補發目前版本，進入 GitHub 的 **Actions → Release VSIX → Run workflow**，輸入版本號，例如 `5.3.3` 或 `v5.3.3`。Workflow 會確認輸入版本與 `package.json` 一致，然後重新打包並覆蓋 Release 裡的 VSIX 附件。
+如果需要補發目前版本，進入 GitHub 的 **Actions → Release VSIX → Run workflow**，輸入版本號，例如 `5.3.4` 或 `v5.3.4`。Workflow 會確認輸入版本與 `package.json` 一致，然後重新打包並覆蓋 Release 裡的 VSIX 附件。
 
 ---
 
@@ -342,6 +351,7 @@ memory_commit({
 | `Cartridge：開啟卡匣機櫃` | **v5.3.3 改善** — 在編輯區開啟卡匣機櫃工作台，提供維護艙、記憶艙與結構艙三種模式，並支援加減號、百分比與穩定縮放 |
 | `Cartridge：重新整理治理側邊欄` | **v5.0 新增** — 重新整理治理總覽、記憶卡匣、上下文治理與待處理項目 |
 | `Cartridge：查看上下文治理報告` | **v5.1 增強** — 在輸出面板顯示規則檔檢查結果、相關檔案與建議工具 |
+| `Cartridge：檢查插件更新` | **v5.3.4 新增** — 手動查詢 GitHub Release 是否有新版 VSIX |
 
 ---
 
@@ -355,7 +365,7 @@ npm test
 npm run test:watch
 ```
 
-測試涵蓋 26 個測試檔案（**212 個案例**）：
+測試涵蓋 27 個測試檔案（**220 個案例**）：
 
 | 測試模組 | 案例數 | 涵蓋範圍 |
 |----------|--------|----------|
@@ -363,7 +373,7 @@ npm run test:watch
 | MCP 工具介面 | 75 | 正常流程、Gateway-first workspace 注入、workspace/projectRoot 衝突拒絕、CLI `--workspace` 解析、路徑穿越防禦、moduleName 路徑片段拒絕、handler 層 `confirm:true` 驗證、時間戳驗證、過期狀態診斷、十三工具 envelope 契約、memory_commit 後設同步、workspace_brief 專案健康摘要、AI 開工狀態、提交 readiness、commit_preflight 提交前治理檢查與 dependency semantics 摘要、**標題錯字偵測 (HEADING_TYPO)**、**路徑格式驗證 (PATH_ABSOLUTE / PATH_TRAVERSAL)**、**dependencies 語義警告**、**未歸屬池清理**、**fileMap 同步**、**間接過期重算**、**警告區塊自動清除** |
 | 監聽引擎 | 3 | `SKILL.md` 變更後重新 scan、refilter untracked、flush index 並觸發側邊欄刷新；`.agents/memory` 被 `.gitignore` 覆蓋時仍優先處理記憶卡變更；Windows 路徑分隔符不會阻斷 pending/ghost 清理 |
 | 規則檔檢查 | 4 | 多代理指令掃描、規則來源摘要、提交授權衝突 blocking、context_diff 訊號比對與語言提醒 |
-| 治理側邊欄 | 5 | Activity Bar view container、四個 Cartridge TreeView、卡匣機櫃入口、公開 commands、governance summary 與白話 action items 轉換 |
+| 治理側邊欄 | 6 | Activity Bar view container、四個 Cartridge TreeView、卡匣機櫃入口、公開 commands、更新檢查設定、governance summary 與白話 action items 轉換 |
 | 卡匣機櫃工作台 | 9 | 卡匣工作台模型、三模式統計、metadata note 連線、V2 metadata 相容解析、Webview HTML/CSP、圖譜 viewport 保存、layout reason 判斷與百分比縮放 helper |
 | 記憶卡完整健檢 | 6 | memory_audit 現代格式 ready、舊格式 compatibility warning、缺索引 fallback、frontmatter 依賴循環 finding、舊索引循環診斷不誤報主要 cycle、staleness 歸零但 pendingChanges 未清的索引漂移 |
 | 過期分析器 | 11 | 過期等級四分支、三種事件計分、閾值觸發 |
@@ -377,6 +387,7 @@ npm run test:watch
 | 過期等級工具 | 5 | healthy、mild、significant、critical 邊界轉換與 config 閾值語義 |
 | 依賴拓樸輸出 | 1 | memory_deps 標準 envelope、工程依賴、frontmatter 依賴與 legacy 欄位相容 |
 | AI 記憶圖譜輸出 | 5 | memory_graph all lens、memory lens、focusModule 一跳關聯、maxCards 截斷與 module_not_found 錯誤 |
+| 插件更新檢查 | 7 | 版本比較、VSIX 附件解析、可更新、已是最新版、非正式 Release、缺少 VSIX 與 GitHub API 失敗 |
 | MCP 工具名冊 | 6 | 工具登錄完整性、projectRoot 選填公開契約、npm bin/pack 白名單、寫入型工具授權要求、開工安全性、工具安全說明與 memory_graph schema |
 | MCP 工具分派 | 12 | registry-driven routing、Gateway workspace 注入、workspace/projectRoot 衝突錯誤、unknown tool envelope、memory_commit 明確確認防線、memory_graph 路由與 v5 context governance 工具路由 |
 | MCP Server CLI | 5 | `--workspace`、`--workspace=...`、`--help`、`--version` 與未知參數錯誤 |
@@ -408,6 +419,7 @@ cartridge_system/
 │   ├── context-audit.ts      # v5 規則衝突與提醒偵測
 │   ├── context-tools.ts      # v5 context_inventory/audit/diff/plan MCP handlers
 │   ├── governance-views.ts   # v5 Activity Bar 治理側邊欄註冊器
+│   ├── update-checker.ts     # GitHub Release 插件更新檢查器
 │   ├── governance-tree-provider.ts # v5 治理總覽 TreeView
 │   ├── context-tree-provider.ts # v5 規則檔檢查 findings TreeView
 │   ├── action-items-provider.ts # v5 stale/ghost/untracked/context 待處理項目 TreeView
@@ -433,7 +445,7 @@ cartridge_system/
 │   ├── path-guard.ts         # 路徑安全驗證（雙層防禦）
 │   ├── timestamp.ts          # 時間戳生成（Intl API）
 │   ├── types.ts              # 共用型別定義（含 ghostFiles、dependencies）
-│   └── tests/                # vitest 單元測試（26 檔 212 案例）
+│   └── tests/                # vitest 單元測試（27 檔 220 案例）
 ├── scripts/
 │   └── package-vsix.mjs      # VSIX 打包 wrapper（使用 package.json files 白名單）
 ├── .agents/
@@ -459,8 +471,8 @@ cartridge_system/
 
 > 💡 **治理備註**：`.agents/` 目錄在 Git 中採取「白名單模式」，僅追蹤 `memory/` 核心卡匣，其餘殘留檔案（如 Workflows/Skills）預設不納入版本控制以保持儲存庫輕量化。
 
-├── CHANGELOG.md              # v5.3.3 卡匣機櫃縮放控制與 AI 記憶圖譜工具
-└── package.json              # v5.3.3
+├── CHANGELOG.md              # 更新紀錄（含插件更新檢查 Unreleased 紀錄）
+└── package.json              # v5.3.4
 ```
 
 ### 技術堆疊

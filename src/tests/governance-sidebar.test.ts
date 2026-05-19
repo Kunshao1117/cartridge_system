@@ -91,6 +91,21 @@ describe("governance sidebar manifest", () => {
     expect(commands).toContain("cartridge.openCabinetWorkbench");
     expect(commands).toContain("cartridge.refreshGovernance");
     expect(commands).toContain("cartridge.contextAudit");
+    expect(commands).toContain("cartridge.checkForUpdates");
+  });
+
+  it("應宣告插件更新檢查設定", () => {
+    expect(
+      packageJson.contributes.configuration.properties[
+        "cartridge.updateCheck.enabled"
+      ],
+    ).toEqual(
+      expect.objectContaining({
+        type: "boolean",
+        scope: "window",
+        default: true,
+      }),
+    );
   });
 
   it("應在治理視圖標題列提供卡匣機櫃入口", () => {

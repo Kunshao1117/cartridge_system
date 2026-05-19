@@ -2,7 +2,7 @@
 name: _system
 description: |
   專案記憶：系統技術堆疊與部署設定。 Use when: 確認技術選型、環境設定、部署組態時載入。
-last_updated: '2026-05-19T08:00:14+08:00'
+last_updated: '2026-05-19T20:29:22+08:00'
 status: stable
 staleness: 0
 metadata:
@@ -49,7 +49,7 @@ metadata:
 - Entry: `src/extension.ts` 及 `src/mcp-server.ts`
 - Output: `dist/extension.js` 及 `dist/mcp-server.js`
 - Activation: `workspaceContains:.agents` + `onStartupFinished`
-- Commands: `cartridge.scan`、`cartridge.status`、`cartridge.scanGhosts`、`cartridge.attributeFile`、`cartridge.showGhostFileInfo`、`cartridge.openGovernanceDashboard`、`cartridge.openCabinetWorkbench`、`cartridge.refreshGovernance`、`cartridge.contextAudit`
+- Commands: `cartridge.scan`、`cartridge.status`、`cartridge.scanGhosts`、`cartridge.attributeFile`、`cartridge.showGhostFileInfo`、`cartridge.openGovernanceDashboard`、`cartridge.openCabinetWorkbench`、`cartridge.refreshGovernance`、`cartridge.contextAudit`、`cartridge.checkForUpdates`
 - Views Container: `cartridgeGovernance` (Activity Bar，v5.0 新增)
 - Views: `cartridgeGovernanceOverview`、`cartridgeExplorer`、`cartridgeContextExplorer`、`cartridgeActionItems`
 - Engine: `vscode ^1.85.0`
@@ -73,7 +73,7 @@ metadata:
 
 ## Config Files
 
-- `package.json` — VS Code Extension 元數據（含 activationEvents / contributes），當前版本 **5.3.3**；同時公開 `cartridge-system` / `cartridge-mcp` npm bin 指向 `dist/mcp-server.js`，`files` 同時作為 npm 與 VSIX 發布白名單，`npm run package` 委派 `scripts/package-vsix.mjs`，repository URL 採 npm 正規化後的 `git+https://...`
+- `package.json` — VS Code Extension 元數據（含 activationEvents / contributes），當前版本 **5.3.4**；同時公開 `cartridge-system` / `cartridge-mcp` npm bin 指向 `dist/mcp-server.js`，`files` 同時作為 npm 與 VSIX 發布白名單，`npm run package` 委派 `scripts/package-vsix.mjs`，repository URL 採 npm 正規化後的 `git+https://...`；`cartridge.updateCheck.enabled` 控制啟動時 GitHub Release 更新檢查，手動命令不受此設定影響
 - `tsconfig.json` — CommonJS + node 模組解析
 - `tsup.config.ts` — entry: extension.ts / mcp-server.ts 使用 cjs；cabinet-webview.ts 使用 browser iife；external: vscode / noExternal: gray-matter、ignore、cytoscape
 - `eslint.config.js` — ESLint v9 Flat Config（CJS 格式，@typescript-eslint）
@@ -128,6 +128,8 @@ D21: v5.3.1 為卡匣機櫃工作台 UI 修正版，僅 bump package/package-loc
 D22: v5.3.2 為卡匣機櫃圖譜縮放與可讀性修正版；package/package-lock、README、CHANGELOG 與 VSIX 檔名同步至 5.3.2，Webview bundle 仍由 `tsup` browser IIFE 輸出。
 
 D23: v5.3.3 為卡匣機櫃縮放控制與 AI 記憶圖譜工具版；package/package-lock、README、CHANGELOG 與 VSIX 檔名同步至 5.3.3，MCP server runtime 版本常數仍維持既有契約。
+
+D24: v5.3.4 插件更新檢查 — VSIX extension manifest 新增 `cartridge.checkForUpdates` 與 `cartridge.updateCheck.enabled`；更新來源只信任 GitHub Release，不追 main 分支或未完成打包的 tag。package/package-lock、README、CHANGELOG 與 VSIX 檔名同步至 5.3.4。
 
 ## Known Issues
 

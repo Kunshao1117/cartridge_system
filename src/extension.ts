@@ -25,6 +25,7 @@ import { CartridgeCodeLensProvider } from "./codelens-provider";
 import { registerGovernanceViews } from "./governance-views";
 import type { GovernanceViewsController } from "./governance-views";
 import { suggestOwner } from "./smart-owner";
+import { checkForExtensionUpdate } from "./update-checker";
 
 let watcher: CartridgeWatcher | undefined;
 let indexManager: CartridgeIndexManager | undefined;
@@ -34,6 +35,8 @@ let config: ReturnType<typeof createConfig> | undefined;
 let governanceViews: GovernanceViewsController | undefined;
 let codeLensProvider: CartridgeCodeLensProvider | undefined;
 let heartbeatTimer: NodeJS.Timeout | undefined;
+
+const SUPPRESSED_UPDATE_VERSION_KEY = "cartridge.updateCheck.suppressedVersion";
 
 /**
  * 擴充套件啟動（VS Code 開啟含 .agents 工作區時自動呼叫）
@@ -241,6 +244,17 @@ export async function activate(
     ),
   );
 
+  // 命令：手動檢查插件更新
+  context.subscriptions.push(
+    vscode.commands.registerCommand("cartridge.checkForUpdates", async () => {
+      await runUpdateCheck(context, true);
+    }),
+  );
+
+  if (isAutomaticUpdateCheckEnabled()) {
+    void runUpdateCheck(context, false);
+  }
+
   // === 工作區檢查（僅影響初始化，不影響指令） ===
   const workspaceFolders = vscode.workspace.workspaceFolders;
   if (!workspaceFolders || workspaceFolders.length === 0) {
@@ -392,4 +406,64 @@ export async function deactivate(): Promise<void> {
   statusBar?.dispose();
   governanceViews?.dispose();
   codeLensProvider?.dispose();
+}
+
+async function runUpdateCheck(
+  context: vscode.ExtensionContext,
+  manual: boolean,
+): Promise<void> {
+  const currentVersion = String(
+    context.extension.packageJSON?.version ?? "0.0.0",
+  );
+  const result = await checkForExtensionUpdate({ currentVersion });
+
+  if (result.status === "available") {
+    const suppressedVersion = context.globalState.get<string>(
+      SUPPRESSED_UPDATE_VERSION_KEY,
+    );
+    if (!manual && suppressedVersion === result.latestVersion) {
+      return;
+    }
+
+    const choice = await vscode.window.showInformationMessage(
+      `Cartridge System 有新版本 ${result.latestVersion}（目前 ${result.currentVersion}）`,
+      "開啟 Release",
+      "本版不再提醒",
+    );
+
+    if (choice === "開啟 Release" && result.releaseUrl) {
+      await vscode.env.openExternal(vscode.Uri.parse(result.releaseUrl));
+    }
+    if (choice === "本版不再提醒" && result.latestVersion) {
+      await context.globalState.update(
+        SUPPRESSED_UPDATE_VERSION_KEY,
+        result.latestVersion,
+      );
+    }
+    return;
+  }
+
+  if (result.status === "current") {
+    if (manual) {
+      vscode.window.showInformationMessage(
+        `Cartridge System 已是最新版 ${result.currentVersion}`,
+      );
+    }
+    return;
+  }
+
+  const reason = result.reason ?? "未知原因";
+  if (manual) {
+    const level = result.status === "error" ? "錯誤" : "無可用版本";
+    vscode.window.showWarningMessage(`Cartridge 更新檢查${level}：${reason}`);
+    return;
+  }
+
+  console.warn(`[Cartridge] 更新檢查未完成：${reason}`);
+}
+
+function isAutomaticUpdateCheckEnabled(): boolean {
+  return vscode.workspace
+    .getConfiguration("cartridge")
+    .get<boolean>("updateCheck.enabled", true);
 }

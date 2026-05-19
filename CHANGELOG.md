@@ -2,6 +2,16 @@
 
 ## [Unreleased]
 
+## [5.3.4] — 2026-05-19
+
+### feat
+
+- 插件更新檢查 — VSIX 安裝版啟動時會查詢 GitHub Release 最新正式版，若新版 Release 含 `cartridge-system-*.vsix` 則提示開啟 Release；同時新增 `Cartridge：檢查插件更新` 手動命令與 `cartridge.updateCheck.enabled` 啟動檢查設定。
+
+### chore
+
+- 測試覆蓋 — 新增插件更新檢查單元測試與 manifest 設定回歸測試，總測試案例提升至 220 個。
+
 ## [5.3.3] — 2026-05-19
 
 ### feat

@@ -3,7 +3,7 @@ name: extension.governance-sidebar
 description: >
   專案記憶：v5 獨立 Activity Bar 治理側邊欄。Use when: 修改 Cartridge Activity Bar
   container、治理總覽、上下文治理 findings、待處理項目或 VS Code TreeView provider 時載入。
-last_updated: '2026-05-19T05:47:08+08:00'
+last_updated: '2026-05-19T20:29:39+08:00'
 staleness: 0
 status: stable
 metadata:
@@ -42,6 +42,7 @@ metadata:
 - D10: v5.1 `ContextTreeProvider` 的 finding label 改用白話 message，code 放 description，tooltip 顯示 explanation 與 recommendedAction。
 - D11: v5.1 `ActionItemsProvider` tooltip 顯示 reason 與 recommendedAction；ghost command 使用 `affectedPath`，避免白話 label 破壞原本幽靈檔案路徑參數。
 - D12: Unreleased 卡匣機櫃入口 — `package.json` 在 governance overview 與 cartridge explorer 的 view title menu 暴露 `cartridge.openCabinetWorkbench`；本子卡測試只固定 manifest 入口，不追蹤 Webview 本體。
+- D13: v5.3.4 插件更新檢查 — `governance-sidebar.test.ts` 固定 package manifest 已公開 `cartridge.checkForUpdates` 與 `cartridge.updateCheck.enabled`，避免命令面板入口或設定在後續側邊欄 manifest 調整中遺失。
 
 ## Known Issues
 
@@ -54,6 +55,7 @@ metadata:
 - L03: 側邊欄 item 的 `label` 可以給人看，但命令參數必須使用獨立欄位保存原始檔案路徑。
 - L04: `governance-views.ts` 會 import 既有 `treeview-provider.ts` 並被 `extension.ts` import，應歸 extension 父卡，否則記憶卡工程依賴會形成父子循環。
 - L05: Webview 工作台不應放進本卡追蹤；側邊欄卡只測 manifest 入口，避免 TreeView 與 Webview 模組互相污染。
+- L06: manifest 級回歸測試可集中保護命令與設定公開面；若功能本體不屬側邊欄，測試仍可留在本卡作為 package manifest 防線。
 
 ## Relations
 

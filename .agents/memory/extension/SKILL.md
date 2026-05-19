@@ -3,7 +3,7 @@ name: extension
 description: >
   專案記憶：VS Code 外掛入口與 UI 模組。 Use when:
   處理外掛啟動生命週期、指令註冊、狀態列/TreeView/CodeLens/智慧歸屬等 UI 更新時載入。
-last_updated: '2026-05-19T07:09:52+08:00'
+last_updated: '2026-05-19T20:29:33+08:00'
 staleness: 0
 status: stable
 metadata:
@@ -23,6 +23,8 @@ metadata:
 ## Tracked Files
 
 - src/extension.ts
+- src/update-checker.ts
+- src/tests/update-checker.test.ts
 - src/governance-views.ts
 - src/status-bar.ts
 - src/treeview-provider.ts
@@ -65,6 +67,7 @@ metadata:
 - D33: `treeview-provider.ts` 記憶卡節點補上 `vscode.open` command，點擊卡片可直接開啟對應 `SKILL.md`；幽靈檔案仍維持 `cartridge.showGhostFileInfo` 修復指引。
 - D34: `governance-views.ts` 歸 extension 父卡，因它負責註冊 VS Code commands / TreeView providers，且會 import 既有 `treeview-provider.ts`；側邊欄子卡只追蹤 provider/model 純檔案，避免記憶卡依賴循環。
 - D35: `governance-views.ts` 新增 `cartridge.openCabinetWorkbench` 註冊與 `CabinetWorkbenchPanel` 生命週期管理；卡匣機櫃本體歸 `extension.cabinet-workbench` 子卡，父卡只持有入口 glue code。
+- D36: v5.3.4 插件更新檢查 — `src/update-checker.ts` 使用 GitHub Releases latest API 比對本機版本與正式 Release，`extension.ts` 在命令註冊區提供 `cartridge.checkForUpdates`，並於啟動時依設定背景檢查新版 VSIX。
 
 ## Known Issues
 
@@ -81,6 +84,7 @@ metadata:
 - L04: (2026-04-12) 心跳 clearInterval 必須在 deactivate 中明確清除，否則會造成記憶體洩漏。
 - L05: (2026-05-17) 大型 VS Code UI 註冊應抽成 controller（`governance-views.ts`），讓 `activate()` 只保留生命週期編排，避免外掛入口繼續膨脹。
 - L06: 父卡可追蹤 UI 註冊/生命週期 glue code；子卡應追蹤可獨立測試的 provider/model，避免 extension 父卡與子卡互相依賴。
+- L07: 啟動時外部網路檢查必須非阻塞；自動檢查失敗只記錄 console，手動命令才顯示使用者可讀錯誤。
 
 ## Relations
 

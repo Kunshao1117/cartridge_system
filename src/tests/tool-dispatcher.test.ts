@@ -20,6 +20,12 @@ vi.mock("../mcp-handlers.js", () => ({
   })),
 }));
 
+vi.mock("../memory-graph.js", () => ({
+  handleMemoryGraph: vi.fn(async () => ({
+    content: [{ type: "text", text: "memory_graph called" }],
+  })),
+}));
+
 vi.mock("../workspace-brief.js", () => ({
   handleWorkspaceBrief: vi.fn(async () => ({
     content: [{ type: "text", text: "workspace_brief called" }],
@@ -103,6 +109,16 @@ describe("tool-dispatcher — MCP 工具分派與防線", () => {
 
     expect(result.isError).toBeUndefined();
     expect(result.content[0].text).toBe("memory_list called");
+  });
+
+  it("應將 memory_graph 分派到 AI 圖譜 handler", async () => {
+    const result = await dispatchToolCall({
+      name: "memory_graph",
+      args: { projectRoot: "/mock/project" },
+    });
+
+    expect(result.isError).toBeUndefined();
+    expect(result.content[0].text).toBe("memory_graph called");
   });
 
   it("未知工具應回傳統一錯誤 envelope", async () => {

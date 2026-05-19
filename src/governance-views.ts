@@ -1,5 +1,6 @@
 import * as vscode from "vscode";
 import { ActionItemsProvider } from "./action-items-provider.js";
+import { CabinetWorkbenchPanel } from "./cabinet-workbench-panel.js";
 import { auditContextInventory } from "./context-audit.js";
 import { scanContextRegistry } from "./context-registry.js";
 import { ContextTreeProvider } from "./context-tree-provider.js";
@@ -22,6 +23,11 @@ export function registerGovernanceViews(args: {
   const cartridgeTree = new CartridgeTreeProvider(args.indexManager, args.projectRoot);
   const contextTree = new ContextTreeProvider(args.projectRoot);
   const actionItems = new ActionItemsProvider(args.indexManager, args.projectRoot);
+  const cabinetWorkbench = new CabinetWorkbenchPanel({
+    extensionUri: args.context.extensionUri,
+    indexManager: args.indexManager,
+    projectRoot: args.projectRoot,
+  });
   const providers = [overview, cartridgeTree, contextTree, actionItems];
 
   args.context.subscriptions.push(
@@ -32,8 +38,12 @@ export function registerGovernanceViews(args: {
     vscode.commands.registerCommand("cartridge.openGovernanceDashboard", async () => {
       await vscode.commands.executeCommand("workbench.view.extension.cartridgeGovernance");
     }),
+    vscode.commands.registerCommand("cartridge.openCabinetWorkbench", () => {
+      cabinetWorkbench.open();
+    }),
     vscode.commands.registerCommand("cartridge.refreshGovernance", () => {
       for (const provider of providers) provider.refresh();
+      cabinetWorkbench.refresh();
     }),
     vscode.commands.registerCommand("cartridge.contextAudit", async () => {
       const inventory = await scanContextRegistry(args.projectRoot);
@@ -60,9 +70,11 @@ export function registerGovernanceViews(args: {
     cartridgeTree,
     refresh: () => {
       for (const provider of providers) provider.refresh();
+      cabinetWorkbench.refresh();
     },
     dispose: () => {
       for (const provider of providers) provider.dispose();
+      cabinetWorkbench.dispose();
     },
   };
 }

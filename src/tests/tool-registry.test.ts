@@ -11,6 +11,7 @@ describe("tool-registry — MCP 工具名冊", () => {
       "memory_status",
       "memory_commit",
       "memory_deps",
+      "memory_graph",
       "memory_audit",
       "workspace_brief",
       "commit_preflight",
@@ -74,7 +75,7 @@ describe("tool-registry — MCP 工具名冊", () => {
       fs.readFileSync(path.resolve(process.cwd(), "package.json"), "utf-8"),
     );
 
-    expect(packageJson.version).toBe("5.2.0");
+    expect(packageJson.version).toBe("5.3.3");
     expect(packageJson.bin).toEqual({
       "cartridge-system": "dist/mcp-server.js",
       "cartridge-mcp": "dist/mcp-server.js",
@@ -92,6 +93,19 @@ describe("tool-registry — MCP 工具名冊", () => {
     );
     expect(packageJson.files).not.toEqual(
       expect.arrayContaining(["src/**", ".agents/**", ".github/**"]),
+    );
+  });
+
+  it("memory_graph 應是安全啟動的只讀分析工具", () => {
+    const memoryGraph = CARTRIDGE_TOOLS.find((tool) => tool.name === "memory_graph");
+
+    expect(memoryGraph?.readOnly).toBe(true);
+    expect(memoryGraph?.risk).toBe("low");
+    expect(memoryGraph?.capability).toBe("analyze");
+    expect(memoryGraph?.safeForStartup).toBe(true);
+    expect(memoryGraph?.inputSchema.required).not.toContain("projectRoot");
+    expect(memoryGraph?.inputSchema.properties.lens).toEqual(
+      expect.objectContaining({ enum: ["maintenance", "memory", "structure", "all"] }),
     );
   });
 });

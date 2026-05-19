@@ -3,7 +3,7 @@ name: extension.governance-sidebar
 description: >
   專案記憶：v5 獨立 Activity Bar 治理側邊欄。Use when: 修改 Cartridge Activity Bar
   container、治理總覽、上下文治理 findings、待處理項目或 VS Code TreeView provider 時載入。
-last_updated: '2026-05-17T23:41:06+08:00'
+last_updated: '2026-05-19T05:47:08+08:00'
 staleness: 0
 status: stable
 metadata:
@@ -14,6 +14,7 @@ metadata:
   tool_scope:
     - 'filesystem:read'
 ---
+
 # Extension Governance Sidebar — 獨立治理側邊欄
 
 > 本子卡記錄 v5 將 Cartridge UI 從 Explorer 內嵌 view 升級為獨立 Activity Bar 側邊欄的設計、檔案歸屬與 v5.1 白話提示。
@@ -40,10 +41,11 @@ metadata:
 - D09: v5.1 `GovernanceTreeProvider` 改以「AI 開工狀態」、「記憶卡健康」、「幽靈與未歸屬」、「規則檔檢查」呈現總覽，避免暴露 blocking/warning 等工程字眼。
 - D10: v5.1 `ContextTreeProvider` 的 finding label 改用白話 message，code 放 description，tooltip 顯示 explanation 與 recommendedAction。
 - D11: v5.1 `ActionItemsProvider` tooltip 顯示 reason 與 recommendedAction；ghost command 使用 `affectedPath`，避免白話 label 破壞原本幽靈檔案路徑參數。
+- D12: Unreleased 卡匣機櫃入口 — `package.json` 在 governance overview 與 cartridge explorer 的 view title menu 暴露 `cartridge.openCabinetWorkbench`；本子卡測試只固定 manifest 入口，不追蹤 Webview 本體。
 
 ## Known Issues
 
-- 尚未做 Webview 儀表板；v5.0 范圍維持原生 TreeView。
+- 大型卡匣機櫃工作台已拆到 `extension.cabinet-workbench` 子卡；本卡仍只負責原生 TreeView 與側邊欄入口測試。
 
 ## Module Lessons
 
@@ -51,10 +53,12 @@ metadata:
 - L02: Provider 內應只負責 VS Code TreeItem 呈現；摘要與待辦轉換需保留在純 TypeScript model，方便 vitest 不依賴 VS Code runtime。
 - L03: 側邊欄 item 的 `label` 可以給人看，但命令參數必須使用獨立欄位保存原始檔案路徑。
 - L04: `governance-views.ts` 會 import 既有 `treeview-provider.ts` 並被 `extension.ts` import，應歸 extension 父卡，否則記憶卡工程依賴會形成父子循環。
+- L05: Webview 工作台不應放進本卡追蹤；側邊欄卡只測 manifest 入口，避免 TreeView 與 Webview 模組互相污染。
 
 ## Relations
 
 - mcp-tools.context-governance（共用規則檔檢查概念）
+- extension.cabinet-workbench（編輯區卡匣機櫃工作台）
 
 ## Applicable Skills
 

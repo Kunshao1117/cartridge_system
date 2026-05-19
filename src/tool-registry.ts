@@ -60,6 +60,29 @@ const memoryCommitSchema = {
   required: ["moduleName", "confirm"],
 };
 
+const memoryGraphSchema = {
+  type: "object" as const,
+  properties: {
+    projectRoot: projectRootProperty,
+    lens: {
+      type: "string",
+      enum: ["maintenance", "memory", "structure", "all"],
+      description: "圖譜視角；all 會回傳全部連線類型。",
+    },
+    focusModule: {
+      type: "string",
+      description: "可選，限制為指定卡匣與一跳上下游關聯。",
+    },
+    maxCards: {
+      type: "number",
+      minimum: 1,
+      maximum: 200,
+      description: "最多回傳的卡匣數量，預設 80。",
+    },
+  },
+  required: [],
+};
+
 const contextDiffSchema = {
   type: "object" as const,
   properties: {
@@ -139,6 +162,18 @@ export const CARTRIDGE_TOOLS: CartridgeToolDefinition[] = [
     safeForStartup: true,
     expectedLatency: "fast",
     inputSchema: moduleProjectRootSchema,
+  },
+  {
+    name: "memory_graph",
+    description: "輸出 AI 可讀的整體記憶卡匣關聯圖譜摘要。",
+    safetySummary: "只讀圖譜摘要，不讀完整 SKILL.md 原文，不修改記憶卡。",
+    risk: "low",
+    capability: "analyze",
+    readOnly: true,
+    requiresExplicitApproval: false,
+    safeForStartup: true,
+    expectedLatency: "fast",
+    inputSchema: memoryGraphSchema,
   },
   {
     name: "memory_audit",

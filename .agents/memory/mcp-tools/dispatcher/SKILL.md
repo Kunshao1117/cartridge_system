@@ -3,7 +3,7 @@ name: mcp-tools.dispatcher
 description: >
   專案記憶：MCP 工具分派與工具層防線。Use when: 處理 MCP tool routing、unknown tool 錯誤、 high-risk
   tool 明確確認與 dispatcher 測試時載入。
-last_updated: '2026-05-18T19:37:47+08:00'
+last_updated: '2026-05-19T07:59:54+08:00'
 status: stable
 staleness: 0
 dependencies:
@@ -14,6 +14,7 @@ dependencies:
   - mcp-tools.commit-preflight
   - mcp-tools.memory-audit
   - mcp-tools.context-governance
+  - mcp-tools.memory-graph
 metadata:
   author: antigravity
   version: '1.0'
@@ -53,6 +54,8 @@ metadata:
 - D15: v5.2 `tool-workspace.ts` 承接 Gateway-first workspace 注入：`defaultProjectRoot` 由 server 或 Gateway 提供時，dispatcher 會先補齊 `projectRoot` 再進入 handler。
 - D16: v5.2 若可信 workspace 與 `arguments.projectRoot` 正規化後不同，dispatcher 回傳 `workspace_project_root_conflict`，避免多專案 Gateway 呼叫被 tool argument 覆蓋。
 - D17: `core-types` 持有 projectRoot 路徑驗證與工作區身分比較；若 `core-types` 的路徑語義變更，dispatcher 的 Gateway/CLI workspace 注入與衝突判斷必須重新檢查，因此列為 staleness propagation dependency。
+- D18: v5.3.3 dispatcher 加入 `memory_graph` handler map；tools/list 公開後必須確保 tools/call 能路由到 `handleMemoryGraph`。
+- D19: dependency reason — `mcp-tools.memory-graph` 持有 `handleMemoryGraph` export 與工具回傳語義；若該 handler 過期，dispatcher 的路由表與測試 mock 必須重新檢查。
 
 ## Known Issues
 
@@ -69,6 +72,7 @@ metadata:
 - L07: Director 指定 Gateway MCP 真實呼叫時，若 Gateway 工具入口、參數或提示不明，AI 必須先回報卡點並等待授權；不得自行改用 stdio、終端 handler 或其他替代方案宣稱完成原驗證。
 - L08: 新增 MCP tool 時，dispatcher mock 測試必須同步新增 handler mock，否則路由測試會在 import 階段失真。
 - L09: Gateway workspace 與下游 tool argument 屬於兩個信任層；相容舊客戶端時可接受 `projectRoot`，但不能讓它覆蓋 Gateway/CLI 的可信 workspace。
+- L10: 新增只讀工具也要補 dispatcher mock 測試；否則 registry 已公開工具但 routing 測試無法防止 handler map 漏接。
 
 ## Relations
 
@@ -79,6 +83,7 @@ metadata:
 - mcp-tools.commit-preflight（依賴：commit_preflight handler）
 - mcp-tools.memory-audit（依賴：memory_audit handler）
 - mcp-tools.context-governance（依賴：context governance handlers）
+- mcp-tools.memory-graph（依賴：memory_graph handler）
 - core-types（依賴：projectRoot 路徑驗證與工作區身分比較）
 
 ## Applicable Skills

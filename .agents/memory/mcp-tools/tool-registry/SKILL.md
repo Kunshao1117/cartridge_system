@@ -3,7 +3,7 @@ name: tool-registry
 description: >
   專案記憶：MCP 工具名冊與統一回傳契約。Use when: 處理工具風險分級、MCP tools 清單生成、治理 envelope
   或高階工具回傳格式時載入。
-last_updated: '2026-05-18T19:54:13+08:00'
+last_updated: '2026-05-19T07:59:28+08:00'
 status: stable
 staleness: 0
 dependencies:
@@ -52,6 +52,8 @@ metadata:
 - D19: v5.2 公開 inputSchema 保留 `projectRoot` property 但不列為 required；Gateway `workspace` 或 CLI `--workspace` 會由 dispatcher 補入，舊客戶端仍可手動傳入相同路徑。
 - D20: `memory_commit` 的公開 required 欄位維持 `moduleName` 與 `confirm`；projectRoot 選填不代表放寬寫入授權，dispatcher 仍先檢查 `confirm:true`。
 - D21: npm 發布 manifest 測試以 npm 正規化後的 `bin` 與 `repository.url` 為準；`bin` path 使用 `dist/mcp-server.js`，repository 使用 `git+https://github.com/Kunshao1117/cartridge_system.git`。
+- D22: v5.3.2 發版時 `src/tests/tool-registry.test.ts` 的 manifest 版本斷言需與 `package.json` 同步，避免版本升級後測試仍釘在舊版號。
+- D23: v5.3.3 新增第十三個 MCP 工具 `memory_graph`，登錄為 low risk、readOnly、analyze、safeForStartup，用於輸出 AI 可讀整體記憶圖譜摘要。
 
 ## Known Issues
 
@@ -72,6 +74,10 @@ metadata:
 - L11: 安全提示應放在 registry 單一來源，再由 MCP server 公開；不要讓 README、server 與 dispatcher 各自維護不同文字。
 - L12: tools/list schema 應描述呼叫契約，不應重複 Gateway 的工作區欄位；projectRoot 可選化能讓 Gateway-first 使用者少傳一份重複路徑，同時不破壞舊客戶端。
 - L13: `npm publish --dry-run` 在 npm 11 會正規化 package manifest；測試應驗證實際發布形狀，而不是只驗證手寫 JSON 的偏好格式。
+- L14: 發版 bump version 時要同步搜尋測試中的硬編碼版本，尤其是 manifest/pack 白名單測試。
+- L15: (2026-05-19) v5.3.1 版本 bump 後，manifest 測試需同步從 5.3.0 改為 5.3.1，否則全量測試會只剩版本斷言失敗。
+- L16: (2026-05-19) v5.3.2 版本 bump 後，manifest 測試需同步改為 5.3.2；MCP server runtime 版本常數維持既有測試契約，不在卡匣機櫃 VSIX 修補版中擴張範圍。
+- L17: (2026-05-19) 新增 MCP tool 時需同步更新 `CARTRIDGE_TOOLS`、dispatcher handler map、README 工具表、工具數文字與測試硬編碼工具清單。
 
 ## Relations
 
@@ -82,6 +88,7 @@ metadata:
 - mcp-tools.memory-audit（消費 envelope 的完整健檢工具）
 - mcp-tools.dispatcher（消費工具 metadata 並執行明確確認防線）
 - mcp-tools.context-governance（消費工具 metadata 並提供 v5 context tools）
+- mcp-tools.memory-graph（消費 envelope 契約並提供 memory_graph 工具）
 
 ## Applicable Skills
 

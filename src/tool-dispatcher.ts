@@ -5,6 +5,7 @@ import {
   handleMemoryRead,
   handleMemoryStatus,
 } from "./mcp-handlers.js";
+import { handleMemoryGraph } from "./memory-graph.js";
 import {
   createToolEnvelope,
   createToolErrorEnvelope,
@@ -34,6 +35,7 @@ const toolHandlers: Record<string, ToolHandler> = {
   memory_status: handleMemoryStatus,
   memory_commit: handleMemoryCommit,
   memory_deps: handleMemoryDeps,
+  memory_graph: handleMemoryGraph,
   memory_audit: handleMemoryAudit,
   workspace_brief: handleWorkspaceBrief,
   commit_preflight: handleCommitPreflight,

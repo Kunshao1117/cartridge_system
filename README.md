@@ -2,8 +2,8 @@
 
 > **現實感知 AI 記憶防禦引擎** — 自動偵測記憶卡過期、幽靈檔案、跨模組依賴傳播，確保 AI 不讀取失效的上下文。
 
-[![version](https://img.shields.io/badge/version-5.2.0-blue)](./CHANGELOG.md)
-[![tests](https://img.shields.io/badge/tests-195%20passed-brightgreen)](#-執行測試)
+[![version](https://img.shields.io/badge/version-5.3.3-blue)](./CHANGELOG.md)
+[![tests](https://img.shields.io/badge/tests-212%20passed-brightgreen)](#-執行測試)
 [![license](https://img.shields.io/badge/license-MIT-green)](#)
 
 ---
@@ -39,14 +39,15 @@ Cartridge System 是一個為 [Antigravity 框架](https://github.com/Kunshao111
 | 🚨 **警報自動植入** | 過期指數超過閾值時，自動在 SKILL.md 頂部插入攔截警告 |
 | 🟢 **狀態列燈號** | VS Code 狀態列即時顯示記憶卡指標（五層等級：🟢🔵🟡🟠🔴）以及 👻 幽靈計數 |
 | 🌳 **獨立治理側邊欄**| **v5.1 增強** — Activity Bar 新增 Cartridge 入口，內含治理總覽、記憶卡匣、規則檔檢查與待處理項目四個原生 TreeView。 |
+| 🗄️ **卡匣機櫃工作台** | **v5.3.3 改善** — 從 Cartridge 側邊欄開啟編輯區 WebviewPanel，以維護艙、記憶艙、結構艙三種視角呈現卡匣熱度、知識內容與工程結構，並提供加減號、百分比與穩定縮放控制。 |
 | 🔍 **CodeLens 標記**| 編輯器頂部行內標記，即時顯示當前檔案所屬的記憶卡與過期狀態 |
-| 🛠️ **MCP 工具介面** | 提供十二個標準化 AI 工具（記憶治理 + 上下文治理 + 提交前治理），支援跨專案動態路徑解析 |
+| 🛠️ **MCP 工具介面** | 提供十三個標準化 AI 工具（記憶治理 + 上下文治理 + 提交前治理），支援跨專案動態路徑解析 |
 | 📦 **npm MCP Runtime** | **v5.2 新增** — 可用 `npx cartridge-system --workspace ...` 直接啟動 MCP server，方便線上安裝與多專案接入。 |
 | 🧭 **規則檔檢查** | **v5.1 增強** — 掃描 Codex `AGENTS.md`、Claude `CLAUDE.md` / skills / subagents、GitHub Copilot instructions、Antigravity skills 與 `.agents/memory/`，用白話列出規則衝突、原因、相關檔案與建議工具。 |
 | 🧭 **MCP 工具名冊** | **v5.1 增強** — 集中管理工具描述、風險等級、讀寫屬性、授權需求、開工安全性與預期耗時，並驅動 MCP dispatcher 執行路由。 |
 | 🧯 **MCP 工具防線** | **v4.1.1 增強** — 寫入型工具 `memory_commit` 需要 `confirm: true`，由 server dispatcher 層硬性阻擋未確認呼叫。 |
 | 🧪 **依賴語義警告** | **v4.1.1 增強** — `memory_commit` 會檢查 `dependencies` 是否疑似混入父子導覽、技能建議或缺少依賴理由；只產生 warning，不取代 `D:\AI_Rules` 的核心規範。`workspace_brief` 僅揭露依賴總邊數，避免在缺少 SKILL.md 內文時產生誤報。 |
-| 📦 **治理回傳契約** | **v5.0 增強** — 十二個 MCP 工具統一回傳 `status`、`summary`、`findings`、`recommendedActions`、`metadata` 與 `legacy`，方便 AI、Gateway 與插件解析。 |
+| 📦 **治理回傳契約** | **v5.3.3 增強** — 十三個 MCP 工具統一回傳 `status`、`summary`、`findings`、`recommendedActions`、`metadata` 與 `legacy`，方便 AI、Gateway 與插件解析；`memory_graph` 可讓 AI 先讀整體卡匣關聯圖。 |
 | 🧩 **MCP 分層摘要** | **v4.1.1 增強** — `memory_deps` 採標準 envelope 回傳，區分工程依賴、frontmatter 依賴與過期傳播；`workspace_brief` 提供提交 readiness；`commit_preflight` 彙整 dependency semantics warning。 |
 | 🧾 **記憶卡完整健檢** | **v4.1.1 增強** — 新增只讀 `memory_audit`，完整掃描專案記憶卡、索引、Tracked Files、依賴循環與舊格式相容問題；循環報告會區分 frontmatter、engineering 與 persisted index 來源，避免舊索引殘留誤判主要健康狀態。 |
 | 🕸️ **Memory Graph 瘦身** | **v4.1.1 增強** — 抽出共用路徑驗證、時間戳與過期等級工具，降低高階治理工具、索引器與底層 handlers 之間的不必要工程依賴，讓記憶圖譜更貼近真實分層。 |
@@ -67,7 +68,7 @@ Cartridge System 是一個為 [Antigravity 框架](https://github.com/Kunshao111
 3. 在 VS Code / Antigravity 使用 **Install from VSIX** 安裝，或使用 CLI：
 
 ```bash
-antigravity --install-extension cartridge-system-5.2.0.vsix --force
+antigravity --install-extension cartridge-system-5.3.3.vsix --force
 ```
 
 ### 方法二：本機打包安裝
@@ -79,7 +80,7 @@ npm run build
 npm run package
 
 # 使用 Antigravity IDE CLI 安裝（注意：不可用 code 指令）
-antigravity --install-extension cartridge-system-5.2.0.vsix --force
+antigravity --install-extension cartridge-system-5.3.3.vsix --force
 ```
 
 ### 方法三：開發模式
@@ -153,15 +154,15 @@ npm run package
 3. 推送版本 tag：
 
 ```bash
-git tag v5.2.0
-git push origin v5.2.0
+git tag v5.3.3
+git push origin v5.3.3
 ```
 
 GitHub Actions 會自動執行測試、打包 `cartridge-system-*.vsix`、建立或更新 Release，並把 VSIX 掛到 Release 附件。
 
 ### 手動補發
 
-如果需要補發目前版本，進入 GitHub 的 **Actions → Release VSIX → Run workflow**，輸入版本號，例如 `5.2.0` 或 `v5.2.0`。Workflow 會確認輸入版本與 `package.json` 一致，然後重新打包並覆蓋 Release 裡的 VSIX 附件。
+如果需要補發目前版本，進入 GitHub 的 **Actions → Release VSIX → Run workflow**，輸入版本號，例如 `5.3.3` 或 `v5.3.3`。Workflow 會確認輸入版本與 `package.json` 一致，然後重新打包並覆蓋 Release 裡的 VSIX 附件。
 
 ---
 
@@ -179,7 +180,7 @@ npm pack --dry-run --json
 npm publish --dry-run
 ```
 
-`package.json` 的 `files` 白名單只會發布 `dist/*.js`、`assets/**`、README、CHANGELOG 與 LICENSE，避免 `.agents/`、`src/`、測試檔、source map 與 GitHub workflow 進入 npm tarball。正式發布需另外取得 `GO PUBLISH` 授權。
+`package.json` 的 `files` 白名單只會發布 `dist/*.js`、`assets/**`、README、CHANGELOG 與 LICENSE，避免 `.agents/`、`src/`、測試檔、source map 與 GitHub workflow 進入 npm tarball。卡匣機櫃 Webview 前端會被打包成 `dist/cabinet-webview.global.js`。正式發布需另外取得 `GO PUBLISH` 授權。
 
 ---
 
@@ -215,6 +216,7 @@ Cartridge System 提供 MCP（Model Context Protocol）工具伺服器，供 AI 
 | `memory_status` | 查詢過期修復診斷：過期指數、待處理異動、**幽靈檔案清單**及清理行動指引 |
 | `memory_commit` | AI 寫入 SKILL.md 後呼叫，自動完成：時間戳注入、staleness 歸零、索引同步、**幽靈清除**、未歸屬池清理與間接過期重算。**v5.2 強化 Gateway-first workspace 注入，仍要求 `confirm:true`，並保留 moduleName 路徑片段拒絕、格式容錯、I/O 防護與 dependencies 語義警告**。 |
 | `memory_deps` | **v4.1.1 增強** — 查詢卡匣依賴拓樸，分層回傳工程依賴、frontmatter 依賴、過期傳播與循環依賴警告，並保留舊欄位相容；`moduleName` 同樣拒絕路徑片段 |
+| `memory_graph` | **v5.3.3 新增** — 輸出 AI 可讀的整體記憶卡匣關聯圖譜摘要，支援 `maintenance`、`memory`、`structure`、`all` 視角與 `focusModule` 一跳關聯範圍 |
 | `memory_audit` | **v5.1.x 增強** — 只讀完整健檢專案記憶卡，回報舊格式相容、frontmatter 缺欄位、Tracked Files 問題、索引漂移、依賴循環、dependencies 語義可疑項，以及 `staleness=0` 但 `pendingChanges` 未清的索引同步異常；主要循環依據即時 frontmatter / engineering graph，舊索引循環只作診斷 |
 | `workspace_brief` | **v5.1 增強** — 彙整專案身份、記憶卡健康、規則檔提醒、AI 開工狀態、提交前提醒與建議下一步 |
 | `commit_preflight` | **v4.1.1 新增** — 提交前治理檢查，彙整 git dirty state、記憶卡健康阻塞、dependency semantics warning、建議行動與驗證命令 |
@@ -225,7 +227,7 @@ Cartridge System 提供 MCP（Model Context Protocol）工具伺服器，供 AI 
 
 ### MCP 工具回傳格式
 
-十二個 MCP 工具都採用統一 envelope，方便 AI、Gateway 與未來插件 UI 穩定解析：
+十三個 MCP 工具都採用統一 envelope，方便 AI、Gateway 與未來插件 UI 穩定解析：
 
 ```json
 {
@@ -255,7 +257,7 @@ Cartridge System 提供 MCP（Model Context Protocol）工具伺服器，供 AI 
 | MCP stdio 協議 E2E | 驗證 `dist/mcp-server.js` 真的能透過 MCP JSON-RPC 對外提供工具 | 啟動 `node dist/mcp-server.js --workspace <projectRoot>`，呼叫 `initialize`、`tools/list`、`tools/call` |
 | Gateway 真實工具入口 | 驗證 `multi-mcp-gateway` 能找到並呼叫 `cartridge-system` 工具 | 呼叫 `cartridge-system__workspace_brief`、`cartridge-system__commit_preflight`、`cartridge-system__memory_audit`；`arguments.projectRoot` 可省略，由 Gateway `workspace` 補入 |
 
-目前已實測：MCP stdio `tools/list` 會列出十二個工具；`memory_audit`、`workspace_brief`、`commit_preflight` 在乾淨工作樹下回傳 ready；`memory_audit` 可偵測 `staleness=0` 但 `pendingChanges` 未清的索引漂移。Gateway 呼叫時以每次 `workspace` 作為可信工作區，若 `arguments.projectRoot` 同時存在且不同，dispatcher 會拒絕呼叫。
+目前已實測：MCP stdio `tools/list` 會列出十三個工具；`memory_audit`、`workspace_brief`、`commit_preflight` 在乾淨工作樹下回傳 ready；`memory_audit` 可偵測 `staleness=0` 但 `pendingChanges` 未清的索引漂移。Gateway 呼叫時以每次 `workspace` 作為可信工作區，若 `arguments.projectRoot` 同時存在且不同，dispatcher 會拒絕呼叫。
 
 ### 跨專案支援
 
@@ -281,6 +283,14 @@ memory_deps({
   projectRoot: 'D:\\cartridge_system'
 })
 // → 回傳標準 envelope；summary.graph 區分工程依賴與 frontmatter 依賴，legacy 保留舊欄位
+
+// 讀取 AI 可理解的整體卡匣關聯圖
+memory_graph({
+  projectRoot: 'D:\\cartridge_system',
+  lens: 'all',
+  focusModule: 'mcp-tools'
+})
+// → 回傳 overview、cards、lines 與 aiReadingGuide，細節原文仍交給 memory_read
 
 // 完整記憶卡健檢
 memory_audit({
@@ -329,6 +339,7 @@ memory_commit({
 | `記憶卡匣：查看幽靈詳情` | **v4.1.1 新增** — 針對選定的幽靈檔案彈出 Modal 診斷報告與修復指引 |
 | `記憶卡匣：歸屬到記憶卡…` | 透過 QuickPick 介面將當前檔案或選定檔案一鍵歸檔至目標記憶卡 |
 | `Cartridge：開啟治理總覽` | **v5.0 新增** — 聚焦左側 Activity Bar 的 Cartridge 獨立治理側邊欄 |
+| `Cartridge：開啟卡匣機櫃` | **v5.3.3 改善** — 在編輯區開啟卡匣機櫃工作台，提供維護艙、記憶艙與結構艙三種模式，並支援加減號、百分比與穩定縮放 |
 | `Cartridge：重新整理治理側邊欄` | **v5.0 新增** — 重新整理治理總覽、記憶卡匣、上下文治理與待處理項目 |
 | `Cartridge：查看上下文治理報告` | **v5.1 增強** — 在輸出面板顯示規則檔檢查結果、相關檔案與建議工具 |
 
@@ -344,15 +355,16 @@ npm test
 npm run test:watch
 ```
 
-測試涵蓋 22 個測試檔案（**195 個案例**）：
+測試涵蓋 26 個測試檔案（**212 個案例**）：
 
 | 測試模組 | 案例數 | 涵蓋範圍 |
 |----------|--------|----------|
 | 索引管理器 | 22 | 掃描、addPendingChange 去重、getChildren、resolveModulePath、空追蹤卡誤報防護、未歸屬池 refilter 自動清理 |
-| MCP 工具介面 | 75 | 正常流程、Gateway-first workspace 注入、workspace/projectRoot 衝突拒絕、CLI `--workspace` 解析、路徑穿越防禦、moduleName 路徑片段拒絕、handler 層 `confirm:true` 驗證、時間戳驗證、過期狀態診斷、十二工具 envelope 契約、memory_commit 後設同步、workspace_brief 專案健康摘要、AI 開工狀態、提交 readiness、commit_preflight 提交前治理檢查與 dependency semantics 摘要、**標題錯字偵測 (HEADING_TYPO)**、**路徑格式驗證 (PATH_ABSOLUTE / PATH_TRAVERSAL)**、**dependencies 語義警告**、**未歸屬池清理**、**fileMap 同步**、**間接過期重算**、**警告區塊自動清除** |
+| MCP 工具介面 | 75 | 正常流程、Gateway-first workspace 注入、workspace/projectRoot 衝突拒絕、CLI `--workspace` 解析、路徑穿越防禦、moduleName 路徑片段拒絕、handler 層 `confirm:true` 驗證、時間戳驗證、過期狀態診斷、十三工具 envelope 契約、memory_commit 後設同步、workspace_brief 專案健康摘要、AI 開工狀態、提交 readiness、commit_preflight 提交前治理檢查與 dependency semantics 摘要、**標題錯字偵測 (HEADING_TYPO)**、**路徑格式驗證 (PATH_ABSOLUTE / PATH_TRAVERSAL)**、**dependencies 語義警告**、**未歸屬池清理**、**fileMap 同步**、**間接過期重算**、**警告區塊自動清除** |
 | 監聽引擎 | 3 | `SKILL.md` 變更後重新 scan、refilter untracked、flush index 並觸發側邊欄刷新；`.agents/memory` 被 `.gitignore` 覆蓋時仍優先處理記憶卡變更；Windows 路徑分隔符不會阻斷 pending/ghost 清理 |
 | 規則檔檢查 | 4 | 多代理指令掃描、規則來源摘要、提交授權衝突 blocking、context_diff 訊號比對與語言提醒 |
-| 治理側邊欄 | 4 | Activity Bar view container、四個 Cartridge TreeView、公開 commands、governance summary 與白話 action items 轉換 |
+| 治理側邊欄 | 5 | Activity Bar view container、四個 Cartridge TreeView、卡匣機櫃入口、公開 commands、governance summary 與白話 action items 轉換 |
+| 卡匣機櫃工作台 | 9 | 卡匣工作台模型、三模式統計、metadata note 連線、V2 metadata 相容解析、Webview HTML/CSP、圖譜 viewport 保存、layout reason 判斷與百分比縮放 helper |
 | 記憶卡完整健檢 | 6 | memory_audit 現代格式 ready、舊格式 compatibility warning、缺索引 fallback、frontmatter 依賴循環 finding、舊索引循環診斷不誤報主要 cycle、staleness 歸零但 pendingChanges 未清的索引漂移 |
 | 過期分析器 | 11 | 過期等級四分支、三種事件計分、閾值觸發 |
 | 路徑安全驗證 | 10 | 絕對/相對路徑、穿越攻擊拒絕、工作區身分比較 |
@@ -364,8 +376,9 @@ npm run test:watch
 | 依賴語義檢查器 | 6 | dependency reason、父子導覽可疑、技能名稱混用、Relations 鏡像可疑、warning 格式 |
 | 過期等級工具 | 5 | healthy、mild、significant、critical 邊界轉換與 config 閾值語義 |
 | 依賴拓樸輸出 | 1 | memory_deps 標準 envelope、工程依賴、frontmatter 依賴與 legacy 欄位相容 |
-| MCP 工具名冊 | 5 | 工具登錄完整性、projectRoot 選填公開契約、npm bin/pack 白名單、寫入型工具授權要求、開工安全性與工具安全說明 |
-| MCP 工具分派 | 11 | registry-driven routing、Gateway workspace 注入、workspace/projectRoot 衝突錯誤、unknown tool envelope、memory_commit 明確確認防線、v5 context governance 工具路由 |
+| AI 記憶圖譜輸出 | 5 | memory_graph all lens、memory lens、focusModule 一跳關聯、maxCards 截斷與 module_not_found 錯誤 |
+| MCP 工具名冊 | 6 | 工具登錄完整性、projectRoot 選填公開契約、npm bin/pack 白名單、寫入型工具授權要求、開工安全性、工具安全說明與 memory_graph schema |
+| MCP 工具分派 | 12 | registry-driven routing、Gateway workspace 注入、workspace/projectRoot 衝突錯誤、unknown tool envelope、memory_commit 明確確認防線、memory_graph 路由與 v5 context governance 工具路由 |
 | MCP Server CLI | 5 | `--workspace`、`--workspace=...`、`--help`、`--version` 與未知參數錯誤 |
 | MCP 回傳契約 | 2 | envelope 包裝、錯誤格式、台灣時區 metadata 與 legacy 相容欄位 |
 
@@ -388,6 +401,7 @@ cartridge_system/
 │   ├── commit-preflight.ts   # 提交前治理檢查工具（MCP handler）
 │   ├── commit-preflight-summary.ts # 提交阻塞與建議行動規則引擎
 │   ├── memory-audit.ts       # 專案記憶卡完整健檢工具（只讀）
+│   ├── memory-graph.ts       # AI 可讀的整體記憶卡匣關聯圖譜工具
 │   ├── memory-compatibility.ts # 舊格式相容模式提醒規則
 │   ├── context-types.ts      # v5 規則檔檢查共用型別
 │   ├── context-registry.ts   # v5 AI 規則來源清冊掃描器
@@ -397,6 +411,13 @@ cartridge_system/
 │   ├── governance-tree-provider.ts # v5 治理總覽 TreeView
 │   ├── context-tree-provider.ts # v5 規則檔檢查 findings TreeView
 │   ├── action-items-provider.ts # v5 stale/ghost/untracked/context 待處理項目 TreeView
+│   ├── cabinet-workbench-panel.ts # 卡匣機櫃 WebviewPanel 入口
+│   ├── cabinet-workbench-model.ts # 卡匣工作台模型組裝
+│   ├── cabinet-workbench-derive.ts # 三模式統計、分數與記憶連線推導
+│   ├── cabinet-memory-metadata.ts # V2 記憶卡 metadata 與舊格式章節解析
+│   ├── cabinet-workbench-html.ts # 卡匣機櫃 Webview HTML/CSP
+│   ├── cabinet-graph-viewport.ts # 卡匣圖譜視角保存與 layout 判斷
+│   ├── cabinet-webview.ts # 卡匣機櫃前端互動與 Cytoscape 視覺化
 │   ├── index-manager.ts      # 記憶索引管理器（路徑掃描 + 反向映射 + 依賴推導）
 │   ├── import-resolver.ts    # 🆕 輕量 import 路徑掃描器（ES/動態/CJS）
 │   ├── dependency-propagator.ts # 🆕 依賴圖引擎（建構 + 傳播 + 循環偵測）
@@ -412,7 +433,9 @@ cartridge_system/
 │   ├── path-guard.ts         # 路徑安全驗證（雙層防禦）
 │   ├── timestamp.ts          # 時間戳生成（Intl API）
 │   ├── types.ts              # 共用型別定義（含 ghostFiles、dependencies）
-│   └── tests/                # vitest 單元測試（22 檔 195 案例）
+│   └── tests/                # vitest 單元測試（26 檔 212 案例）
+├── scripts/
+│   └── package-vsix.mjs      # VSIX 打包 wrapper（使用 package.json files 白名單）
 ├── .agents/
 │   ├── memory/               # 記憶卡匣（獨立目錄）
 │   │   ├── _system/          # 系統記憶
@@ -427,6 +450,7 @@ cartridge_system/
 │   │       ├── handlers/     # 底層 memory_* handler
 │   │       ├── tool-registry/# MCP 工具名冊與統一回傳契約
 │   │       ├── dispatcher/   # MCP 工具分派與 guardrail
+│   │       ├── memory-graph/ # AI 可讀記憶圖譜工具
 │   │       ├── memory-audit/ # 記憶卡完整健檢工具
 │   │       └── context-governance/ # v5 規則檔檢查工具
 │   ├── skills/               # 操作技能（框架提供）
@@ -435,8 +459,8 @@ cartridge_system/
 
 > 💡 **治理備註**：`.agents/` 目錄在 Git 中採取「白名單模式」，僅追蹤 `memory/` 核心卡匣，其餘殘留檔案（如 Workflows/Skills）預設不納入版本控制以保持儲存庫輕量化。
 
-├── CHANGELOG.md              # v5.2.0 npm MCP runtime 與 Gateway-first workspace
-└── package.json              # v5.2.0
+├── CHANGELOG.md              # v5.3.3 卡匣機櫃縮放控制與 AI 記憶圖譜工具
+└── package.json              # v5.3.3
 ```
 
 ### 技術堆疊
@@ -448,7 +472,8 @@ cartridge_system/
 | 檔案監聽 | VS Code 原生 FileSystemWatcher |
 | YAML 解析 | gray-matter |
 | MCP SDK | @modelcontextprotocol/sdk |
-| 打包 | tsup（CJS 輸出，vscode external） |
+| 打包 | tsup（Extension/MCP 為 CJS，卡匣機櫃 Webview 為瀏覽器 IIFE） |
+| Webview 視覺化 | cytoscape |
 | 測試 | vitest |
 | 知識圖譜 | GitNexus 1.6.4 (pnpm 整合) |
 | 程式碼品質 | ESLint v9 + @typescript-eslint |

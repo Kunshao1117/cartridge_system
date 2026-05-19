@@ -1,7 +1,7 @@
 {
   "name": "cartridge-system",
   "displayName": "記憶卡匣監控系統",
-  "version": "5.2.0",
+  "version": "5.3.3",
   "description": "記憶卡匣動態熱處理外掛 — 主動式檔案監聽與記憶過期防禦系統",
   "publisher": "cartridge-system",
   "repository": {
@@ -58,6 +58,10 @@
         "title": "Cartridge：開啟治理總覽"
       },
       {
+        "command": "cartridge.openCabinetWorkbench",
+        "title": "Cartridge：開啟卡匣機櫃"
+      },
+      {
         "command": "cartridge.refreshGovernance",
         "title": "Cartridge：重新整理治理側邊欄"
       },
@@ -104,6 +108,18 @@
       ]
     },
     "menus": {
+      "view/title": [
+        {
+          "command": "cartridge.openCabinetWorkbench",
+          "group": "navigation@0",
+          "when": "view == cartridgeGovernanceOverview"
+        },
+        {
+          "command": "cartridge.openCabinetWorkbench",
+          "group": "navigation@0",
+          "when": "view == cartridgeExplorer"
+        }
+      ],
       "explorer/context": [
         {
           "command": "cartridge.attributeFile",
@@ -117,7 +133,7 @@
     "dev": "tsup --watch",
     "build": "tsup",
     "lint": "eslint src/",
-    "package": "vsce package",
+    "package": "node scripts/package-vsix.mjs",
     "prepublishOnly": "npm run lint && npm test && npm run build && npx tsc --noEmit && npm pack --dry-run",
     "test": "vitest run",
     "test:watch": "vitest"
@@ -135,6 +151,7 @@
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.0.1",
+    "cytoscape": "^3.33.3",
     "gray-matter": "^4.0.3",
     "ignore": "^7.0.5"
   }

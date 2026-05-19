@@ -3,7 +3,7 @@ name: _assets
 scopePath: null
 description: |
   專案記憶：靜態檔案與一般文檔收納。 Use when: 處理不需要業務邏輯追蹤的靜態圖檔、授權文件或更新日誌等。
-last_updated: '2026-05-18T19:54:21+08:00'
+last_updated: '2026-05-19T08:00:20+08:00'
 status: stable
 staleness: 0
 metadata:
@@ -42,6 +42,12 @@ metadata:
 - L18: (2026-05-18) README.md 新增 GitHub Releases 下載入口、tag 自動發版與 Actions 手動補發說明；CHANGELOG.md 新增 Unreleased 的 VSIX 自動發版紀錄。
 - L19: (2026-05-18) README.md 與 CHANGELOG.md 已同步穩定性強化：npm audit 歸零、Windows `ComSpec` 修復、moduleName 路徑片段防線、memory_audit 索引漂移偵測、Gateway 未註冊限制，以及 21 個測試檔案 / 181 個測試案例。
 - L20: (2026-05-18) README.md 與 CHANGELOG.md 已同步 v5.2 npm MCP runtime 與 Gateway-first workspace：新增 `npx cartridge-system --workspace`、projectRoot 選填契約、npm dry-run 發布流程、npm manifest 正規化紀錄、22 個測試檔案 / 195 個測試案例。
+- L21: (2026-05-19) README.md 與 CHANGELOG.md 已同步卡匣機櫃工作台：新增編輯區 WebviewPanel、Cytoscape bundle、`cartridge.openCabinetWorkbench` 入口、24 個測試檔案 / 199 個測試案例。
+- L22: (2026-05-19) README.md 與 CHANGELOG.md 已將卡匣機櫃工作台收斂為 v5.3.0 發行版，安裝命令、tag 範例、版本 badge 與 CHANGELOG 標題皆同步至 `5.3.0`。
+- L23: (2026-05-19) README.md 與 CHANGELOG.md 已同步 VSIX 打包腳本：`npm run package` 現在透過 `scripts/package-vsix.mjs` 使用 `package.json.files` 單一白名單並覆蓋同版本 VSIX。
+- L24: (2026-05-19) README.md 與 CHANGELOG.md 已同步 v5.3.1 卡匣機櫃三艙位重設計、200 個測試案例、`cabinet-workbench-derive.ts` 架構樹與 `cartridge-system-5.3.1.vsix` 安裝命令。
+- L25: (2026-05-19) README.md 與 CHANGELOG.md 已同步 v5.3.2 卡匣機櫃圖譜縮放/平移修復、25 個測試檔案、204 個測試案例、`cabinet-graph-viewport.ts` 架構樹與 `cartridge-system-5.3.2.vsix` 安裝命令。
+- L26: (2026-05-19) README.md 與 CHANGELOG.md 已同步 v5.3.3 卡匣機櫃縮放控制與 `memory_graph` 工具、26 個測試檔案、212 個測試案例、`memory-graph.ts` 架構樹與 `cartridge-system-5.3.3.vsix` 安裝命令。
 - L03: (2026-05-14) README 已補齊 `workspace_brief` 與 `commit_preflight` 高階 MCP 工具說明，並同步測試數 123 passed 與架構樹新檔案。
 - L04: (2026-05-14) CHANGELOG 已新增 2026-05-14 治理工具、依賴衰減、MCP 版本同步與 GitNexus CLI 修復紀錄。
 - L05: (2026-05-14) README 已同步 MCP 工具名冊、統一治理回傳 envelope、測試數 128 passed 與新架構檔案。

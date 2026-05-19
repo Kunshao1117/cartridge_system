@@ -2,7 +2,7 @@
 name: _system
 description: |
   專案記憶：系統技術堆疊與部署設定。 Use when: 確認技術選型、環境設定、部署組態時載入。
-last_updated: '2026-05-18T19:54:03+08:00'
+last_updated: '2026-05-19T08:00:14+08:00'
 status: stable
 staleness: 0
 metadata:
@@ -24,7 +24,6 @@ metadata:
 - eslint.config.js
 - vitest.config.ts
 - package-lock.json
-- .vscodeignore
 - .github/workflows/release.yml
 
 ## Runtime & Host
@@ -39,17 +38,18 @@ metadata:
 - Framework: **VS Code Extension API**
 - File Watcher: **VS Code 原生 FileSystemWatcher**（v2.0 棄用 chokidar）
 - YAML Parser: `gray-matter`
-- Build: `tsup` v8.5.1（CJS 輸出）
+- Build: `tsup` v8.5.1（Extension/MCP 為 CJS；卡匣機櫃 Webview 為 browser IIFE）
 - Linter: `eslint` v9.x + `@typescript-eslint` v8.x（Flat Config）
 - Test: `vitest`
 - Config: JSON
+- Webview Visualization: `cytoscape`
 
 ## VS Code Extension & MCP
 
 - Entry: `src/extension.ts` 及 `src/mcp-server.ts`
 - Output: `dist/extension.js` 及 `dist/mcp-server.js`
 - Activation: `workspaceContains:.agents` + `onStartupFinished`
-- Commands: `cartridge.scan`、`cartridge.status`、`cartridge.scanGhosts`、`cartridge.attributeFile`、`cartridge.showGhostFileInfo`、`cartridge.openGovernanceDashboard`、`cartridge.refreshGovernance`、`cartridge.contextAudit`
+- Commands: `cartridge.scan`、`cartridge.status`、`cartridge.scanGhosts`、`cartridge.attributeFile`、`cartridge.showGhostFileInfo`、`cartridge.openGovernanceDashboard`、`cartridge.openCabinetWorkbench`、`cartridge.refreshGovernance`、`cartridge.contextAudit`
 - Views Container: `cartridgeGovernance` (Activity Bar，v5.0 新增)
 - Views: `cartridgeGovernanceOverview`、`cartridgeExplorer`、`cartridgeContextExplorer`、`cartridgeActionItems`
 - Engine: `vscode ^1.85.0`
@@ -58,6 +58,7 @@ metadata:
 ## Dependencies（生產）
 
 - `@modelcontextprotocol/sdk` ^1.0.1
+- `cytoscape` ^3.33.3
 - `gray-matter` ^4.0.3
 - `ignore` ^7.0.5
 
@@ -72,12 +73,11 @@ metadata:
 
 ## Config Files
 
-- `package.json` — VS Code Extension 元數據（含 activationEvents / contributes），當前版本 **5.2.0**；同時公開 `cartridge-system` / `cartridge-mcp` npm bin 指向 `dist/mcp-server.js`，repository URL 採 npm 正規化後的 `git+https://...`
+- `package.json` — VS Code Extension 元數據（含 activationEvents / contributes），當前版本 **5.3.3**；同時公開 `cartridge-system` / `cartridge-mcp` npm bin 指向 `dist/mcp-server.js`，`files` 同時作為 npm 與 VSIX 發布白名單，`npm run package` 委派 `scripts/package-vsix.mjs`，repository URL 採 npm 正規化後的 `git+https://...`
 - `tsconfig.json` — CommonJS + node 模組解析
-- `tsup.config.ts` — entry: extension.ts / format: cjs / external: vscode / noExternal: gray-matter, ignore（v3.0 已移除 onSuccess 範本複製邏輯）
+- `tsup.config.ts` — entry: extension.ts / mcp-server.ts 使用 cjs；cabinet-webview.ts 使用 browser iife；external: vscode / noExternal: gray-matter、ignore、cytoscape
 - `eslint.config.js` — ESLint v9 Flat Config（CJS 格式，@typescript-eslint）
-- `.vscodeignore` — VSIX 打包排除清單（含 .agents/ 排除）
-- `package.json files` — npm runtime 發布白名單：`dist/*.js`、`assets/**`、README、CHANGELOG、LICENSE；排除 `.agents/`、`src/`、測試、source map 與 GitHub workflow
+- `package.json files` — npm runtime 發布白名單：`dist/*.js`、`assets/**`、README、CHANGELOG、LICENSE；排除 `.agents/`、`src/`、測試、source map 與 GitHub workflow；卡匣機櫃 Webview 產物為 `dist/cabinet-webview.global.js`
 - `.github/workflows/release.yml` — VSIX 自動發版流程：推送 `v*` tag 或手動輸入版本後執行 test/lint/build/package，並建立或更新 GitHub Release 附件
 - `.cartridge/index.json` — 執行期產生（索引檔）
 
@@ -105,7 +105,7 @@ D14: v4.0.1 狀態列 Tooltip 幽靈感知修復 — 補齊狀態列懸浮健康
 
 ### D15
 
-D15: VSIX 發布自動化 — GitHub Actions `Release VSIX` workflow 成為正式插件發布入口。推送 `v*` tag 或手動輸入版本會執行 `npm ci`、測試、lint、build、package，並將 `cartridge-system-*.vsix` 建立或覆蓋到 GitHub Release；workflow 不自動 bump version、不自動 commit。`.vscodeignore` 需納入版本控制，確保 CI 打包時保留相同排除規則。
+D15: VSIX 發布自動化 — GitHub Actions `Release VSIX` workflow 成為正式插件發布入口。推送 `v*` tag 或手動輸入版本會執行 `npm ci`、測試、lint、build、package，並將 `cartridge-system-*.vsix` 建立或覆蓋到 GitHub Release；workflow 不自動 bump version、不自動 commit。打包白名單由 `package.json.files` 統一持有。
 
 ### D16
 
@@ -114,6 +114,20 @@ D16: 安全依賴採 lockfile 內相容修補優先 — `npm audit fix --package
 ### D17
 
 D17: v5.2 npm MCP runtime — package 版本升至 5.2.0，新增 `bin`、`files` 與 `prepublishOnly`，正式 publish 前會跑 lint/test/build/tsc/pack dry-run；VSIX extension manifest 仍留在同一 package。
+
+### D18
+
+D18: v5.3.0 卡匣機櫃工作台 — 新增 `cytoscape` 生產依賴與 browser IIFE tsup build，讓 VS Code 編輯區 WebviewPanel 可載入 `dist/cabinet-webview.global.js`，同時保留 Extension/MCP CJS 輸出。
+
+D19: v5.3.1 VSIX 打包 — 本版發行以 `cartridge-system-5.3.1.vsix` 作為本機安裝檔，打包前需先同步 `package.json`、`package-lock.json`、README 與 CHANGELOG 的版本號。
+
+D20: VSIX / npm 發布策略收斂 — `package.json.files` 同時作為 npm runtime 與 VSIX 打包白名單；`scripts/package-vsix.mjs` 負責覆蓋同版本 VSIX 並直接呼叫本機 VSCE CLI。
+
+D21: v5.3.1 為卡匣機櫃工作台 UI 修正版，僅 bump package/package-lock 版本並沿用 v5.3.0 的依賴與打包白名單。
+
+D22: v5.3.2 為卡匣機櫃圖譜縮放與可讀性修正版；package/package-lock、README、CHANGELOG 與 VSIX 檔名同步至 5.3.2，Webview bundle 仍由 `tsup` browser IIFE 輸出。
+
+D23: v5.3.3 為卡匣機櫃縮放控制與 AI 記憶圖譜工具版；package/package-lock、README、CHANGELOG 與 VSIX 檔名同步至 5.3.3，MCP server runtime 版本常數仍維持既有契約。
 
 ## Known Issues
 
@@ -141,6 +155,11 @@ D17: v5.2 npm MCP runtime — package 版本升至 5.2.0，新增 `bin`、`files
 - L18: (2026-05-18) — 安全修補不一定需要調整 `package.json` direct ranges；先用 lockfile 相容更新清除 npm audit，再評估是否另做 major upgrade。
 - L19: (2026-05-18) — 同 repo 兼任 VS Code extension 與 npm MCP runtime 時，npm `files` 白名單要保留 `assets/**`，因 package manifest 仍引用 extension icon / Activity Bar 圖示。
 - L20: (2026-05-18) — `npm publish --dry-run` 會正規化 package manifest；本 repo 以 `git+https://...` repository URL 與不含 `./` 的 bin path 作為發布前測試契約。
+- L21: (2026-05-19) — Webview 前端不能依賴 VSIX 內的 `node_modules`；視覺化依賴要透過 tsup 打進 `dist/*.js`，才能符合 `package.json.files` 白名單。
+- L22: (2026-05-19) — VSCE 3.x 偵測到 `.vscodeignore` 與 `package.json.files` 同時存在會直接中止；本 repo 改由 `package.json.files` 作為單一白名單來源。
+- L23: (2026-05-19) — 版本號升級需同步 package-lock 根層版本、README 安裝命令、CHANGELOG 版本段落與本機 VSIX 檔名。
+- L24: (2026-05-19) — v5.3.2 打包前需確認 `cabinet-graph-viewport.ts` 已歸卡，否則 `commit_preflight` 會以未歸屬 source file 阻塞提交。
+- L25: (2026-05-19) — VSIX/package 修補版可升 package 版本但不必同步改 `MCP_SERVER_VERSION`，除非本次發行目標包含 npm runtime 版本宣告。
 
 ## Applicable Skills
 

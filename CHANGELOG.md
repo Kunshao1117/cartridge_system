@@ -2,8 +2,47 @@
 
 ## [Unreleased]
 
+## [5.3.3] — 2026-05-19
+
 ### feat
 
+- AI 記憶圖譜工具 — 新增只讀 `memory_graph` MCP 工具，輸出整體卡匣 overview、cards、lines 與 `aiReadingGuide`，支援三艙位視角與 `focusModule` 一跳關聯範圍。
+- 卡匣機櫃縮放控制 — 圖譜右下角新增縮小、百分比、放大控制，點百分比可回到 100%，並加快滾輪縮放速度。
+
+### chore
+
+- 測試覆蓋 — 新增 `memory_graph`、縮放百分比 helper、工具名冊與 dispatcher 路由回歸測試，總測試案例提升至 212 個。
+
+## [5.3.2] — 2026-05-19
+
+### fix
+
+- 卡匣機櫃圖譜穩定性 — 修復縮放或平移後因重新 layout 跳回原始位置的問題，三個艙位會各自保存視角，點選卡匣只更新詳情與聚焦狀態。
+- 卡匣機櫃可讀性 — 放大中央圖譜節點與文字、提高連線對比並降低格線干擾，讓卡匣與上下游關係在一般視窗大小下更容易辨識。
+- 工作台控制語意 — 將右下角 `FIT` / `R` 改為 `重置視角` / `刷新資料`，保留 tooltip 與 aria-label。
+
+### chore
+
+- 測試覆蓋 — 新增圖譜 viewport helper 回歸測試，補強控制文字驗收，總測試案例提升至 204 個。
+
+## [5.3.1] — 2026-05-19
+
+### fix
+
+- 卡匣機櫃工作台視覺重設計 — 將原本差異不明顯的三顆模式按鈕改為左側三艙位模式艙門，維護艙、記憶艙、結構艙會分別切換統計、篩選、圖譜樣式、layout 與右側詳情面板。
+- 記憶艙差異修復 — 新增工作台專用推導層，從 metadata 的 tags、concepts、aliases 與 Relations 產生 note 記憶連線，並以記憶分數驅動節點呈現，避免記憶模式只剩卡槽線。
+- 卡匣聚焦互動 — 點選卡匣後會聚光選中節點、標示相鄰卡匣與上下游連線，並淡化無關節點，讓搜尋與篩選後的上下文更清楚。
+
+### chore
+
+- 測試覆蓋 — 補強卡匣機櫃三模式統計、metadata note 連線與新版 Webview HTML 結構測試，總測試案例提升至 200 個。
+
+## [5.3.0] — 2026-05-19
+
+### feat
+
+- 卡匣機櫃工作台 — 新增 `Cartridge：開啟卡匣機櫃`，從側邊欄入口在編輯區開啟 WebviewPanel，以卡匣、卡槽、訊號線與熱度線呈現記憶卡關係。
+- 工作台資料模型 — 新增卡匣工作台模型與 V2 metadata 相容解析，優先讀取 `title`、`summary`、`tags`、`concepts`、`aliases`，缺失時回退到既有記憶卡描述與章節。
 - Gateway-first workspace — MCP dispatcher 會以 Gateway 每次呼叫提供的 `workspace` 或 CLI `--workspace` 補齊 `projectRoot`；若可信 workspace 與 `arguments.projectRoot` 不一致，會回傳 `workspace_project_root_conflict`，避免多專案路徑污染。
 - npm MCP runtime — package 新增 `cartridge-system` / `cartridge-mcp` bin，可用 `npx cartridge-system --workspace <projectRoot>` 啟動 MCP server；MCP server 同步支援 `--help`、`--version` 與 `--workspace`。
 - 公開 schema 相容 — 十二個 MCP tools/list schema 保留 `projectRoot` 欄位但不再列為 required，讓 Gateway / CLI 可集中補路徑，同時維持舊客戶端手動傳參相容。
@@ -19,10 +58,12 @@
 ### chore
 
 - npm 發布白名單 — `package.json` 新增 `files` 與 `prepublishOnly`，npm tarball 僅包含 runtime JS、assets 與公開文件，避免 `.agents/`、`src/`、測試、source map 與 GitHub workflow 被發布。
+- VSIX 打包腳本 — `npm run package` 改由 `scripts/package-vsix.mjs` 執行，統一使用 `package.json.files` 白名單並可重複覆蓋同版本 VSIX。
 - npm manifest 正規化 — package repository URL 與 `bin` path 對齊 `npm publish --dry-run` 實際正規化結果，避免發布前測試與 npm 產物形狀不一致。
+- 打包白名單收斂 — 移除與 `package.json.files` 互斥的 `.vscodeignore`，避免 VSCE 3.x 在本機與 GitHub Actions 打包時中止。
 - VSIX 自動發版 — 新增 GitHub Actions 發布流程，支援推送 `v*` tag 自動建立 / 更新 Release，也支援手動輸入版本補發並覆蓋 VSIX 附件。
 - 發布文件 — README 新增 GitHub Releases 下載入口、tag 發版步驟與 Actions 手動補發說明。
-- 測試覆蓋 — 補強 moduleName 路徑片段拒絕、memory_commit confirm 驗證、memory_audit 索引漂移偵測、Gateway workspace 注入、MCP server CLI 解析與 watcher 路徑分隔符同步，總測試案例提升至 195 個。
+- 測試覆蓋 — 補強 moduleName 路徑片段拒絕、memory_commit confirm 驗證、memory_audit 索引漂移偵測、Gateway workspace 注入、MCP server CLI 解析、watcher 路徑分隔符同步與卡匣機櫃模型/Webview HTML，總測試案例提升至 199 個。
 
 ## [5.1.0] — 2026-05-17
 

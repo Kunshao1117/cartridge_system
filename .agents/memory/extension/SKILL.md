@@ -3,7 +3,7 @@ name: extension
 description: >
   專案記憶：VS Code 外掛入口與 UI 模組。 Use when:
   處理外掛啟動生命週期、指令註冊、狀態列/TreeView/CodeLens/智慧歸屬等 UI 更新時載入。
-last_updated: '2026-05-17T23:41:06+08:00'
+last_updated: '2026-05-19T07:09:52+08:00'
 staleness: 0
 status: stable
 metadata:
@@ -64,6 +64,7 @@ metadata:
 - D32: v5.0 獨立治理側邊欄 — `extension.ts` 改透過 `registerGovernanceViews()` 註冊 Activity Bar 內的四個 TreeView；既有 `cartridgeExplorer` 從 Explorer 移入 `cartridgeGovernance` container。
 - D33: `treeview-provider.ts` 記憶卡節點補上 `vscode.open` command，點擊卡片可直接開啟對應 `SKILL.md`；幽靈檔案仍維持 `cartridge.showGhostFileInfo` 修復指引。
 - D34: `governance-views.ts` 歸 extension 父卡，因它負責註冊 VS Code commands / TreeView providers，且會 import 既有 `treeview-provider.ts`；側邊欄子卡只追蹤 provider/model 純檔案，避免記憶卡依賴循環。
+- D35: `governance-views.ts` 新增 `cartridge.openCabinetWorkbench` 註冊與 `CabinetWorkbenchPanel` 生命週期管理；卡匣機櫃本體歸 `extension.cabinet-workbench` 子卡，父卡只持有入口 glue code。
 
 ## Known Issues
 
@@ -95,6 +96,7 @@ metadata:
 - writer（記憶卡寫入器，植入/移除過期警報）
 - gitignore-filter（提供 .gitignore 排除過濾）
 - treeview-provider（v2.0 新增，v5.0 移入 Cartridge Activity Bar：記憶卡 TreeView 面板）
+- cabinet-workbench（編輯區卡匣機櫃工作台）
 - codelens-provider（v2.0 新增：CodeLens 行內標記）
 - index-manager（含 smart-owner：智慧歸屬推薦引擎）
 

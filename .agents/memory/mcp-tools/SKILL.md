@@ -2,7 +2,7 @@
 name: mcp-tools
 description: |
   專案記憶：MCP 工具介面模組（第三階段）。 Use when: 處理MCP伺服器註冊、工具路由、AI工具呼叫介面時載入。
-last_updated: '2026-05-18T19:38:14+08:00'
+last_updated: '2026-05-19T08:00:06+08:00'
 status: stable
 staleness: 0
 dependencies: null
@@ -68,6 +68,7 @@ metadata:
 - D46: v5.0 MCP 工具總數提升至十二個；新增工具仍走 registry-driven list tools 與 dispatcher routing，不回到 server 手寫路由。
 - D47: v5.2 採 Gateway-first workspace 模型；公開 tools/list 的 `projectRoot` 不再必填，Gateway `workspace` 或 npm CLI `--workspace` 由 dispatcher 補入，舊客戶端仍可傳相同 `projectRoot`。
 - D48: v5.2 新增 npm MCP runtime 發布面，`cartridge-system` / `cartridge-mcp` bin 都指向 `dist/mcp-server.js`，npm tarball 以 `files` 白名單排除 `.agents`、source、tests 與 CI workflow。
+- D49: v5.3.3 新增第十三個 MCP 工具 `memory_graph`，由 `mcp-tools.memory-graph` 子卡承接，提供 AI 可讀整體記憶卡匣關聯圖。
 
 ## Known Issues
 
@@ -94,6 +95,7 @@ metadata:
 - L14: (2026-05-17) v5 規則檔檢查是 MCP 工具層能力擴充，不恢復 v3.0 已移除的框架注入責任。
 - L15: (2026-05-17) v5.1 沒有新增工具數量，仍維持十二個 MCP 工具；本次只增加白話 finding、開工安全性 metadata 與 tools/list 安全說明。
 - L16: (2026-05-18) Gateway 會在真實呼叫層提供 `workspace`；下游工具若仍強制 `arguments.projectRoot`，使用者會重複填路徑且容易產生多專案混淆，應由 dispatcher 做單一注入與衝突檢查。
+- L17: (2026-05-19) 當使用者要 AI 看懂「卡匣之間關聯」時，應優先提供整體 `memory_graph`，再用單卡 `memory_deps` 深挖局部依賴。
 
 ## Relations
 
@@ -105,6 +107,7 @@ metadata:
 - mcp-tools.commit-preflight（子卡：commit_preflight 提交前治理檢查）
 - mcp-tools.memory-audit（子卡：memory_audit 完整健檢與 compatibility 規則）
 - mcp-tools.context-governance（子卡：v5 規則檔檢查工具）
+- mcp-tools.memory-graph（子卡：AI 可讀整體記憶圖譜工具）
 - mcp-tools.tool-registry（子卡：MCP 工具名冊與統一回傳契約）
 - mcp-tools.dispatcher（子卡：MCP 工具分派與 high-risk tool guardrail）
 

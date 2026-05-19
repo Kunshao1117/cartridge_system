@@ -88,8 +88,23 @@ describe("governance sidebar manifest", () => {
       (command: { command: string }) => command.command,
     );
     expect(commands).toContain("cartridge.openGovernanceDashboard");
+    expect(commands).toContain("cartridge.openCabinetWorkbench");
     expect(commands).toContain("cartridge.refreshGovernance");
     expect(commands).toContain("cartridge.contextAudit");
+  });
+
+  it("應在治理視圖標題列提供卡匣機櫃入口", () => {
+    const titleMenu = packageJson.contributes.menus["view/title"];
+    expect(titleMenu).toContainEqual({
+      command: "cartridge.openCabinetWorkbench",
+      group: "navigation@0",
+      when: "view == cartridgeGovernanceOverview",
+    });
+    expect(titleMenu).toContainEqual({
+      command: "cartridge.openCabinetWorkbench",
+      group: "navigation@0",
+      when: "view == cartridgeExplorer",
+    });
   });
 });
 

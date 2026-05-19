@@ -3,7 +3,7 @@ name: extension.governance-sidebar
 description: >
   專案記憶：v5 獨立 Activity Bar 治理側邊欄。Use when: 修改 Cartridge Activity Bar
   container、治理總覽、上下文治理 findings、待處理項目或 VS Code TreeView provider 時載入。
-last_updated: '2026-05-19T20:29:39+08:00'
+last_updated: '2026-05-19T21:03:06+08:00'
 staleness: 0
 status: stable
 metadata:
@@ -43,6 +43,7 @@ metadata:
 - D11: v5.1 `ActionItemsProvider` tooltip 顯示 reason 與 recommendedAction；ghost command 使用 `affectedPath`，避免白話 label 破壞原本幽靈檔案路徑參數。
 - D12: Unreleased 卡匣機櫃入口 — `package.json` 在 governance overview 與 cartridge explorer 的 view title menu 暴露 `cartridge.openCabinetWorkbench`；本子卡測試只固定 manifest 入口，不追蹤 Webview 本體。
 - D13: v5.3.4 插件更新檢查 — `governance-sidebar.test.ts` 固定 package manifest 已公開 `cartridge.checkForUpdates` 與 `cartridge.updateCheck.enabled`，避免命令面板入口或設定在後續側邊欄 manifest 調整中遺失。
+- D14: v5.3.5 插件更新檢查按鈕 — `governance-sidebar.test.ts` 固定 `cartridge.checkForUpdates` 具有 `$(cloud-download)` icon，且同時出現在 `cartridgeGovernanceOverview` 與 `cartridgeExplorer` 的 view title menu。
 
 ## Known Issues
 

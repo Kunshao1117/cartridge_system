@@ -92,6 +92,16 @@ describe("governance sidebar manifest", () => {
     expect(commands).toContain("cartridge.refreshGovernance");
     expect(commands).toContain("cartridge.contextAudit");
     expect(commands).toContain("cartridge.checkForUpdates");
+
+    const updateCommand = packageJson.contributes.commands.find(
+      (command: { command: string }) =>
+        command.command === "cartridge.checkForUpdates",
+    );
+    expect(updateCommand).toEqual(
+      expect.objectContaining({
+        icon: "$(cloud-download)",
+      }),
+    );
   });
 
   it("應宣告插件更新檢查設定", () => {
@@ -108,7 +118,7 @@ describe("governance sidebar manifest", () => {
     );
   });
 
-  it("應在治理視圖標題列提供卡匣機櫃入口", () => {
+  it("應在治理視圖標題列提供卡匣機櫃與更新檢查入口", () => {
     const titleMenu = packageJson.contributes.menus["view/title"];
     expect(titleMenu).toContainEqual({
       command: "cartridge.openCabinetWorkbench",
@@ -116,8 +126,18 @@ describe("governance sidebar manifest", () => {
       when: "view == cartridgeGovernanceOverview",
     });
     expect(titleMenu).toContainEqual({
+      command: "cartridge.checkForUpdates",
+      group: "navigation@1",
+      when: "view == cartridgeGovernanceOverview",
+    });
+    expect(titleMenu).toContainEqual({
       command: "cartridge.openCabinetWorkbench",
       group: "navigation@0",
+      when: "view == cartridgeExplorer",
+    });
+    expect(titleMenu).toContainEqual({
+      command: "cartridge.checkForUpdates",
+      group: "navigation@1",
       when: "view == cartridgeExplorer",
     });
   });

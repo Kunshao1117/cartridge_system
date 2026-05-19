@@ -2,6 +2,16 @@
 
 ## [Unreleased]
 
+## [5.3.5] — 2026-05-19
+
+### feat
+
+- 插件更新檢查按鈕 — Cartridge 治理總覽與記憶卡匣側邊欄標題列新增更新檢查按鈕，沿用 `Cartridge：檢查插件更新` 命令，不改背景檢查與 GitHub Release 判斷邏輯。
+
+### chore
+
+- VSIX 打包 — 將 extension 版本提升至 5.3.5，並同步 README 安裝命令與 package manifest 版本測試。
+
 ## [5.3.4] — 2026-05-19
 
 ### feat

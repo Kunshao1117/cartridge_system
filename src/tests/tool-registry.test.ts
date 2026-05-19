@@ -75,7 +75,7 @@ describe("tool-registry — MCP 工具名冊", () => {
       fs.readFileSync(path.resolve(process.cwd(), "package.json"), "utf-8"),
     );
 
-    expect(packageJson.version).toBe("5.3.4");
+    expect(packageJson.version).toBe("5.3.5");
     expect(packageJson.bin).toEqual({
       "cartridge-system": "dist/mcp-server.js",
       "cartridge-mcp": "dist/mcp-server.js",

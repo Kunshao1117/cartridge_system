@@ -2,7 +2,7 @@
 
 > **現實感知 AI 記憶防禦引擎** — 自動偵測記憶卡過期、幽靈檔案、跨模組依賴傳播，確保 AI 不讀取失效的上下文。
 
-[![version](https://img.shields.io/badge/version-5.3.4-blue)](./CHANGELOG.md)
+[![version](https://img.shields.io/badge/version-5.3.5-blue)](./CHANGELOG.md)
 [![tests](https://img.shields.io/badge/tests-220%20passed-brightgreen)](#-執行測試)
 [![license](https://img.shields.io/badge/license-MIT-green)](#)
 
@@ -41,7 +41,7 @@ Cartridge System 是一個為 [Antigravity 框架](https://github.com/Kunshao111
 | 🌳 **獨立治理側邊欄**| **v5.1 增強** — Activity Bar 新增 Cartridge 入口，內含治理總覽、記憶卡匣、規則檔檢查與待處理項目四個原生 TreeView。 |
 | 🗄️ **卡匣機櫃工作台** | **v5.3.3 改善** — 從 Cartridge 側邊欄開啟編輯區 WebviewPanel，以維護艙、記憶艙、結構艙三種視角呈現卡匣熱度、知識內容與工程結構，並提供加減號、百分比與穩定縮放控制。 |
 | 🔍 **CodeLens 標記**| 編輯器頂部行內標記，即時顯示當前檔案所屬的記憶卡與過期狀態 |
-| 🔄 **插件更新檢查** | **v5.3.4 新增** — 每次啟動自動查詢 GitHub Release 是否有新版 VSIX，也可用命令面板手動檢查並開啟 Release。 |
+| 🔄 **插件更新檢查** | **v5.3.5 改善** — 每次啟動自動查詢 GitHub Release 是否有新版 VSIX，也可用命令面板或 Cartridge 側邊欄按鈕手動檢查並開啟 Release。 |
 | 🛠️ **MCP 工具介面** | 提供十三個標準化 AI 工具（記憶治理 + 上下文治理 + 提交前治理），支援跨專案動態路徑解析 |
 | 📦 **npm MCP Runtime** | **v5.2 新增** — 可用 `npx cartridge-system --workspace ...` 直接啟動 MCP server，方便線上安裝與多專案接入。 |
 | 🧭 **規則檔檢查** | **v5.1 增強** — 掃描 Codex `AGENTS.md`、Claude `CLAUDE.md` / skills / subagents、GitHub Copilot instructions、Antigravity skills 與 `.agents/memory/`，用白話列出規則衝突、原因、相關檔案與建議工具。 |
@@ -69,7 +69,7 @@ Cartridge System 是一個為 [Antigravity 框架](https://github.com/Kunshao111
 3. 在 VS Code / Antigravity 使用 **Install from VSIX** 安裝，或使用 CLI：
 
 ```bash
-antigravity --install-extension cartridge-system-5.3.4.vsix --force
+antigravity --install-extension cartridge-system-5.3.5.vsix --force
 ```
 
 ### 方法二：本機打包安裝
@@ -81,7 +81,7 @@ npm run build
 npm run package
 
 # 使用 Antigravity IDE CLI 安裝（注意：不可用 code 指令）
-antigravity --install-extension cartridge-system-5.3.4.vsix --force
+antigravity --install-extension cartridge-system-5.3.5.vsix --force
 ```
 
 ### 方法三：開發模式
@@ -100,7 +100,7 @@ npm run build
 
 ### 插件更新檢查
 
-VSIX 安裝版會在每次啟動時查詢 GitHub Releases 的最新正式版；若發現新版且 Release 內含 `cartridge-system-*.vsix`，會提示開啟 Release 頁面下載更新。也可透過指令面板執行 `Cartridge：檢查插件更新` 手動檢查。
+VSIX 安裝版會在每次啟動時查詢 GitHub Releases 的最新正式版；若發現新版且 Release 內含 `cartridge-system-*.vsix`，會提示開啟 Release 頁面下載更新。也可透過指令面板執行 `Cartridge：檢查插件更新`，或點擊 Cartridge 側邊欄標題列的更新檢查按鈕手動檢查。
 
 若不希望啟動時自動檢查，可在 VS Code / Antigravity 設定中關閉 `cartridge.updateCheck.enabled`。手動檢查命令不受此設定影響。
 
@@ -163,15 +163,15 @@ npm run package
 3. 推送版本 tag：
 
 ```bash
-git tag v5.3.4
-git push origin v5.3.4
+git tag v5.3.5
+git push origin v5.3.5
 ```
 
 GitHub Actions 會自動執行測試、打包 `cartridge-system-*.vsix`、建立或更新 Release，並把 VSIX 掛到 Release 附件。
 
 ### 手動補發
 
-如果需要補發目前版本，進入 GitHub 的 **Actions → Release VSIX → Run workflow**，輸入版本號，例如 `5.3.4` 或 `v5.3.4`。Workflow 會確認輸入版本與 `package.json` 一致，然後重新打包並覆蓋 Release 裡的 VSIX 附件。
+如果需要補發目前版本，進入 GitHub 的 **Actions → Release VSIX → Run workflow**，輸入版本號，例如 `5.3.5` 或 `v5.3.5`。Workflow 會確認輸入版本與 `package.json` 一致，然後重新打包並覆蓋 Release 裡的 VSIX 附件。
 
 ---
 
@@ -351,7 +351,7 @@ memory_commit({
 | `Cartridge：開啟卡匣機櫃` | **v5.3.3 改善** — 在編輯區開啟卡匣機櫃工作台，提供維護艙、記憶艙與結構艙三種模式，並支援加減號、百分比與穩定縮放 |
 | `Cartridge：重新整理治理側邊欄` | **v5.0 新增** — 重新整理治理總覽、記憶卡匣、上下文治理與待處理項目 |
 | `Cartridge：查看上下文治理報告` | **v5.1 增強** — 在輸出面板顯示規則檔檢查結果、相關檔案與建議工具 |
-| `Cartridge：檢查插件更新` | **v5.3.4 新增** — 手動查詢 GitHub Release 是否有新版 VSIX |
+| `Cartridge：檢查插件更新` | **v5.3.5 改善** — 手動查詢 GitHub Release 是否有新版 VSIX，並提供 Cartridge 側邊欄標題列按鈕 |
 
 ---
 
@@ -472,7 +472,7 @@ cartridge_system/
 > 💡 **治理備註**：`.agents/` 目錄在 Git 中採取「白名單模式」，僅追蹤 `memory/` 核心卡匣，其餘殘留檔案（如 Workflows/Skills）預設不納入版本控制以保持儲存庫輕量化。
 
 ├── CHANGELOG.md              # 更新紀錄（含插件更新檢查 Unreleased 紀錄）
-└── package.json              # v5.3.4
+└── package.json              # v5.3.5
 ```
 
 ### 技術堆疊

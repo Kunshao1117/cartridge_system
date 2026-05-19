@@ -3,7 +3,7 @@ name: _assets
 scopePath: null
 description: |
   專案記憶：靜態檔案與一般文檔收納。 Use when: 處理不需要業務邏輯追蹤的靜態圖檔、授權文件或更新日誌等。
-last_updated: '2026-05-19T20:29:29+08:00'
+last_updated: '2026-05-19T21:03:06+08:00'
 status: stable
 staleness: 0
 metadata:
@@ -49,6 +49,7 @@ metadata:
 - L25: (2026-05-19) README.md 與 CHANGELOG.md 已同步 v5.3.2 卡匣機櫃圖譜縮放/平移修復、25 個測試檔案、204 個測試案例、`cabinet-graph-viewport.ts` 架構樹與 `cartridge-system-5.3.2.vsix` 安裝命令。
 - L26: (2026-05-19) README.md 與 CHANGELOG.md 已同步 v5.3.3 卡匣機櫃縮放控制與 `memory_graph` 工具、26 個測試檔案、212 個測試案例、`memory-graph.ts` 架構樹與 `cartridge-system-5.3.3.vsix` 安裝命令。
 - L27: (2026-05-19) README.md 與 CHANGELOG.md 已同步 v5.3.4 插件更新檢查：啟動自動查 GitHub Release、手動命令、`cartridge.updateCheck.enabled` 設定、27 個測試檔案與 220 個測試案例、`cartridge-system-5.3.4.vsix` 安裝命令。
+- L28: (2026-05-19) README.md 與 CHANGELOG.md 已同步 v5.3.5 插件更新檢查按鈕：治理總覽與記憶卡匣側邊欄標題列可直接手動檢查 GitHub Release，安裝命令與 tag 範例同步至 `cartridge-system-5.3.5.vsix`。
 - L03: (2026-05-14) README 已補齊 `workspace_brief` 與 `commit_preflight` 高階 MCP 工具說明，並同步測試數 123 passed 與架構樹新檔案。
 - L04: (2026-05-14) CHANGELOG 已新增 2026-05-14 治理工具、依賴衰減、MCP 版本同步與 GitNexus CLI 修復紀錄。
 - L05: (2026-05-14) README 已同步 MCP 工具名冊、統一治理回傳 envelope、測試數 128 passed 與新架構檔案。

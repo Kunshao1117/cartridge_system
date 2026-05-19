@@ -3,7 +3,7 @@ name: tool-registry
 description: >
   專案記憶：MCP 工具名冊與統一回傳契約。Use when: 處理工具風險分級、MCP tools 清單生成、治理 envelope
   或高階工具回傳格式時載入。
-last_updated: '2026-05-19T20:29:43+08:00'
+last_updated: '2026-05-19T21:03:06+08:00'
 status: stable
 staleness: 0
 dependencies:
@@ -55,6 +55,7 @@ metadata:
 - D22: v5.3.2 發版時 `src/tests/tool-registry.test.ts` 的 manifest 版本斷言需與 `package.json` 同步，避免版本升級後測試仍釘在舊版號。
 - D23: v5.3.3 新增第十三個 MCP 工具 `memory_graph`，登錄為 low risk、readOnly、analyze、safeForStartup，用於輸出 AI 可讀整體記憶圖譜摘要。
 - D24: v5.3.4 發版時 `src/tests/tool-registry.test.ts` 的 package manifest 版本斷言同步更新為 5.3.4；此為 VSIX 版本 bump，不改 MCP server runtime 版本常數。
+- D25: v5.3.5 發版時 `src/tests/tool-registry.test.ts` 的 package manifest 版本斷言同步更新為 5.3.5；此為側邊欄更新按鈕的 VSIX 版本 bump，不改 MCP server runtime 版本常數。
 
 ## Known Issues
 

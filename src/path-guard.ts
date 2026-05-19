@@ -16,17 +16,22 @@ export function validateProjectRoot(raw: string): string {
     throw new Error('專案根目錄路徑不可為空')
   }
 
+  if (hasPathTraversal(raw)) {
+    throw new Error('路徑不得包含路徑穿越符號 (..)')
+  }
+
+  const pathFlavor = getPathFlavor(raw)
   // 正規化路徑（處理多餘的斜線、混合斜線等）
-  const normalized = path.normalize(raw)
+  const normalized = pathFlavor.normalize(raw)
 
   // 必須是絕對路徑
-  if (!path.isAbsolute(normalized)) {
+  if (!pathFlavor.isAbsolute(normalized)) {
     throw new Error(`路徑必須為絕對路徑，收到: ${raw}`)
   }
 
   // 禁止路徑穿越片段
   // 檢查原始輸入與正規化後的路徑，雙重防禦
-  if (raw.includes('..') || normalized.includes('..')) {
+  if (hasPathTraversal(normalized)) {
     throw new Error('路徑不得包含路徑穿越符號 (..)')
   }
 
@@ -39,8 +44,9 @@ export function validateProjectRoot(raw: string): string {
  */
 export function getProjectRootIdentity(raw: string): string {
   const normalized = validateProjectRoot(raw)
-  const resolved = path.resolve(normalized)
-  return process.platform === 'win32' ? resolved.toLowerCase() : resolved
+  const pathFlavor = getPathFlavor(normalized)
+  const resolved = pathFlavor.resolve(normalized)
+  return pathFlavor === path.win32 ? resolved.toLowerCase() : resolved
 }
 
 /**
@@ -48,4 +54,16 @@ export function getProjectRootIdentity(raw: string): string {
  */
 export function isSameProjectRoot(left: string, right: string): boolean {
   return getProjectRootIdentity(left) === getProjectRootIdentity(right)
+}
+
+function getPathFlavor(raw: string): typeof path.win32 | typeof path.posix {
+  return isWindowsAbsoluteCandidate(raw) ? path.win32 : path.posix
+}
+
+function isWindowsAbsoluteCandidate(raw: string): boolean {
+  return /^[a-zA-Z]:[\\/]/.test(raw) || /^[/\\]{2}[^/\\]+[/\\][^/\\]+/.test(raw)
+}
+
+function hasPathTraversal(raw: string): boolean {
+  return raw.split(/[\\/]+/).includes('..')
 }

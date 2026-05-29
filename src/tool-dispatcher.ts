@@ -19,6 +19,12 @@ import {
   handleContextInventory,
   handleContextPlan,
 } from "./context-tools.js";
+import {
+  handleProjectContextList,
+  handleProjectContextRead,
+  handleProjectContextStatus,
+  handleProjectContextValidate,
+} from "./project-context-tools.js";
 import { handleMemoryAudit } from "./memory-audit.js";
 import {
   type CartridgeToolDefinition,
@@ -43,6 +49,10 @@ const toolHandlers: Record<string, ToolHandler> = {
   context_audit: handleContextAudit,
   context_diff: handleContextDiff,
   context_plan: handleContextPlan,
+  project_context_list: handleProjectContextList,
+  project_context_read: handleProjectContextRead,
+  project_context_validate: handleProjectContextValidate,
+  project_context_status: handleProjectContextStatus,
 };
 
 export interface DispatchToolCallRequest {

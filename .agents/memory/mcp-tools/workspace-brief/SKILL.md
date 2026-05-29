@@ -3,7 +3,7 @@ name: workspace-brief
 description: >
   專案記憶：workspace_brief 高階治理摘要工具。Use when: 處理 AI 開工摘要、記憶卡健康彙整、readiness
   判斷與建議行動排序時載入。
-last_updated: '2026-05-17T23:39:29+08:00'
+last_updated: '2026-05-29T18:15:24+08:00'
 status: stable
 staleness: 0
 dependencies:
@@ -11,6 +11,7 @@ dependencies:
   - mcp-tools.tool-registry
   - mcp-tools.memory-audit
   - mcp-tools.context-governance
+  - mcp-tools.project-context
 metadata:
   author: antigravity
   version: '1.0'
@@ -20,6 +21,7 @@ metadata:
     - 'filesystem:read'
     - 'filesystem:write'
 ---
+
 # Workspace Brief — 高階治理摘要記憶
 
 > 本模組提供 `workspace_brief` MCP 工具的摘要彙整邏輯，作為 AI 進入專案時的高階開工入口。
@@ -53,6 +55,8 @@ metadata:
 - D19: `mcp-tools.context-governance` 是 workspace_brief 的實際 dependency；context registry、audit finding severity 或 readiness summary 改變時，開工摘要狀態與 recommendedActions 必須重新檢查。
 - D20: v5.1 `workspace_brief` 新增 `startupReadiness`，用白話標籤表達 AI 開工狀態：可以開工、需要先處理記憶卡提醒、需要先處理規則檔衝突。
 - D21: v5.1 recommendedActions 增加 `label`、`nextTool` 與 `blocking`，讓側邊欄與 AI 不需要自行推測下一步。
+- D22: v5.4 `workspace_brief` 新增 `projectContext` 摘要，讀取 `.agents/context/` 狀態並轉為非阻塞開工提醒；專案脈絡 warning 不會改變原始碼記憶的 stale 判斷，也不取代 `commit_preflight`。
+- D23: dependency reason — `mcp-tools.project-context` 持有專案脈絡掃描、驗證與狀態摘要語義；若 project_context readiness 或 findings 口徑改變，workspace_brief 的 `projectContext` 摘要與非阻塞 recommendedActions 必須重新檢查。
 
 ## Known Issues
 
@@ -72,6 +76,7 @@ metadata:
 - L10: 日常開工入口只應提示「需要深度健檢」，完整舊格式導入診斷由 `memory_audit` 承擔，避免 workspace_brief 變慢或變成大雜燴。
 - L11: 開工摘要可承接 context readiness，但不能替代 `context_audit`；完整上下文差異仍由 v5 context tools 回報。
 - L12: 使用者面向的開工摘要應優先顯示可執行語句，例如「可以開工」或「提交前還要跑 commit_preflight」，避免只輸出抽象狀態碼。
+- L13: 專案脈絡提醒應保持非阻塞；approved 以外的脈絡狀態可提醒 AI 複審，但不能讓 workspace_brief 自動套用偏好或核准 candidate。
 
 ## Relations
 
@@ -80,6 +85,7 @@ metadata:
 - mcp-tools.tool-registry（共用：MCP 統一回傳 envelope）
 - mcp-tools.memory-audit（依賴：compatibility warning 規則）
 - mcp-tools.context-governance（依賴：規則來源掃描與規則衝突檢查）
+- mcp-tools.project-context（依賴：專案脈絡掃描、驗證與狀態摘要）
 
 ## Applicable Skills
 

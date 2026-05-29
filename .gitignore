@@ -1,4 +1,4 @@
-# [產物 | 忽略] Node / 建置 / 發布檔案
+﻿# [產物 | 忽略] Node / 建置 / 發布檔案
 node_modules/
 dist/
 *.vsix
@@ -6,7 +6,6 @@ dist/
 .DS_Store
 
 # [本機執行狀態 | 忽略] Cartridge / GitNexus / Trunk 產生狀態
-.cartridge/
 .gitnexus/
 .trunk/
 
@@ -15,13 +14,33 @@ dist/
 .markdownlint.yaml
 
 # [治理框架 | 部分追蹤] 保留專案記憶卡，忽略框架執行期檔案
-.agents/*
-!.agents/memory/
-!.agents/memory/**
-.agents/logs/
 
 # [本機代理設定 | 忽略] 機器與 session 專屬 AI 治理檔
-.codex/
-.claude/
 AGENTS.md
-CLAUDE.md
+
+# AI_RULES_GITIGNORE_END
+
+# [啟用][AI Rules 框架] 由框架初始化或升級產生，可重建，不進版控
+/.codex/
+/.claude/
+/CLAUDE.md
+/antigravity_export/
+
+# [啟用][代理框架] 代理規則、工作流與共用技能多為部署產物，預設不進版控
+/.agents/*
+
+# [保留][專案記憶] 原始碼記憶是專案知識資產，必須允許進版控
+!/.agents/memory/
+!/.agents/memory/**
+
+# [保留][專案脈絡] 設計 DNA、產品偏好與驗收偏好是專案知識資產，必須允許進版控
+!/.agents/context/
+!/.agents/context/**
+
+# [保留][專案衍生技能] 專案專屬技能屬於專案能力，必須允許進版控
+!/.agents/project_skills/
+!/.agents/project_skills/**
+
+# [啟用][執行狀態] 代理日誌與本地索引是執行期產物，不進版控
+/.agents/logs/
+/.cartridge/

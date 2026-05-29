@@ -4,6 +4,10 @@ import {
   type CompatibilityReport,
 } from "./memory-compatibility.js";
 import type { ContextAuditFinding, ContextInventory } from "./context-types.js";
+import type {
+  ProjectContextFinding,
+  ProjectContextSummary,
+} from "./project-context-types.js";
 
 const STALENESS_SIGNIFICANT = 10;
 
@@ -56,6 +60,13 @@ export interface ContextBrief {
     informational: number;
   };
   findings: ContextAuditFinding[];
+}
+
+export interface ProjectContextBrief {
+  totals: ProjectContextSummary["totals"];
+  readiness: ProjectContextSummary["readiness"];
+  usage: ProjectContextSummary["usage"];
+  findings: ProjectContextFinding[];
 }
 
 type StartupReadiness = {
@@ -139,6 +150,7 @@ function buildReadiness(memory: ReturnType<typeof buildMemorySummary>) {
 function buildStartupReadiness(args: {
   memoryReadiness: ReturnType<typeof buildReadiness>;
   context?: ContextBrief;
+  projectContext?: ProjectContextBrief;
 }): StartupReadiness {
   if (args.memoryReadiness.status === "blocked") {
     return {
@@ -171,6 +183,18 @@ function buildStartupReadiness(args: {
         .map((finding) => finding.message),
       nextTool: "context_audit",
       nextAction: "review_context_findings",
+    };
+  }
+
+  if (args.projectContext?.readiness.status === "warning") {
+    return {
+      status: "needs_review",
+      label: "可以開工，但專案脈絡需要複審",
+      reasons: args.projectContext.findings
+        .filter((finding) => finding.severity !== "info")
+        .map((finding) => finding.message),
+      nextTool: "project_context_status",
+      nextAction: "review_project_context",
     };
   }
 
@@ -288,10 +312,31 @@ function buildContextActions(context?: ContextBrief): RecommendedAction[] {
     }));
 }
 
+function buildProjectContextActions(
+  projectContext?: ProjectContextBrief,
+): RecommendedAction[] {
+  if (!projectContext) return [];
+  return projectContext.findings
+    .filter((finding) => finding.severity !== "info")
+    .map((finding) => ({
+      priority: "P2" as const,
+      action: "review_project_context",
+      target: finding.file ?? finding.contextId ?? "workspace",
+      reason: finding.message,
+      label: `檢查專案脈絡：${finding.code}`,
+      nextTool: "project_context_status",
+      blocking: false,
+    }));
+}
+
 export function buildWorkspaceBrief(
   project: ProjectSummary,
   index: BriefIndex,
-  options: { indexAvailable?: boolean; context?: ContextBrief } = {},
+  options: {
+    indexAvailable?: boolean;
+    context?: ContextBrief;
+    projectContext?: ProjectContextBrief;
+  } = {},
 ) {
   const memory = buildMemorySummary(index);
   const readiness = buildReadiness(memory);
@@ -299,11 +344,13 @@ export function buildWorkspaceBrief(
   const startupReadiness = buildStartupReadiness({
     memoryReadiness: readiness,
     context: options.context,
+    projectContext: options.projectContext,
   });
   return {
     project,
     memory,
     context: options.context,
+    projectContext: options.projectContext,
     compatibility,
     readiness,
     startupReadiness,
@@ -312,6 +359,7 @@ export function buildWorkspaceBrief(
       ...buildCompatibilityActions(compatibility),
       ...buildRecommendedActions(index),
       ...buildContextActions(options.context),
+      ...buildProjectContextActions(options.projectContext),
     ].sort((a, b) => a.priority.localeCompare(b.priority)),
   };
 }

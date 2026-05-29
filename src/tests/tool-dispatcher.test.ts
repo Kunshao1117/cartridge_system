@@ -59,6 +59,21 @@ vi.mock("../context-tools.js", () => ({
   })),
 }));
 
+vi.mock("../project-context-tools.js", () => ({
+  handleProjectContextList: vi.fn(async () => ({
+    content: [{ type: "text", text: "project_context_list called" }],
+  })),
+  handleProjectContextRead: vi.fn(async () => ({
+    content: [{ type: "text", text: "project_context_read called" }],
+  })),
+  handleProjectContextValidate: vi.fn(async () => ({
+    content: [{ type: "text", text: "project_context_validate called" }],
+  })),
+  handleProjectContextStatus: vi.fn(async () => ({
+    content: [{ type: "text", text: "project_context_status called" }],
+  })),
+}));
+
 describe("tool-dispatcher — MCP 工具分派與防線", () => {
   it("有預設 workspace 時應補入 projectRoot 後再進入 handler", async () => {
     const result = await dispatchToolCall({
@@ -211,5 +226,15 @@ describe("tool-dispatcher — MCP 工具分派與防線", () => {
 
     expect(result.isError).toBeUndefined();
     expect(result.content[0].text).toBe("context_audit called");
+  });
+
+  it("應分派 project context 只讀工具", async () => {
+    const result = await dispatchToolCall({
+      name: "project_context_status",
+      args: { projectRoot: "/mock/project" },
+    });
+
+    expect(result.isError).toBeUndefined();
+    expect(result.content[0].text).toBe("project_context_status called");
   });
 });

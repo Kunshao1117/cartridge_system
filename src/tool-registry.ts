@@ -99,6 +99,30 @@ const contextDiffSchema = {
   required: ["leftId", "rightId"],
 };
 
+const projectContextTargetSchema = {
+  type: "object" as const,
+  properties: {
+    projectRoot: projectRootProperty,
+    target: {
+      type: "string",
+      description: "專案脈絡卡 id 或相對路徑，例如 _map 或 .agents/context/_map/CONTEXT.md",
+    },
+  },
+  required: ["target"],
+};
+
+const projectContextValidateSchema = {
+  type: "object" as const,
+  properties: {
+    projectRoot: projectRootProperty,
+    target: {
+      type: "string",
+      description: "可選，限制為指定專案脈絡卡 id 或相對路徑。",
+    },
+  },
+  required: [],
+};
+
 export const CARTRIDGE_TOOLS: CartridgeToolDefinition[] = [
   {
     name: "memory_list",
@@ -264,6 +288,58 @@ export const CARTRIDGE_TOOLS: CartridgeToolDefinition[] = [
     requiresExplicitApproval: false,
     safeForStartup: false,
     expectedLatency: "medium",
+    inputSchema: projectRootSchema,
+  },
+  {
+    name: "project_context_list",
+    description:
+      "專案脈絡清單：列出 .agents/context/ 下的脈絡卡與核准狀態。",
+    safetySummary: "只讀脈絡清單，不會修改 CONTEXT.md 或記憶卡。",
+    risk: "low",
+    capability: "read",
+    readOnly: true,
+    requiresExplicitApproval: false,
+    safeForStartup: true,
+    expectedLatency: "fast",
+    inputSchema: projectRootSchema,
+  },
+  {
+    name: "project_context_read",
+    description:
+      "專案脈絡讀取：依 id 或相對路徑讀取單張 CONTEXT.md 脈絡卡。",
+    safetySummary: "只讀單卡內容，candidate 不會被視為 approved。",
+    risk: "low",
+    capability: "read",
+    readOnly: true,
+    requiresExplicitApproval: false,
+    safeForStartup: true,
+    expectedLatency: "fast",
+    inputSchema: projectContextTargetSchema,
+  },
+  {
+    name: "project_context_validate",
+    description:
+      "專案脈絡驗證：檢查 frontmatter、固定章節、核准紀錄、衝突說明與誤放位置。",
+    safetySummary: "只讀治理檢查，不會寫入、核准或升級任何脈絡卡。",
+    risk: "medium",
+    capability: "governance",
+    readOnly: true,
+    requiresExplicitApproval: false,
+    safeForStartup: false,
+    expectedLatency: "medium",
+    inputSchema: projectContextValidateSchema,
+  },
+  {
+    name: "project_context_status",
+    description:
+      "專案脈絡狀態：彙整 approved、candidate、conflict、review、deprecated 數量與使用提示。",
+    safetySummary: "只讀狀態摘要，不參與原始碼記憶 stale 或 memory_commit。",
+    risk: "low",
+    capability: "governance",
+    readOnly: true,
+    requiresExplicitApproval: false,
+    safeForStartup: true,
+    expectedLatency: "fast",
     inputSchema: projectRootSchema,
   },
 ];

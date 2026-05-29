@@ -3,7 +3,7 @@ name: tool-registry
 description: >
   專案記憶：MCP 工具名冊與統一回傳契約。Use when: 處理工具風險分級、MCP tools 清單生成、治理 envelope
   或高階工具回傳格式時載入。
-last_updated: '2026-05-19T21:03:06+08:00'
+last_updated: '2026-05-29T18:32:19+08:00'
 status: stable
 staleness: 0
 dependencies:
@@ -56,6 +56,8 @@ metadata:
 - D23: v5.3.3 新增第十三個 MCP 工具 `memory_graph`，登錄為 low risk、readOnly、analyze、safeForStartup，用於輸出 AI 可讀整體記憶圖譜摘要。
 - D24: v5.3.4 發版時 `src/tests/tool-registry.test.ts` 的 package manifest 版本斷言同步更新為 5.3.4；此為 VSIX 版本 bump，不改 MCP server runtime 版本常數。
 - D25: v5.3.5 發版時 `src/tests/tool-registry.test.ts` 的 package manifest 版本斷言同步更新為 5.3.5；此為側邊欄更新按鈕的 VSIX 版本 bump，不改 MCP server runtime 版本常數。
+- D26: v5.4 tools/list 擴充為十七個工具，新增 `project_context_list`、`project_context_read`、`project_context_validate`、`project_context_status`；四者皆 readOnly 且不需要 explicit approval，語義上與 `.agents/memory/` stale / `memory_commit` 分離。
+- D27: v5.4.0 發布時 `src/tests/tool-registry.test.ts` 的 package manifest 版本斷言同步更新為 5.4.0；本版作為 npm runtime 發布版，版本測試需與 package manifest 一致。
 
 ## Known Issues
 
@@ -81,6 +83,7 @@ metadata:
 - L16: (2026-05-19) v5.3.2 版本 bump 後，manifest 測試需同步改為 5.3.2；MCP server runtime 版本常數維持既有測試契約，不在卡匣機櫃 VSIX 修補版中擴張範圍。
 - L17: (2026-05-19) 新增 MCP tool 時需同步更新 `CARTRIDGE_TOOLS`、dispatcher handler map、README 工具表、工具數文字與測試硬編碼工具清單。
 - L18: (2026-05-19) VSIX/package 版本 bump 後要搜尋 `packageJson.version` 與 `5.x.x` 斷言；`tool-registry.test.ts` 是目前固定 package manifest 版本的測試點。
+- L19: (2026-05-29) npm runtime 發布版的 manifest 測試不只保護 VSIX package，也保護 npx 安裝版本；版本 bump 時需同步 dry-run 檢查 tarball 名稱。
 
 ## Relations
 
@@ -92,6 +95,7 @@ metadata:
 - mcp-tools.dispatcher（消費工具 metadata 並執行明確確認防線）
 - mcp-tools.context-governance（消費工具 metadata 並提供 v5 context tools）
 - mcp-tools.memory-graph（消費 envelope 契約並提供 memory_graph 工具）
+- mcp-tools.project-context（消費 envelope 契約並提供 project_context 工具）
 
 ## Applicable Skills
 

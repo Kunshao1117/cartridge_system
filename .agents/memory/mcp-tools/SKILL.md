@@ -2,7 +2,7 @@
 name: mcp-tools
 description: |
   專案記憶：MCP 工具介面模組（第三階段）。 Use when: 處理MCP伺服器註冊、工具路由、AI工具呼叫介面時載入。
-last_updated: '2026-05-19T08:00:06+08:00'
+last_updated: '2026-05-29T18:14:52+08:00'
 status: stable
 staleness: 0
 dependencies: null
@@ -69,6 +69,7 @@ metadata:
 - D47: v5.2 採 Gateway-first workspace 模型；公開 tools/list 的 `projectRoot` 不再必填，Gateway `workspace` 或 npm CLI `--workspace` 由 dispatcher 補入，舊客戶端仍可傳相同 `projectRoot`。
 - D48: v5.2 新增 npm MCP runtime 發布面，`cartridge-system` / `cartridge-mcp` bin 都指向 `dist/mcp-server.js`，npm tarball 以 `files` 白名單排除 `.agents`、source、tests 與 CI workflow。
 - D49: v5.3.3 新增第十三個 MCP 工具 `memory_graph`，由 `mcp-tools.memory-graph` 子卡承接，提供 AI 可讀整體記憶卡匣關聯圖。
+- D50: v5.4 新增 `mcp-tools.project-context` 子卡，承接 `.agents/context/` 專案脈絡層四個只讀 MCP 工具；此能力與 `.agents/memory/` 原始碼記憶平行，不參與 stale，也不走 `memory_commit` 核准脈絡內容。
 
 ## Known Issues
 
@@ -108,6 +109,7 @@ metadata:
 - mcp-tools.memory-audit（子卡：memory_audit 完整健檢與 compatibility 規則）
 - mcp-tools.context-governance（子卡：v5 規則檔檢查工具）
 - mcp-tools.memory-graph（子卡：AI 可讀整體記憶圖譜工具）
+- mcp-tools.project-context（子卡：專案脈絡層只讀 MCP 工具）
 - mcp-tools.tool-registry（子卡：MCP 工具名冊與統一回傳契約）
 - mcp-tools.dispatcher（子卡：MCP 工具分派與 high-risk tool guardrail）
 

@@ -2,7 +2,7 @@
 name: _system
 description: |
   專案記憶：系統技術堆疊與部署設定。 Use when: 確認技術選型、環境設定、部署組態時載入。
-last_updated: '2026-05-19T21:30:27+08:00'
+last_updated: '2026-05-29T18:32:19+08:00'
 status: stable
 staleness: 0
 metadata:
@@ -73,7 +73,7 @@ metadata:
 
 ## Config Files
 
-- `package.json` — VS Code Extension 元數據（含 activationEvents / contributes），當前版本 **5.3.5**；同時公開 `cartridge-system` / `cartridge-mcp` npm bin 指向 `dist/mcp-server.js`，`files` 同時作為 npm 與 VSIX 發布白名單，`npm run package` 委派 `scripts/package-vsix.mjs`，repository URL 採 npm 正規化後的 `git+https://...`；`cartridge.updateCheck.enabled` 控制啟動時 GitHub Release 更新檢查，手動命令不受此設定影響
+- `package.json` — VS Code Extension 元數據（含 activationEvents / contributes），當前版本 **5.4.0**；同時公開 `cartridge-system` / `cartridge-mcp` npm bin 指向 `dist/mcp-server.js`，`files` 同時作為 npm 與 VSIX 發布白名單，`npm run package` 委派 `scripts/package-vsix.mjs`，repository URL 採 npm 正規化後的 `git+https://...`；`cartridge.updateCheck.enabled` 控制啟動時 GitHub Release 更新檢查，手動命令不受此設定影響
 - `tsconfig.json` — CommonJS + node 模組解析
 - `tsup.config.ts` — entry: extension.ts / mcp-server.ts 使用 cjs；cabinet-webview.ts 使用 browser iife；external: vscode / noExternal: gray-matter、ignore、cytoscape
 - `eslint.config.js` — ESLint v9 Flat Config（CJS 格式，@typescript-eslint）
@@ -132,6 +132,7 @@ D23: v5.3.3 為卡匣機櫃縮放控制與 AI 記憶圖譜工具版；package/pa
 D24: v5.3.4 插件更新檢查 — VSIX extension manifest 新增 `cartridge.checkForUpdates` 與 `cartridge.updateCheck.enabled`；更新來源只信任 GitHub Release，不追 main 分支或未完成打包的 tag。package/package-lock、README、CHANGELOG 與 VSIX 檔名同步至 5.3.4。
 D25: v5.3.5 插件更新檢查按鈕 — `package.json` 讓 `cartridge.checkForUpdates` 使用 `$(cloud-download)` icon，並掛到 `cartridgeGovernanceOverview` 與 `cartridgeExplorer` 的 `view/title` navigation 區，讓側邊欄可直接點按鈕手動檢查；package/package-lock、README、CHANGELOG 與 VSIX 檔名同步至 5.3.5。
 D26: Release workflow Node 24 升級 — `.github/workflows/release.yml` 改用 `actions/checkout@v6`、`actions/setup-node@v6` 與 `node-version: "24"`，保留既有 tag / workflow_dispatch 發版契約，但避免 Node.js 20 action runtime deprecation warning。
+D27: v5.4.0 專案脈絡層 npm 發布版 — package/package-lock、README、CHANGELOG 與 MCP server runtime version 同步至 5.4.0；本版目標包含 npm MCP runtime 發布，因此不沿用只 bump VSIX manifest 的例外策略。
 
 ## Known Issues
 
@@ -164,6 +165,7 @@ D26: Release workflow Node 24 升級 — `.github/workflows/release.yml` 改用 
 - L23: (2026-05-19) — 版本號升級需同步 package-lock 根層版本、README 安裝命令、CHANGELOG 版本段落與本機 VSIX 檔名。
 - L24: (2026-05-19) — v5.3.2 打包前需確認 `cabinet-graph-viewport.ts` 已歸卡，否則 `commit_preflight` 會以未歸屬 source file 阻塞提交。
 - L25: (2026-05-19) — VSIX/package 修補版可升 package 版本但不必同步改 `MCP_SERVER_VERSION`，除非本次發行目標包含 npm runtime 版本宣告。
+- L26: (2026-05-29) — 發布到 npm 時，`package.json` 版本、`package-lock.json` 根層版本、README 安裝範例、工具名冊版本測試與 MCP server `--version` 輸出必須同步，避免 npm 使用者看到舊 runtime 版本。
 
 ## Applicable Skills
 

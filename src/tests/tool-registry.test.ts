@@ -19,6 +19,10 @@ describe("tool-registry — MCP 工具名冊", () => {
       "context_audit",
       "context_diff",
       "context_plan",
+      "project_context_list",
+      "project_context_read",
+      "project_context_validate",
+      "project_context_status",
     ]);
   });
 
@@ -75,7 +79,7 @@ describe("tool-registry — MCP 工具名冊", () => {
       fs.readFileSync(path.resolve(process.cwd(), "package.json"), "utf-8"),
     );
 
-    expect(packageJson.version).toBe("5.3.5");
+    expect(packageJson.version).toBe("5.4.0");
     expect(packageJson.bin).toEqual({
       "cartridge-system": "dist/mcp-server.js",
       "cartridge-mcp": "dist/mcp-server.js",
@@ -107,5 +111,27 @@ describe("tool-registry — MCP 工具名冊", () => {
     expect(memoryGraph?.inputSchema.properties.lens).toEqual(
       expect.objectContaining({ enum: ["maintenance", "memory", "structure", "all"] }),
     );
+  });
+
+  it("project context tools 應維持只讀且與記憶提交分離", () => {
+    const tools = CARTRIDGE_TOOLS.filter((tool) =>
+      tool.name.startsWith("project_context_"),
+    );
+
+    expect(tools.map((tool) => tool.name)).toEqual([
+      "project_context_list",
+      "project_context_read",
+      "project_context_validate",
+      "project_context_status",
+    ]);
+    for (const tool of tools) {
+      expect(tool.readOnly).toBe(true);
+      expect(tool.requiresExplicitApproval).toBe(false);
+      expect(tool.inputSchema.required).not.toContain("projectRoot");
+    }
+    expect(
+      CARTRIDGE_TOOLS.find((tool) => tool.name === "project_context_read")
+        ?.inputSchema.required,
+    ).toContain("target");
   });
 });

@@ -3,7 +3,7 @@ name: mcp-tools.dispatcher
 description: >
   專案記憶：MCP 工具分派與工具層防線。Use when: 處理 MCP tool routing、unknown tool 錯誤、 high-risk
   tool 明確確認與 dispatcher 測試時載入。
-last_updated: '2026-05-19T07:59:54+08:00'
+last_updated: '2026-05-29T18:14:53+08:00'
 status: stable
 staleness: 0
 dependencies:
@@ -15,6 +15,7 @@ dependencies:
   - mcp-tools.memory-audit
   - mcp-tools.context-governance
   - mcp-tools.memory-graph
+  - mcp-tools.project-context
 metadata:
   author: antigravity
   version: '1.0'
@@ -56,6 +57,7 @@ metadata:
 - D17: `core-types` 持有 projectRoot 路徑驗證與工作區身分比較；若 `core-types` 的路徑語義變更，dispatcher 的 Gateway/CLI workspace 注入與衝突判斷必須重新檢查，因此列為 staleness propagation dependency。
 - D18: v5.3.3 dispatcher 加入 `memory_graph` handler map；tools/list 公開後必須確保 tools/call 能路由到 `handleMemoryGraph`。
 - D19: dependency reason — `mcp-tools.memory-graph` 持有 `handleMemoryGraph` export 與工具回傳語義；若該 handler 過期，dispatcher 的路由表與測試 mock 必須重新檢查。
+- D20: v5.4 dispatcher 加入四個 project_context handler map；tools/list 公開後必須確保 `project_context_list/read/validate/status` 都能路由到 `mcp-tools.project-context` 對應 handler。
 
 ## Known Issues
 
@@ -84,6 +86,7 @@ metadata:
 - mcp-tools.memory-audit（依賴：memory_audit handler）
 - mcp-tools.context-governance（依賴：context governance handlers）
 - mcp-tools.memory-graph（依賴：memory_graph handler）
+- mcp-tools.project-context（依賴：project_context handlers）
 - core-types（依賴：projectRoot 路徑驗證與工作區身分比較）
 
 ## Applicable Skills

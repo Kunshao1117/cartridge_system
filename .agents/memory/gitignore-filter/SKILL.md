@@ -3,7 +3,7 @@ name: gitignore-filter
 description: >
   專案記憶：Gitignore 排除引擎模組。讀取 .gitignore 規則進行路徑排除過濾。Use when:
   涉及檔案掃描、監聽排除、未歸屬檔案偵測時載入。
-last_updated: '2026-05-19T06:07:09+08:00'
+last_updated: '2026-05-29T18:14:53+08:00'
 status: stable
 staleness: 0
 metadata:
@@ -31,6 +31,7 @@ metadata:
 - D05: 路徑正規化使用 `/` 分隔符（Windows 反斜線自動轉換），確保跨平台一致
 - D06: `reload()` 允許重新載入 `.gitignore` 內容（用以在修改 `.gitignore` 時即時更新過濾機制）
 - D07: v5.3.0 起 `.vscodeignore` 已被 `package.json.files` 單一白名單取代；GitHub Actions 與本機 VSIX 打包不再依賴 `.vscodeignore`。
+- D08: v5.4 `.agents/` 白名單除 `.agents/memory/` 外，也放行 `.agents/context/` 與 `.agents/project_skills/`；專案脈絡與專案衍生技能是版本化知識資產，不應被 broad `/.agents/*` 排除。
 
 ## Known Issues
 
@@ -42,6 +43,7 @@ metadata:
 - D07: filterPaths 搭配忽略 `.git` 已能穩固應付巨量掃描，並能有效阻絕潛在的路徑穿越與掃描無限迴圈。
 - L03: (2026-05-18) 舊版 VSIX 自動發版曾使用 `.vscodeignore` 排除規則；v5.3.0 後已改由 `package.json.files` 統一控制打包內容。
 - L04: (2026-05-19) 本次卡匣機櫃建構期間重新檢查 `.gitignore`，未發現新的語意規則變更；staleness 來自檔案 mtime 偵測，可透過記憶同步核銷。
+- L05: (2026-05-29) `git check-ignore -v --no-index` 應同時驗證 `.agents/context/**` 與 `.agents/project_skills/**` 放行，以及 `.agents/skills/**` 等部署產物仍被忽略，避免框架升級後誤收或誤擋治理資產。
 
 ## Relations
 

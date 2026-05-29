@@ -2,9 +2,18 @@
 
 ## [Unreleased]
 
+## [5.4.0] — 2026-05-29
+
+### feat
+
+- 專案脈絡 MCP 層 — 新增只讀 `project_context_list`、`project_context_read`、`project_context_validate`、`project_context_status` 四個工具，支援 `.agents/context/` 脈絡卡清單、讀取、驗證與狀態摘要，並明確與 `.agents/memory/` stale / `memory_commit` 分離。
+- AI 開工摘要 — `workspace_brief` 新增非阻塞 `projectContext` 摘要；專案脈絡需要複審時會提示 `project_context_status`，但不阻擋原始碼記憶與提交前治理流程。
+
 ### chore
 
 - Release workflow — 將 GitHub Actions `checkout` / `setup-node` 升級到 Node 24 相容版本，並改用 Node 24 打包 VSIX，避免 Release workflow 再出現 Node.js 20 runtime deprecation warning。
+- 文件與測試 — README 更新為十七個 MCP 工具、28 個測試檔案、227 個測試案例，並補上專案脈絡層工具契約、範例與版控白名單說明。
+- 版本升級 — package、lockfile、README 安裝範例、版本測試與 MCP server 對外版本同步至 5.4.0，作為 npm 發布版本。
 
 ## [5.3.5] — 2026-05-19
 

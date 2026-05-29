@@ -1,5 +1,6 @@
 import { describe, expect, it, vi, beforeEach } from "vitest";
 import { handleWorkspaceBrief } from "../workspace-brief.js";
+import { buildWorkspaceBrief } from "../workspace-brief-summary.js";
 
 vi.mock("fs/promises", () => ({
   readFile: vi.fn(),
@@ -226,5 +227,57 @@ describe("handleWorkspaceBrief", () => {
 
     expect(result.isError).toBe(true);
     expect(result.content[0].text).toContain("Validation Error");
+  });
+
+  it("workspace summary 應包含非阻塞專案脈絡摘要", () => {
+    const brief = buildWorkspaceBrief(
+      { name: "ok", version: "1.0.0", description: "" },
+      { cartridges: {}, untrackedFiles: [] },
+      {
+        projectContext: {
+          totals: {
+            cards: 1,
+            byStatus: { conflict: 1 },
+            byType: { preference: 1 },
+          },
+          readiness: {
+            status: "warning",
+            warnings: 1,
+            errors: 0,
+            usable: 0,
+            advisory: 0,
+            requiresDecision: 1,
+          },
+          usage: {
+            approved: [],
+            advisory: [],
+            requiresDecision: ["design-dna"],
+            review: [],
+            deprecated: [],
+          },
+          findings: [
+            {
+              severity: "warning",
+              code: "PROJECT_CONTEXT_CONFLICT_DETAIL_MISSING",
+              message: "needs review",
+              contextId: "design-dna",
+            },
+          ],
+        },
+      },
+    );
+
+    expect(brief.projectContext?.readiness.status).toBe("warning");
+    expect(brief.startupReadiness.status).toBe("needs_review");
+    expect(brief.submitReadiness.nextTool).toBe("commit_preflight");
+    const projectContextAction = brief.recommendedActions.find(
+      (action) => action.nextTool === "project_context_status",
+    );
+    expect(projectContextAction).toEqual(
+      expect.objectContaining({
+        nextTool: "project_context_status",
+        blocking: false,
+      }),
+    );
   });
 });

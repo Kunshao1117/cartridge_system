@@ -7,6 +7,8 @@ import {
   summarizeContextReadiness,
 } from "./context-audit.js";
 import { scanContextRegistry } from "./context-registry.js";
+import { scanProjectContextCards } from "./project-context-registry.js";
+import { summarizeProjectContexts } from "./project-context-validation.js";
 import {
   createToolEnvelope,
   createToolErrorEnvelope,
@@ -18,6 +20,7 @@ import {
 import {
   buildWorkspaceBrief,
   type BriefIndex,
+  type ProjectContextBrief,
 } from "./workspace-brief-summary.js";
 
 const projectRootField = z
@@ -109,6 +112,17 @@ async function readCartridgeIndex(projectRoot: string): Promise<{
   }
 }
 
+async function readProjectContextBrief(projectRoot: string): Promise<ProjectContextBrief> {
+  const cards = await scanProjectContextCards(projectRoot);
+  const summary = await summarizeProjectContexts({ projectRoot, cards });
+  return {
+    totals: summary.totals,
+    readiness: summary.readiness,
+    usage: summary.usage,
+    findings: summary.findings,
+  };
+}
+
 export async function handleWorkspaceBrief(
   args: unknown,
 ): Promise<McpToolResult> {
@@ -127,10 +141,11 @@ export async function handleWorkspaceBrief(
 
   try {
     const projectRoot = validateProjectRoot(parsed.data.projectRoot);
-    const [project, indexResult, contextInventory] = await Promise.all([
+    const [project, indexResult, contextInventory, projectContext] = await Promise.all([
       readPackageSummary(projectRoot),
       readCartridgeIndex(projectRoot),
       scanContextRegistry(projectRoot),
+      readProjectContextBrief(projectRoot),
     ]);
     const contextFindings = auditContextInventory(contextInventory);
     const contextReadiness = summarizeContextReadiness(contextFindings);
@@ -141,6 +156,7 @@ export async function handleWorkspaceBrief(
         readiness: contextReadiness,
         findings: contextFindings,
       },
+      projectContext,
     });
     const status =
       brief.readiness.status === "blocked" ||

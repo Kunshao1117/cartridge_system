@@ -141,6 +141,8 @@ MCP client 設定範例：
 
 Cartridge System 使用 GitHub Actions 自動發布 VSIX。正式版本不需要手動開 GitHub Release 拖檔案。
 
+VSIX 插件與 npm MCP runtime 使用不同發布入口：`vX.Y.Z` tag 僅代表 VSIX 插件 release；npm MCP runtime 請使用 `npm-vX.Y.Z` tag 或手動執行 npm workflow。
+
 ### 自動發布正式版
 
 1. 更新 `package.json` 版本與 `CHANGELOG.md` 對應版本段落。
@@ -168,7 +170,7 @@ git tag v5.4.0
 git push origin v5.4.0
 ```
 
-GitHub Actions 會自動執行測試、打包 `cartridge-system-*.vsix`、建立或更新 Release，並把 VSIX 掛到 Release 附件。
+GitHub Actions 會自動執行測試、打包 `cartridge-system-*.vsix`、建立或更新 Release，並把 VSIX 掛到 Release 附件；此流程不會發布 npm MCP runtime。
 
 ### 手動補發
 
@@ -191,6 +193,15 @@ npm publish --dry-run
 ```
 
 `package.json` 的 `files` 白名單只會發布 `dist/*.js`、`assets/**`、README、CHANGELOG 與 LICENSE，避免 `.agents/`、`src/`、測試檔、source map 與 GitHub workflow 進入 npm tarball。卡匣機櫃 Webview 前端會被打包成 `dist/cabinet-webview.global.js`。正式發布需另外取得 `GO PUBLISH` 授權。
+
+若使用 GitHub Actions Trusted Publishing，請推送 npm 專用 tag，不要使用 VSIX 的 `vX.Y.Z` tag：
+
+```bash
+git tag npm-v5.4.0
+git push origin npm-v5.4.0
+```
+
+`Publish npm` workflow 會確認 tag/input 版本與 `package.json` 一致；若 npm registry 已有同版本，會成功跳過發布，避免同版本不可覆蓋造成失敗。
 
 ---
 

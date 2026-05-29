@@ -3,11 +3,11 @@ name: Publish npm
 on:
   push:
     tags:
-      - "v*"
+      - "npm-v*"
   workflow_dispatch:
     inputs:
       version:
-        description: "Publish version, for example 5.4.0 or v5.4.0"
+        description: "Publish version, for example 5.4.0, v5.4.0, or npm-v5.4.0"
         required: true
         type: string
 
@@ -43,8 +43,20 @@ jobs:
             raw_version="${{ inputs.version }}"
           fi
 
-          publish_version="${raw_version#v}"
-          publish_tag="v${publish_version}"
+          case "${raw_version}" in
+            npm-v*)
+              publish_version="${raw_version#npm-v}"
+              publish_tag="npm-v${publish_version}"
+              ;;
+            v*)
+              publish_version="${raw_version#v}"
+              publish_tag="npm-v${publish_version}"
+              ;;
+            *)
+              publish_version="${raw_version}"
+              publish_tag="npm-v${publish_version}"
+              ;;
+          esac
           package_version="$(node -p "require('./package.json').version")"
 
           if [[ -z "${publish_version}" || "${publish_version}" == "v" ]]; then

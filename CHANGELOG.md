@@ -2,6 +2,10 @@
 
 ## [Unreleased]
 
+### chore
+
+- 發布流程分流 — npm MCP runtime 改用 `npm-v*` tag 或手動 workflow 發布，`v*` tag 保留給 VSIX 插件 release，避免同一 tag 同時觸發兩種不同產物。
+
 ## [5.4.0] — 2026-05-29
 
 ### feat

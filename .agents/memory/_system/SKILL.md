@@ -2,7 +2,7 @@
 name: _system
 description: |
   專案記憶：系統技術堆疊與部署設定。 Use when: 確認技術選型、環境設定、部署組態時載入。
-last_updated: '2026-05-29T18:57:58+08:00'
+last_updated: '2026-05-29T19:07:31+08:00'
 status: stable
 staleness: 0
 metadata:
@@ -79,8 +79,8 @@ metadata:
 - `tsup.config.ts` — entry: extension.ts / mcp-server.ts 使用 cjs；cabinet-webview.ts 使用 browser iife；external: vscode / noExternal: gray-matter、ignore、cytoscape
 - `eslint.config.js` — ESLint v9 Flat Config（CJS 格式，@typescript-eslint）
 - `package.json files` — npm runtime 發布白名單：`dist/*.js`、`assets/**`、README、CHANGELOG、LICENSE；排除 `.agents/`、`src/`、測試、source map 與 GitHub workflow；卡匣機櫃 Webview 產物為 `dist/cabinet-webview.global.js`
-- `.github/workflows/release.yml` — VSIX 自動發版流程：推送 `v*` tag 或手動輸入版本後執行 test/lint/build/package，並建立或更新 GitHub Release 附件；workflow 使用 Node 24 相容 GitHub Actions 與 Node 24 打包環境
-- `.github/workflows/npm-publish.yml` — npm Trusted Publishing 發布流程：推送 `v*` tag 或手動輸入版本後檢查 package 版本一致性與 npm registry 既有版本；若版本已存在則成功跳過 npm 發布，若版本未存在則執行 lint/test/build/tsc/pack dry-run，再透過 GitHub OIDC 發布 npm；job environment 固定為 `npm publish`，必須與 npm package access 設定一致
+- `.github/workflows/release.yml` — VSIX 自動發版流程：推送 `v*` tag 或手動輸入版本後執行 test/lint/build/package，並建立或更新 GitHub Release 附件；`v*` tag 保留給 VSIX 插件 release，不發布 npm MCP runtime；workflow 使用 Node 24 相容 GitHub Actions 與 Node 24 打包環境
+- `.github/workflows/npm-publish.yml` — npm Trusted Publishing 發布流程：推送 `npm-v*` tag 或手動輸入版本後檢查 package 版本一致性與 npm registry 既有版本；若版本已存在則成功跳過 npm 發布，若版本未存在則執行 lint/test/build/tsc/pack dry-run，再透過 GitHub OIDC 發布 npm；job environment 固定為 `npm publish`，必須與 npm package access 設定一致
 - `.cartridge/index.json` — 執行期產生（索引檔）
 
 ## 專案身份與工作模式
@@ -137,6 +137,7 @@ D26: Release workflow Node 24 升級 — `.github/workflows/release.yml` 改用 
 D27: v5.4.0 專案脈絡層 npm 發布版 — package/package-lock、README、CHANGELOG 與 MCP server runtime version 同步至 5.4.0；本版目標包含 npm MCP runtime 發布，因此不沿用只 bump VSIX manifest 的例外策略。
 D28: npm Trusted Publishing workflow — 新增 `.github/workflows/npm-publish.yml` 作為 npm 發布入口，使用 GitHub OIDC (`id-token: write`) 與 npm package trusted publisher，不保存長期 `NPM_TOKEN`；workflow 會確認 tag/input 與 `package.json` version 一致後再執行 lint/test/build/tsc/pack dry-run/publish。若 npm package access 填入 environment `npm publish`，GitHub Actions job environment 必須同名。
 D29: npm 既有版本保護 — `.github/workflows/npm-publish.yml` 在執行 npm 發布前先查詢 `cartridge-system@版本` 是否已存在；若 registry 已有同版本，workflow 成功跳過 npm 發布，避免補推既有 release tag 時因 npm 版本不可覆蓋而失敗。
+D30: 發布 tag 分流 — `v*` tag 保留給 VSIX 插件 release workflow；npm MCP runtime 改用 `npm-v*` tag 或 `Publish npm` 手動 workflow。兩種知識資產共用 package 版本欄位，但不再由同一個 tag 同時觸發兩種發布產物。
 
 ## Known Issues
 
@@ -172,6 +173,7 @@ D29: npm 既有版本保護 — `.github/workflows/npm-publish.yml` 在執行 np
 - L26: (2026-05-29) — 發布到 npm 時，`package.json` 版本、`package-lock.json` 根層版本、README 安裝範例、工具名冊版本測試與 MCP server `--version` 輸出必須同步，避免 npm 使用者看到舊 runtime 版本。
 - L27: (2026-05-29) — npm Trusted Publishing 的 owner、repository、workflow filename 與 environment name 皆需和 npm package access 設定完全一致；本 repo 採 `Kunshao1117/cartridge_system`、`npm-publish.yml`、environment `npm publish`。
 - L28: (2026-05-29) — npm registry 的同名同版本不可覆蓋；若要補推已手動發布過的 tag，npm workflow 必須先偵測既有版本並成功跳過 publish，否則 Actions 會在 npm 發布步驟失敗。
+- L29: (2026-05-29) — MCP runtime 與 VSIX 插件是不同發布面；未來 npm 發布使用 `npm-vX.Y.Z`，插件發布使用 `vX.Y.Z`，避免測 npm Trusted Publishing 時重建 VSIX release。
 
 ## Applicable Skills
 

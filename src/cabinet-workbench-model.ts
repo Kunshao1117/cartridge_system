@@ -20,6 +20,7 @@ export interface CabinetCard {
   pendingChangesCount: number;
   ghostFilesCount: number;
   maintenanceScore: number;
+  reviewScore: number;
   memoryScore: number;
   structureScore: number;
   dependencies: string[];
@@ -95,6 +96,7 @@ export function buildCabinetWorkbenchModel(
     const trackedFilesCount = entry.trackedFiles.length;
     const pendingChangesCount = entry.pendingChanges.length;
     const ghostFilesCount = entry.ghostFiles.length;
+    const reviewScore = entry.indirectStaleness;
     const children = childrenByCard.get(id) ?? [];
     const dependencies = [...(entry.dependencies ?? [])];
     const dependents = dependentsByCard.get(id) ?? [];
@@ -112,7 +114,8 @@ export function buildCabinetWorkbenchModel(
       trackedFilesCount,
       pendingChangesCount,
       ghostFilesCount,
-      maintenanceScore: maintenanceScore(entry.staleness, entry.indirectStaleness, pendingChangesCount, ghostFilesCount),
+      maintenanceScore: maintenanceScore(entry.staleness, pendingChangesCount, ghostFilesCount),
+      reviewScore,
       memoryScore: memoryScore(entry.description, metadata),
       structureScore: structureScore(trackedFilesCount, dependencies.length, dependents.length, children.length),
       dependencies,

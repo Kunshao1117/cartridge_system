@@ -39,7 +39,8 @@ const lineTypesByLens: Record<CabinetLens, CabinetLine["type"][]> = {
 };
 const filtersByLens: Record<CabinetLens, LensFilter[]> = {
   maintenance: [
-    { id: "hot", label: "發熱", test: (card) => card.staleness > 0 || card.indirectStaleness > 0 },
+    { id: "hot", label: "發熱", test: (card) => card.maintenanceScore > 0 },
+    { id: "review", label: "複審", test: (card) => card.reviewScore > 0 },
     { id: "ghost", label: "幽靈", test: (card) => card.ghostFilesCount > 0 },
     { id: "pending", label: "待同步", test: (card) => card.pendingChangesCount > 0 },
     {
@@ -396,7 +397,7 @@ function maintenanceDetails(card: CabinetCard): string {
       ${metric("狀態燈", statusLabel(card))}
       ${metric("維護熱度", card.maintenanceScore)}
       ${metric("直接熱度", card.staleness)}
-      ${metric("傳播熱度", card.indirectStaleness)}
+      ${metric("複審提醒", card.reviewScore)}
       ${metric("待同步", card.pendingChangesCount)}
       ${metric("幽靈檔", card.ghostFilesCount)}
     </div>
@@ -505,6 +506,7 @@ function graphStyle(): StylesheetStyle[] {
 function maintenanceGraphStyle(): StylesheetStyle[] {
   return [
     { selector: "node.hot", style: { "border-color": "#ffb14a", "background-color": "#231b13" } },
+    { selector: "node.review", style: { "border-color": "#55a8ff", "background-color": "#111d2e" } },
     { selector: "node.critical, node.ghost", style: { "border-color": "#ff5d64", "background-color": "#241319" } },
     { selector: "node.healthy", style: { "border-color": "#536171" } },
     { selector: "edge.heat", style: { "width": "mapData(weight, 1, 100, 2, 6)", "line-color": "#ffb14a", "target-arrow-color": "#ffb14a" } },
@@ -542,10 +544,10 @@ function cardClasses(card: CabinetCard): string {
   return [
     card.status,
     card.maintenanceScore > 0 ? "hot" : "",
+    card.reviewScore > 0 ? "review" : "",
     card.memoryScore > 3 ? "memory-rich" : "low-memory",
     card.structureScore > 0 ? "structured" : "",
     card.parent || card.children.length > 0 ? "parented" : "",
-    card.indirectStaleness > 0 ? "indirect" : "",
     card.ghostFilesCount > 0 ? "ghost" : "",
   ]
     .filter(Boolean)
@@ -599,7 +601,7 @@ function listBlock(title: string, values: string[]): string {
 function statusLabel(card: CabinetCard): string {
   if (card.status === "critical") return "紅燈";
   if (card.status === "significant") return "橘燈";
-  if (card.status === "mild" || card.indirectStaleness > 0) return "藍燈";
+  if (card.status === "mild") return "藍燈";
   return "綠燈";
 }
 

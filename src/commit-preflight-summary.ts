@@ -2,6 +2,11 @@ import {
   buildCompatibilityReport,
   type CompatibilityReport,
 } from "./memory-compatibility.js";
+import {
+  classifyMemoryWarnings,
+  type MemoryWarningClassification,
+  type MemoryWarningItem,
+} from "./staleness.js";
 
 export interface PreflightCartridgeEntry {
   skillPath?: string;
@@ -31,7 +36,6 @@ type Blocker = {
     | "memory_stale"
     | "memory_ghost_files"
     | "memory_untracked_files"
-    | "memory_indirect_stale"
     | "memory_compatibility"
     | "git_dirty";
   target: string;
@@ -56,7 +60,7 @@ export interface DependencySemanticSummary {
 }
 
 type PreflightReadiness = {
-  status: "ready" | "blocked";
+  status: "ready" | "warning" | "blocked";
   blockingReasons: string[];
   warningReasons: string[];
 };
@@ -82,6 +86,7 @@ export function parseGitStatusPorcelain(output: string): GitStatusEntry[] {
 
 function buildMemoryGate(index: PreflightIndex) {
   const entries = Object.entries(index.cartridges ?? {});
+  const classification = classifyMemoryWarnings(index);
   const staleModules = entries
     .filter(([, entry]) => (entry.staleness ?? 0) > 0)
     .map(([module, entry]) => ({
@@ -101,30 +106,11 @@ function buildMemoryGate(index: PreflightIndex) {
       indirectStaleness: entry.indirectStaleness ?? 0,
     }));
   const untrackedFiles = index.untrackedFiles?.length ?? 0;
-  const blockers: Blocker[] = [
-    ...staleModules.map((item) => ({
-      type: "memory_stale" as const,
-      target: item.module,
-      reason: `staleness=${item.staleness}`,
-    })),
-    ...ghostModules.map((item) => ({
-      type: "memory_ghost_files" as const,
-      target: item.module,
-      reason: `ghostFiles=${item.ghostFiles}`,
-    })),
-    ...indirectStaleModules.map((item) => ({
-      type: "memory_indirect_stale" as const,
-      target: item.module,
-      reason: `indirectStaleness=${item.indirectStaleness}`,
-    })),
-  ];
-  if (untrackedFiles > 0) {
-    blockers.push({
-      type: "memory_untracked_files",
-      target: "workspace",
-      reason: `untrackedFiles=${untrackedFiles}`,
-    });
-  }
+  const blockers: Blocker[] = classification.blocking.map((item) => ({
+    type: item.code as Blocker["type"],
+    target: item.target,
+    reason: item.reason,
+  }));
   return {
     summary: {
       stale: staleModules.length,
@@ -133,6 +119,8 @@ function buildMemoryGate(index: PreflightIndex) {
       indirectStale: indirectStaleModules.length,
     },
     blockers,
+    reviewItems: classification.review,
+    advisories: [...classification.review, ...classification.info],
   };
 }
 
@@ -192,6 +180,9 @@ function buildRecommendedActions(
       reason: blocker.reason,
     });
   }
+  for (const item of memory.reviewItems) {
+    actions.push(toReviewAction(item));
+  }
   if (git.summary.dirty) {
     actions.push({
       priority: "P1",
@@ -201,6 +192,18 @@ function buildRecommendedActions(
     });
   }
   return actions.sort((a, b) => a.priority.localeCompare(b.priority));
+}
+
+function toReviewAction(item: MemoryWarningItem): RecommendedAction {
+  return {
+    priority: "P2",
+    action:
+      item.code === "memory_child_review"
+        ? "review_child_memory"
+        : "review_upstream_staleness",
+    target: item.target,
+    reason: item.reason,
+  };
 }
 
 function buildSuggestedCommands() {
@@ -217,15 +220,20 @@ function buildSuggestedCommands() {
 function buildReadiness(
   blockers: Blocker[],
   dependencySemantics: DependencySemanticSummary,
+  memoryWarnings: MemoryWarningClassification,
 ): PreflightReadiness {
+  const warningReasons = [
+    ...memoryWarnings.review.map((item) => `${item.target}: ${item.reason}`),
+    ...dependencySemantics.modules.map(
+      (item) => `${item.module}: ${item.codes.join(", ")}`,
+    ),
+  ];
   return {
-    status: blockers.length > 0 ? "blocked" : "ready",
+    status: blockers.length > 0 ? "blocked" : warningReasons.length > 0 ? "warning" : "ready",
     blockingReasons: blockers.map(
       (blocker) => `${blocker.target}: ${blocker.reason}`,
     ),
-    warningReasons: dependencySemantics.modules.map(
-      (item) => `${item.module}: ${item.codes.join(", ")}`,
-    ),
+    warningReasons,
   };
 }
 
@@ -252,13 +260,17 @@ export function buildCommitPreflight(
         ]
       : [];
   const blockers = [...compatibilityBlockers, ...memory.blockers, ...git.blockers];
-  const readiness = buildReadiness(blockers, dependencySemantics);
+  const memoryWarnings = classifyMemoryWarnings(index);
+  const readiness = buildReadiness(blockers, dependencySemantics, memoryWarnings);
   return {
     status: readiness.status,
     summary: {
       readiness,
       compatibility,
       memory: memory.summary,
+      memoryWarnings,
+      reviewItems: memory.reviewItems,
+      advisories: memory.advisories,
       git: git.summary,
       dependencySemantics,
     },

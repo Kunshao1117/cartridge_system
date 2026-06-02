@@ -112,6 +112,48 @@ describe("handleCommitPreflight", () => {
     ).toBe(true);
   });
 
+  it("只有間接過期且 git 乾淨時應回傳 warning 且不列為 blocker", async () => {
+    vi.mocked(fs.readFile).mockResolvedValue(
+      JSON.stringify({
+        cartridges: {
+          "mcp-tools.consumer": {
+            staleness: 0,
+            ghostFiles: [],
+            indirectStaleness: 8,
+            dependencies: ["mcp-tools"],
+            parent: "mcp-tools",
+          },
+        },
+        fileMap: {},
+        untrackedFiles: [],
+      }) as unknown as Awaited<ReturnType<typeof fs.readFile>>,
+    );
+    mockGitStatus("");
+
+    const result = await handleCommitPreflight({ projectRoot: PROJECT_ROOT });
+    const envelope = JSON.parse(result.content[0].text);
+    const preflight = envelope.summary;
+
+    expect(envelope.status).toBe("warning");
+    expect(preflight.status).toBe("warning");
+    expect(preflight.blockers).toEqual([]);
+    expect(preflight.summary.readiness.blockingReasons).toEqual([]);
+    expect(preflight.summary.readiness.warningReasons).toContain(
+      "mcp-tools.consumer: indirectStaleness=8",
+    );
+    expect(
+      preflight.summary.readiness.blockingReasons.some((reason: string) =>
+        reason.includes("indirectStaleness"),
+      ),
+    ).toBe(false);
+    expect(preflight.recommendedActions).toContainEqual(
+      expect.objectContaining({
+        action: "review_upstream_staleness",
+        target: "mcp-tools.consumer",
+      }),
+    );
+  });
+
   it("未傳入 projectRoot 時應回傳 Validation Error", async () => {
     const result = await handleCommitPreflight({});
 

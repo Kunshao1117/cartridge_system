@@ -1,5 +1,9 @@
 import { describe, expect, it } from "vitest";
-import { getStalenessLevel, stalenessToLevel } from "../staleness.js";
+import {
+  classifyMemoryWarnings,
+  getStalenessLevel,
+  stalenessToLevel,
+} from "../staleness.js";
 import { createConfig } from "../config.js";
 
 describe("stalenessToLevel — 過期等級轉換", () => {
@@ -30,5 +34,43 @@ describe("stalenessToLevel — 過期等級轉換", () => {
     expect(getStalenessLevel(9, config)).toBe("mild");
     expect(getStalenessLevel(10, config)).toBe("significant");
     expect(getStalenessLevel(30, config)).toBe("critical");
+  });
+});
+
+describe("classifyMemoryWarnings — 記憶警示分層", () => {
+  it("應把直接問題列為阻塞，間接與父子衍生列為複審", () => {
+    const result = classifyMemoryWarnings({
+      cartridges: {
+        parent: {
+          staleness: 0,
+          ghostFiles: [],
+          indirectStaleness: 0,
+          parent: null,
+        },
+        child: {
+          staleness: 0,
+          ghostFiles: [],
+          indirectStaleness: 6,
+          parent: "parent",
+        },
+        stale: {
+          staleness: 10,
+          ghostFiles: [],
+          indirectStaleness: 0,
+          parent: null,
+        },
+      },
+      untrackedFiles: [{ filePath: "src/new.ts" }],
+    });
+
+    expect(result.blocking.map((item) => item.code)).toEqual([
+      "memory_stale",
+      "memory_untracked_files",
+    ]);
+    expect(result.review.map((item) => item.code)).toEqual([
+      "memory_indirect_stale",
+      "memory_child_review",
+    ]);
+    expect(result.review.every((item) => item.blocking === false)).toBe(true);
   });
 });

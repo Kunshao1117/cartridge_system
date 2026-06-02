@@ -1,4 +1,9 @@
-import { stalenessToLevel } from "./staleness.js";
+import {
+  classifyMemoryWarnings,
+  stalenessToLevel,
+  type MemoryWarningClassification,
+  type MemoryWarningItem,
+} from "./staleness.js";
 import {
   buildCompatibilityReport,
   type CompatibilityReport,
@@ -49,6 +54,12 @@ type SubmitReadiness = {
   nextAction: "run_commit_preflight" | null;
   nextTool: "commit_preflight" | null;
   label: string;
+};
+
+type MemoryReadiness = {
+  status: "ready" | "warning" | "blocked";
+  reasons: string[];
+  reviewReasons: string[];
 };
 
 export interface ContextBrief {
@@ -135,20 +146,23 @@ function buildMemorySummary(index: BriefIndex) {
   };
 }
 
-function buildReadiness(memory: ReturnType<typeof buildMemorySummary>) {
-  const reasons = [
-    ...memory.staleModules.map((item) => `${item.module} staleness=${item.staleness}`),
-    ...memory.ghostModules.map(
-      (item) => `${item.module} ghostFiles=${item.ghostFilesCount}`,
-    ),
-  ];
-  if (memory.untrackedFiles > 0) reasons.push(`untrackedFiles=${memory.untrackedFiles}`);
-  if (memory.indirectStale > 0) reasons.push(`indirectStaleModules=${memory.indirectStale}`);
-  return { status: reasons.length > 0 ? "blocked" : "ready", reasons };
+function buildReadiness(classification: MemoryWarningClassification): MemoryReadiness {
+  const reasons = classification.blocking.map(
+    (item) => `${item.target}: ${item.reason}`,
+  );
+  const reviewReasons = classification.review.map(
+    (item) => `${item.target}: ${item.reason}`,
+  );
+  return {
+    status:
+      reasons.length > 0 ? "blocked" : reviewReasons.length > 0 ? "warning" : "ready",
+    reasons,
+    reviewReasons,
+  };
 }
 
 function buildStartupReadiness(args: {
-  memoryReadiness: ReturnType<typeof buildReadiness>;
+  memoryReadiness: MemoryReadiness;
   context?: ContextBrief;
   projectContext?: ProjectContextBrief;
 }): StartupReadiness {
@@ -159,6 +173,16 @@ function buildStartupReadiness(args: {
       reasons: args.memoryReadiness.reasons,
       nextTool: "memory_audit",
       nextAction: "review_action_items",
+    };
+  }
+
+  if (args.memoryReadiness.status === "warning") {
+    return {
+      status: "needs_review",
+      label: "可以開工，但建議複審記憶卡提醒",
+      reasons: args.memoryReadiness.reviewReasons,
+      nextTool: "memory_deps",
+      nextAction: "review_memory_advisories",
     };
   }
 
@@ -208,7 +232,7 @@ function buildStartupReadiness(args: {
 }
 
 function buildSubmitReadiness(
-  readiness: ReturnType<typeof buildReadiness>,
+  readiness: MemoryReadiness,
 ): SubmitReadiness {
   if (readiness.status === "blocked") {
     return {
@@ -236,45 +260,63 @@ function buildSubmitReadiness(
 
 function buildRecommendedActions(index: BriefIndex): RecommendedAction[] {
   const actions: RecommendedAction[] = [];
-  for (const [module, entry] of Object.entries(index.cartridges ?? {})) {
-    const staleness = entry.staleness ?? 0;
-    if (staleness > 0) {
-      actions.push({
-        priority: staleness >= STALENESS_SIGNIFICANT ? "P1" : "P2",
-        action: "repair_stale_memory",
-        target: module,
-        reason: `staleness=${staleness}`,
-        label: `更新記憶卡：${module}`,
-        nextTool: "memory_status",
-        blocking: staleness >= STALENESS_SIGNIFICANT,
-      });
-    }
-    const ghostCount = entry.ghostFiles?.length ?? 0;
-    if (ghostCount > 0) {
-      actions.push({
-        priority: "P1",
-        action: "clean_ghost_files",
-        target: module,
-        reason: `ghostFiles=${ghostCount}`,
-        label: `清理幽靈檔案：${module}`,
-        nextTool: "memory_status",
-        blocking: true,
-      });
-    }
+  const classification = classifyMemoryWarnings(index);
+  for (const item of classification.blocking) {
+    actions.push(toRecommendedAction(item));
   }
-  const untrackedCount = index.untrackedFiles?.length ?? 0;
-  if (untrackedCount > 0) {
-    actions.push({
-      priority: "P1",
-      action: "attribute_untracked_files",
-      target: "workspace",
-      reason: `untrackedFiles=${untrackedCount}`,
-      label: "歸屬未歸屬檔案",
-      nextTool: "memory_audit",
-      blocking: true,
-    });
+  for (const item of classification.review) {
+    actions.push(toRecommendedAction(item));
   }
   return actions.sort((a, b) => a.priority.localeCompare(b.priority));
+}
+
+function toRecommendedAction(item: MemoryWarningItem): RecommendedAction {
+  if (item.code === "memory_stale") {
+    return {
+      priority: item.score >= STALENESS_SIGNIFICANT ? "P1" : "P2",
+      action: "repair_stale_memory",
+      target: item.target,
+      reason: item.reason,
+      label: item.label,
+      nextTool: "memory_status",
+      blocking: true,
+    };
+  }
+  if (item.code === "memory_indirect_stale") {
+    return {
+      priority: "P2",
+      action: "review_upstream_staleness",
+      target: item.target,
+      reason: item.reason,
+      label: item.label,
+      nextTool: "memory_deps",
+      blocking: false,
+    };
+  }
+  if (item.code === "memory_child_review") {
+    return {
+      priority: "P2",
+      action: "review_child_memory",
+      target: item.target,
+      reason: item.reason,
+      label: item.label,
+      nextTool: "memory_graph",
+      blocking: false,
+    };
+  }
+  return {
+    priority: "P1",
+    action:
+      item.code === "memory_untracked_files"
+        ? "attribute_untracked_files"
+        : "clean_ghost_files",
+    target: item.target,
+    reason: item.reason,
+    label: item.label,
+    nextTool:
+      item.code === "memory_untracked_files" ? "memory_audit" : "memory_status",
+    blocking: true,
+  };
 }
 
 function buildCompatibilityActions(
@@ -339,7 +381,8 @@ export function buildWorkspaceBrief(
   } = {},
 ) {
   const memory = buildMemorySummary(index);
-  const readiness = buildReadiness(memory);
+  const memoryWarnings = classifyMemoryWarnings(index);
+  const readiness = buildReadiness(memoryWarnings);
   const compatibility = buildCompatibilityReport(index, options);
   const startupReadiness = buildStartupReadiness({
     memoryReadiness: readiness,
@@ -353,6 +396,9 @@ export function buildWorkspaceBrief(
     projectContext: options.projectContext,
     compatibility,
     readiness,
+    memoryWarnings,
+    reviewItems: memoryWarnings.review,
+    advisories: [...memoryWarnings.review, ...memoryWarnings.info],
     startupReadiness,
     submitReadiness: buildSubmitReadiness(readiness),
     recommendedActions: [

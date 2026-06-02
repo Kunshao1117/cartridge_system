@@ -1,4 +1,5 @@
 import type { ContextInventory } from "./context-types.js";
+import { classifyMemoryWarnings } from "./staleness.js";
 import type { CartridgeIndex } from "./types.js";
 
 export type GovernanceStatus = "ready" | "warning" | "blocked";
@@ -12,6 +13,7 @@ export interface GovernanceSummary {
     ghostFiles: number;
     untrackedFiles: number;
     pendingChanges: number;
+    reviewItems: number;
   };
   context: {
     assets: number;
@@ -33,6 +35,7 @@ export function buildGovernanceSummary(args: {
   const warnings = args.contextFindings.filter(
     (item) => item.severity === "warning",
   );
+  const memoryWarnings = classifyMemoryWarnings(args.index);
   const memory = {
     total: entries.length,
     stale: entries.filter((entry) => entry.staleness > 0).length,
@@ -46,6 +49,7 @@ export function buildGovernanceSummary(args: {
       (sum, entry) => sum + (entry.pendingChanges?.length ?? 0),
       0,
     ),
+    reviewItems: memoryWarnings.review.length,
   };
 
   const status =
@@ -54,7 +58,8 @@ export function buildGovernanceSummary(args: {
       : warnings.length > 0 ||
           memory.stale > 0 ||
           memory.ghostFiles > 0 ||
-          memory.untrackedFiles > 0
+          memory.untrackedFiles > 0 ||
+          memory.reviewItems > 0
         ? "warning"
         : "ready";
 

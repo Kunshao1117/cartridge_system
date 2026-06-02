@@ -1,7 +1,8 @@
 import type { ContextAuditFinding, ContextInventory } from "./context-types.js";
+import { classifyMemoryWarnings } from "./staleness.js";
 import type { CartridgeIndex } from "./types.js";
 
-export type ActionItemKind = "stale" | "ghost" | "untracked" | "context";
+export type ActionItemKind = "stale" | "ghost" | "untracked" | "review" | "context";
 
 export interface GovernanceActionItem {
   kind: ActionItemKind;
@@ -22,6 +23,7 @@ export function buildGovernanceActionItems(args: {
 }): GovernanceActionItem[] {
   const items: GovernanceActionItem[] = [];
   const assetById = new Map(args.inventory.assets.map((asset) => [asset.id, asset]));
+  const memoryWarnings = classifyMemoryWarnings(args.index);
 
   for (const [id, entry] of Object.entries(args.index.cartridges)) {
     if (entry.staleness > 0) {
@@ -60,6 +62,28 @@ export function buildGovernanceActionItems(args: {
       recommendedAction: "將檔案歸到合適的記憶卡。",
       affectedPath: entry.filePath,
       targetPath: entry.filePath,
+      severity: "warning",
+    });
+  }
+
+  for (const item of memoryWarnings.review) {
+    const target = args.index.cartridges[item.target];
+    items.push({
+      kind: "review",
+      label: item.label,
+      description:
+        item.code === "memory_child_review" ? "子卡需要檢查" : "上游影響待複審",
+      reason:
+        item.code === "memory_child_review"
+          ? "子卡存在待檢查訊號，父卡只顯示衍生提醒。"
+          : "這張記憶卡的上游依賴有變動，請判斷是否真的影響本卡內容。",
+      recommendedAction:
+        item.code === "memory_child_review"
+          ? "檢查子卡狀態；父卡內容未必需要更新。"
+          : "使用 memory_deps 檢查上游來源；只有內容失真時才更新記憶卡。",
+      affectedPath: item.target,
+      targetPath: target?.skillPath,
+      cartridgeId: item.target,
       severity: "warning",
     });
   }

@@ -11,9 +11,13 @@ import { CartridgeIndexManager } from "../index-manager.js";
 import { createConfig } from "../config.js";
 
 type TestMemoryWriter = {
-  injectWarning: ReturnType<typeof vi.fn>;
-  removeWarning: ReturnType<typeof vi.fn>;
-  checkAndCleanWarning: ReturnType<typeof vi.fn>;
+  injectWarning: (
+    skillRelPath: string,
+    changedFiles: string[],
+    staleness: number,
+  ) => Promise<void>;
+  removeWarning: (skillRelPath: string) => Promise<void>;
+  checkAndCleanWarning: (skillRelPath: string) => Promise<boolean>;
 };
 
 // ---------------------------------------------------------------------------
@@ -51,9 +55,9 @@ describe("StalenessAnalyzer.calculateStaleness — 計分邏輯", () => {
     const config = createConfig("d:/cartridge_system");
     manager = new CartridgeIndexManager(config);
     writer = {
-      injectWarning: vi.fn(),
-      removeWarning: vi.fn(),
-      checkAndCleanWarning: vi.fn(),
+      injectWarning: vi.fn(async () => undefined),
+      removeWarning: vi.fn(async () => undefined),
+      checkAndCleanWarning: vi.fn(async () => false),
     };
     analyzer = new StalenessAnalyzer(config, manager, writer);
 
@@ -113,9 +117,9 @@ describe("StalenessAnalyzer.processFileEvent — 整合流程", () => {
   beforeEach(() => {
     manager = new CartridgeIndexManager(config);
     writer = {
-      injectWarning: vi.fn().mockResolvedValue(undefined),
-      removeWarning: vi.fn(),
-      checkAndCleanWarning: vi.fn(),
+      injectWarning: vi.fn(async () => undefined),
+      removeWarning: vi.fn(async () => undefined),
+      checkAndCleanWarning: vi.fn(async () => false),
     };
     analyzer = new StalenessAnalyzer(config, manager, writer);
 

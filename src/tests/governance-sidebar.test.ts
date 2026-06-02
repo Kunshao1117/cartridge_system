@@ -155,7 +155,27 @@ describe("governance sidebar models", () => {
     expect(summary.memory.stale).toBe(1);
     expect(summary.memory.ghostFiles).toBe(1);
     expect(summary.memory.untrackedFiles).toBe(1);
+    expect(summary.memory.reviewItems).toBe(0);
     expect(summary.context.warnings).toBe(1);
+  });
+
+  it("治理總覽遇到間接過期應回傳 warning 而非 blocked", () => {
+    const index = fixtureIndex();
+    index.cartridges.extension.staleness = 0;
+    index.cartridges.extension.pendingChanges = [];
+    index.cartridges.extension.ghostFiles = [];
+    index.cartridges.extension.indirectStaleness = 9;
+    index.untrackedFiles = [];
+
+    const summary = buildGovernanceSummary({
+      index,
+      inventory: fixtureInventory(),
+      contextFindings: [],
+    });
+
+    expect(summary.status).toBe("warning");
+    expect(summary.memory.stale).toBe(0);
+    expect(summary.memory.reviewItems).toBe(1);
   });
 
   it("待處理項目應包含 stale、ghost、untracked 與 context finding", () => {
@@ -185,5 +205,29 @@ describe("governance sidebar models", () => {
     expect(items[1].affectedPath).toBe("src/old-panel.ts");
     expect(items[2].recommendedAction).toContain("歸到合適的記憶卡");
     expect(items[3].reason).toBeDefined();
+  });
+
+  it("待處理項目應把間接過期列為非阻塞複審提醒", () => {
+    const index = fixtureIndex();
+    index.cartridges.extension.staleness = 0;
+    index.cartridges.extension.pendingChanges = [];
+    index.cartridges.extension.ghostFiles = [];
+    index.cartridges.extension.indirectStaleness = 8;
+    index.untrackedFiles = [];
+
+    const items = buildGovernanceActionItems({
+      index,
+      inventory: fixtureInventory(),
+      contextFindings: [],
+    });
+
+    expect(items).toEqual([
+      expect.objectContaining({
+        kind: "review",
+        label: "複審上游影響：extension",
+        severity: "warning",
+        recommendedAction: expect.stringContaining("memory_deps"),
+      }),
+    ]);
   });
 });

@@ -36,12 +36,22 @@ export const workspaceBriefSchema = z.object({
 
 const TOOL_NAME = "workspace_brief";
 
-function readinessToFindings(reasons: string[]): CartridgeFinding[] {
-  return reasons.map((reason) => ({
-    severity: "warning",
-    code: "workspace_readiness_blocker",
-    message: reason,
-  }));
+function readinessToFindings(
+  reasons: string[],
+  reviewReasons: string[],
+): CartridgeFinding[] {
+  return [
+    ...reasons.map((reason) => ({
+      severity: "error" as const,
+      code: "workspace_readiness_blocker",
+      message: reason,
+    })),
+    ...reviewReasons.map((reason) => ({
+      severity: "warning" as const,
+      code: "workspace_readiness_review",
+      message: reason,
+    })),
+  ];
 }
 
 function compatibilityToFindings(
@@ -162,7 +172,8 @@ export async function handleWorkspaceBrief(
       brief.readiness.status === "blocked" ||
       contextReadiness.status === "blocked"
         ? "blocked"
-        : brief.compatibility.mode === "compatibility" ||
+        : brief.readiness.status === "warning" ||
+            brief.compatibility.mode === "compatibility" ||
             contextReadiness.status === "warning"
           ? "warning"
           : "ready";
@@ -176,7 +187,10 @@ export async function handleWorkspaceBrief(
         findings: [
           ...compatibilityToFindings(brief.compatibility.warnings),
           ...contextToFindings(contextFindings),
-          ...readinessToFindings(brief.readiness.reasons),
+          ...readinessToFindings(
+            brief.readiness.reasons,
+            brief.readiness.reviewReasons,
+          ),
         ],
         recommendedActions: brief.recommendedActions,
       }),

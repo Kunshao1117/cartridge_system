@@ -2,8 +2,8 @@
 
 > **現實感知 AI 記憶防禦引擎** — 自動偵測記憶卡過期、幽靈檔案、跨模組依賴傳播，確保 AI 不讀取失效的上下文。
 
-[![version](https://img.shields.io/badge/version-5.4.0-blue)](./CHANGELOG.md)
-[![tests](https://img.shields.io/badge/tests-227%20passed-brightgreen)](#-執行測試)
+[![version](https://img.shields.io/badge/version-5.4.1-blue)](./CHANGELOG.md)
+[![tests](https://img.shields.io/badge/tests-232%20passed-brightgreen)](#-執行測試)
 [![license](https://img.shields.io/badge/license-MIT-green)](#)
 
 ---
@@ -33,6 +33,7 @@ Cartridge System 是一個為 [Antigravity 框架](https://github.com/Kunshao111
 | 🔍 **全域雷達** | 使用 VS Code 原生 FileSystemWatcher 全專案監聽，結合原生 `.gitignore` 規則精準屏除依賴庫。 |
 | 💀 **幽靈偵測** | **v4.1.1 增強** — 自動標記已追蹤但磁碟不存在的幽靈檔案。**新增互動式修復指引（Modal）**，點擊側邊欄 💀 項目可直接彈出修復路徑與操作建議。 |
 | 🕸️ **依賴圖引擎** | **v4.0 新增** — 自動掃描 import 語句推導卡匣依賴關係，BFS 演算法傳播間接過期，DFS 偵測循環依賴 |
+| 🧭 **記憶警示分層** | **v5.4.1 增強** — 直接過期、幽靈與未歸屬檔案維持阻塞；間接過期、上游影響與父子卡提示改為非阻塞複審提醒。 |
 | 👻 **未歸屬檔案池** | 智能偵測專案內新增但未被任何卡匣記錄的檔案，支援歸屬建議。 |
 | 🧹 **未歸屬自動清除** | **v5.0 修復** — 檔案被加入任一記憶卡 `## Tracked Files` 後，`SKILL.md` 變更流程與 `memory_commit` 都會自動移除舊未歸屬提醒。 |
 | 📊 **過期指數計算** | 根據異動類型（新增/修改/刪除）與時間衰退計算分數 |
@@ -70,7 +71,7 @@ Cartridge System 是一個為 [Antigravity 框架](https://github.com/Kunshao111
 3. 在 VS Code / Antigravity 使用 **Install from VSIX** 安裝，或使用 CLI：
 
 ```bash
-antigravity --install-extension cartridge-system-5.4.0.vsix --force
+antigravity --install-extension cartridge-system-5.4.1.vsix --force
 ```
 
 ### 方法二：本機打包安裝
@@ -82,7 +83,7 @@ npm run build
 npm run package
 
 # 使用 Antigravity IDE CLI 安裝（注意：不可用 code 指令）
-antigravity --install-extension cartridge-system-5.4.0.vsix --force
+antigravity --install-extension cartridge-system-5.4.1.vsix --force
 ```
 
 ### 方法三：開發模式
@@ -166,15 +167,15 @@ npm run package
 3. 推送版本 tag：
 
 ```bash
-git tag v5.4.0
-git push origin v5.4.0
+git tag v5.4.1
+git push origin v5.4.1
 ```
 
 GitHub Actions 會自動執行測試、打包 `cartridge-system-*.vsix`、建立或更新 Release，並把 VSIX 掛到 Release 附件；此流程不會發布 npm MCP runtime。
 
 ### 手動補發
 
-如果需要補發目前版本，進入 GitHub 的 **Actions → Release VSIX → Run workflow**，輸入版本號，例如 `5.4.0` 或 `v5.4.0`。Workflow 會確認輸入版本與 `package.json` 一致，然後重新打包並覆蓋 Release 裡的 VSIX 附件。
+如果需要補發目前版本，進入 GitHub 的 **Actions → Release VSIX → Run workflow**，輸入版本號，例如 `5.4.1` 或 `v5.4.1`。Workflow 會確認輸入版本與 `package.json` 一致，然後重新打包並覆蓋 Release 裡的 VSIX 附件。
 
 ---
 
@@ -197,8 +198,8 @@ npm publish --dry-run
 若使用 GitHub Actions Trusted Publishing，請推送 npm 專用 tag，不要使用 VSIX 的 `vX.Y.Z` tag：
 
 ```bash
-git tag npm-v5.4.0
-git push origin npm-v5.4.0
+git tag npm-v5.4.1
+git push origin npm-v5.4.1
 ```
 
 `Publish npm` workflow 會確認 tag/input 版本與 `package.json` 一致；若 npm registry 已有同版本，會成功跳過發布，避免同版本不可覆蓋造成失敗。
@@ -394,15 +395,15 @@ npm test
 npm run test:watch
 ```
 
-測試涵蓋 28 個測試檔案（**227 個案例**）：
+測試涵蓋 28 個測試檔案（**232 個案例**）：
 
 | 測試模組 | 案例數 | 涵蓋範圍 |
 |----------|--------|----------|
 | 索引管理器 | 22 | 掃描、addPendingChange 去重、getChildren、resolveModulePath、空追蹤卡誤報防護、未歸屬池 refilter 自動清理 |
-| MCP 工具介面 | 76 | 正常流程、Gateway-first workspace 注入、workspace/projectRoot 衝突拒絕、CLI `--workspace` 解析、路徑穿越防禦、moduleName 路徑片段拒絕、handler 層 `confirm:true` 驗證、時間戳驗證、過期狀態診斷、十七工具 envelope 契約、memory_commit 後設同步、workspace_brief 專案健康摘要、AI 開工狀態、專案脈絡非阻塞摘要、提交 readiness、commit_preflight 提交前治理檢查與 dependency semantics 摘要、**標題錯字偵測 (HEADING_TYPO)**、**路徑格式驗證 (PATH_ABSOLUTE / PATH_TRAVERSAL)**、**dependencies 語義警告**、**未歸屬池清理**、**fileMap 同步**、**間接過期重算**、**警告區塊自動清除** |
+| MCP 工具介面 | 78 | 正常流程、Gateway-first workspace 注入、workspace/projectRoot 衝突拒絕、CLI `--workspace` 解析、路徑穿越防禦、moduleName 路徑片段拒絕、handler 層 `confirm:true` 驗證、時間戳驗證、過期狀態診斷、十七工具 envelope 契約、memory_commit 後設同步、workspace_brief 專案健康摘要、AI 開工狀態、專案脈絡非阻塞摘要、提交 readiness、commit_preflight 提交前治理檢查、警示分層 reviewItems/advisories 與 dependency semantics 摘要、**標題錯字偵測 (HEADING_TYPO)**、**路徑格式驗證 (PATH_ABSOLUTE / PATH_TRAVERSAL)**、**dependencies 語義警告**、**未歸屬池清理**、**fileMap 同步**、**間接過期重算**、**警告區塊自動清除** |
 | 監聽引擎 | 3 | `SKILL.md` 變更後重新 scan、refilter untracked、flush index 並觸發側邊欄刷新；`.agents/memory` 被 `.gitignore` 覆蓋時仍優先處理記憶卡變更；Windows 路徑分隔符不會阻斷 pending/ghost 清理 |
 | 規則檔檢查 | 4 | 多代理指令掃描、規則來源摘要、提交授權衝突 blocking、context_diff 訊號比對與語言提醒 |
-| 治理側邊欄 | 6 | Activity Bar view container、四個 Cartridge TreeView、卡匣機櫃入口、公開 commands、更新檢查設定、governance summary 與白話 action items 轉換 |
+| 治理側邊欄 | 8 | Activity Bar view container、四個 Cartridge TreeView、卡匣機櫃入口、公開 commands、更新檢查設定、governance summary、非阻塞複審提醒與白話 action items 轉換 |
 | 卡匣機櫃工作台 | 9 | 卡匣工作台模型、三模式統計、metadata note 連線、V2 metadata 相容解析、Webview HTML/CSP、圖譜 viewport 保存、layout reason 判斷與百分比縮放 helper |
 | 記憶卡完整健檢 | 6 | memory_audit 現代格式 ready、舊格式 compatibility warning、缺索引 fallback、frontmatter 依賴循環 finding、舊索引循環診斷不誤報主要 cycle、staleness 歸零但 pendingChanges 未清的索引漂移 |
 | 過期分析器 | 11 | 過期等級四分支、三種事件計分、閾值觸發 |
@@ -413,7 +414,7 @@ npm run test:watch
 | import 掃描器 | 5 | ES/動態/CJS 語法擷取、去重、node_modules 過濾 |
 | 依賴傳播引擎 | 8 | 反向圖建構、BFS 傳播深度、平方衰減權重、循環偵測 |
 | 依賴語義檢查器 | 6 | dependency reason、父子導覽可疑、技能名稱混用、Relations 鏡像可疑、warning 格式 |
-| 過期等級工具 | 5 | healthy、mild、significant、critical 邊界轉換與 config 閾值語義 |
+| 過期等級工具 | 6 | healthy、mild、significant、critical 邊界轉換、config 閾值語義與警示分層 helper |
 | 依賴拓樸輸出 | 1 | memory_deps 標準 envelope、工程依賴、frontmatter 依賴與 legacy 欄位相容 |
 | AI 記憶圖譜輸出 | 5 | memory_graph all lens、memory lens、focusModule 一跳關聯、maxCards 截斷與 module_not_found 錯誤 |
 | 插件更新檢查 | 7 | 版本比較、VSIX 附件解析、可更新、已是最新版、非正式 Release、缺少 VSIX 與 GitHub API 失敗 |
@@ -477,10 +478,11 @@ cartridge_system/
 │   ├── smart-owner.ts        # 🧠 智慧歸屬推薦引擎
 │   ├── gitignore-filter.ts   # .gitignore 排除引擎（ignore 套件封裝）
 │   ├── config.ts             # 外掛設定（閾值、計分、依賴深度）
+│   ├── staleness.ts          # 過期等級與記憶警示分層 helper
 │   ├── path-guard.ts         # 路徑安全驗證（雙層防禦）
 │   ├── timestamp.ts          # 時間戳生成（Intl API）
 │   ├── types.ts              # 共用型別定義（含 ghostFiles、dependencies）
-│   └── tests/                # vitest 單元測試（28 檔 227 案例）
+│   └── tests/                # vitest 單元測試（28 檔 232 案例）
 ├── scripts/
 │   └── package-vsix.mjs      # VSIX 打包 wrapper（使用 package.json files 白名單）
 ├── .agents/
@@ -510,7 +512,7 @@ cartridge_system/
 > 💡 **治理備註**：`.agents/` 目錄在 Git 中採取「白名單模式」，追蹤 `memory/` 原始碼記憶、`context/` 專案脈絡與 `project_skills/` 專案衍生技能；其餘框架部署產物預設不納入版本控制以保持儲存庫輕量化。
 
 ├── CHANGELOG.md              # 更新紀錄（含插件更新檢查 Unreleased 紀錄）
-└── package.json              # v5.4.0
+└── package.json              # v5.4.1
 ```
 
 ### 技術堆疊

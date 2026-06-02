@@ -53,6 +53,14 @@ function dependencySemanticsToFindings(
   }));
 }
 
+function reviewReasonsToFindings(reasons: string[]): CartridgeFinding[] {
+  return reasons.map((reason) => ({
+    severity: "warning",
+    code: "memory_review_advisory",
+    message: reason,
+  }));
+}
+
 function compatibilityToFindings(
   warnings: Array<{ code: string; message: string; target: string }>,
 ): CartridgeFinding[] {
@@ -213,6 +221,11 @@ export async function handleCommitPreflight(
         findings: [
           ...compatibilityToFindings(preflight.summary.compatibility.warnings),
           ...blockersToFindings(preflight.blockers),
+          ...reviewReasonsToFindings(
+            preflight.summary.readiness.warningReasons.filter(
+              (reason) => reason.includes("indirectStaleness=") || reason.includes("childrenNeedReview="),
+            ),
+          ),
           ...dependencySemanticsToFindings(dependencySemantics),
         ],
         recommendedActions: preflight.recommendedActions,

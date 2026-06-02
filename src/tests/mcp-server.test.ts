@@ -29,7 +29,7 @@ describe("mcp-server — CLI 入口", () => {
   it("應支援 help 與 version 查詢", () => {
     expect(parseMcpServerCliArgs(["--help"]).help).toBe(true);
     expect(parseMcpServerCliArgs(["--version"]).version).toBe(true);
-    expect(MCP_SERVER_VERSION).toBe("5.4.0");
+    expect(MCP_SERVER_VERSION).toBe("5.4.1");
     expect(formatMcpServerHelp()).toContain("--workspace <path>");
   });
 

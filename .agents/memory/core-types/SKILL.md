@@ -2,7 +2,7 @@
 name: core-types
 description: |
   專案記憶：共用型別、設定與跨層小工具模組。 Use when: 處理系統共用型別定義、設定工廠函式、路徑驗證、時間戳或 staleness 等級轉換時載入。
-last_updated: '2026-05-19T14:44:00+08:00'
+last_updated: '2026-06-02T20:59:58+08:00'
 status: stable
 staleness: 0
 scopePath: src/
@@ -46,6 +46,7 @@ metadata:
 - D11: `getStalenessLevel()` 已由 `analyzer.ts` 移入 `staleness.ts`，讓 `writer.ts` 可共用過期等級判斷而不再 import analyzer，解除 extension analyzer/writer 工程循環。
 - D12: v5.2 `path-guard.ts` 新增 projectRoot 身分比較 helper；Windows 會以 resolved path 小寫化比較，讓 Gateway/CLI workspace 與 tool argument 能判斷是否指向同一工作區。
 - D13: v5.3.3 `path-guard.ts` 改為依輸入格式選擇 `path.win32` 或 `path.posix` 驗證，讓 Windows projectRoot 在 GitHub Ubuntu runner 與本機 Windows 都能一致通過，同時保留 `..` 片段防線。
+- D14: v5.4.1 `staleness.ts` 新增 `classifyMemoryWarnings()`，集中把 index 訊號分成 blocking、review、info；依賴傳播分數仍保留原欄位，警示語義改由衍生 helper 解讀。
 
 ## Known Issues
 
@@ -60,6 +61,7 @@ metadata:
 - L10: 過期等級轉換同時服務 analyzer 計分流程與 writer 警報呈現；若放在 analyzer 會讓 writer 反向依賴 analyzer，造成工程依賴循環。
 - L11: projectRoot 驗證與 workspace 身分比較必須同屬 core-types，否則 dispatcher、commit_preflight、workspace_brief 會各自長出不一致的路徑判斷。
 - L12: 路徑安全測試若使用 Windows 樣本，核心驗證不能依賴當前作業系統的 `path.isAbsolute`；否則本機 Windows 會通過、GitHub Ubuntu runner 會失敗。
+- L13: 直接過期與間接過期不可共用同一阻塞語義；高階工具應消費 `classifyMemoryWarnings()`，避免各 UI 或 MCP surface 自行解讀 index 欄位。
 
 ## Relations
 

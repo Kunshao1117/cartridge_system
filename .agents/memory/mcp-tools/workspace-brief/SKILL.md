@@ -3,7 +3,7 @@ name: workspace-brief
 description: >
   專案記憶：workspace_brief 高階治理摘要工具。Use when: 處理 AI 開工摘要、記憶卡健康彙整、readiness
   判斷與建議行動排序時載入。
-last_updated: '2026-05-29T18:15:24+08:00'
+last_updated: '2026-06-02T21:03:06+08:00'
 status: stable
 staleness: 0
 dependencies:
@@ -36,10 +36,10 @@ metadata:
 
 - D01: `workspace_brief` 採用純檔案讀取設計，只讀 `package.json`、`.cartridge/index.json` 與 v5 AI 規則來源，不隱性執行 git、npm audit、GitNexus 或索引重建，確保 MCP 呼叫快速且副作用為零。
 - D02: Handler 與摘要 builder 分離：`workspace-brief.ts` 負責參數驗證、路徑安全與 I/O；`workspace-brief-summary.ts` 負責記憶卡統計、readiness 判斷與 recommendedActions 排序。
-- D03: readiness 使用保守阻擋模型；只要存在 stale、ghost、untracked 或 indirect stale，即回傳 `blocked` 並列出具體 reasons。
+- D03: readiness 使用分層阻擋模型；直接 stale、ghost、untracked 或 compatibility blocker 才回傳 `blocked`，單純 indirect stale / 上游影響 / 父子卡衍生提示只回 `warning` 與 `reviewReasons`。
 - D04: recommendedActions 以 P1/P2 排序，優先處理 significant stale、ghost files 與 untracked files，讓 AI 能直接判斷下一步。
 - D05: Handler 回傳改用 `mcp-response.ts` envelope，外層提供 status、summary、findings、recommendedActions 與 metadata；原本的 brief 內容保留在 `summary` 欄位。
-- D06: readiness reasons 會轉成 warning findings，讓 AI 或未來 UI 可直接顯示具體阻擋原因。
+- D06: readiness reasons 會轉成 findings；blocking reasons 使用 error，review reasons 使用 warning，讓 AI 或未來 UI 可區分必須處理與建議複審。
 - D07: 父卡 `mcp-tools` 改為 Relations 導覽，不再寫入 `dependencies`；本卡僅依賴 `mcp-tools.tool-registry` 提供的 envelope 契約。
 - D08: `workspace_brief` 會在 memory summary 中揭露 dependencies 總邊數；語義可疑判斷留給能讀完整 SKILL.md 內文的 `memory_commit`，避免 index-only 摘要誤報合法父子工程依賴。
 - D09: `workspace_brief` 新增 `submitReadiness`；記憶健康阻擋時回 `blocked`，記憶健康乾淨時回 `needs_review` 並指向 `commit_preflight`，避免在未讀 git state 時宣稱可提交。
@@ -57,6 +57,7 @@ metadata:
 - D21: v5.1 recommendedActions 增加 `label`、`nextTool` 與 `blocking`，讓側邊欄與 AI 不需要自行推測下一步。
 - D22: v5.4 `workspace_brief` 新增 `projectContext` 摘要，讀取 `.agents/context/` 狀態並轉為非阻塞開工提醒；專案脈絡 warning 不會改變原始碼記憶的 stale 判斷，也不取代 `commit_preflight`。
 - D23: dependency reason — `mcp-tools.project-context` 持有專案脈絡掃描、驗證與狀態摘要語義；若 project_context readiness 或 findings 口徑改變，workspace_brief 的 `projectContext` 摘要與非阻塞 recommendedActions 必須重新檢查。
+- D24: v5.4.1 `workspace_brief` 摘要新增 additive `memoryWarnings`、`reviewItems` 與 `advisories`；舊的 `indirectStaleness` / `indirectStaleModules` 保留相容，但不再單獨導致 `blocked`。
 
 ## Known Issues
 
@@ -77,6 +78,7 @@ metadata:
 - L11: 開工摘要可承接 context readiness，但不能替代 `context_audit`；完整上下文差異仍由 v5 context tools 回報。
 - L12: 使用者面向的開工摘要應優先顯示可執行語句，例如「可以開工」或「提交前還要跑 commit_preflight」，避免只輸出抽象狀態碼。
 - L13: 專案脈絡提醒應保持非阻塞；approved 以外的脈絡狀態可提醒 AI 複審，但不能讓 workspace_brief 自動套用偏好或核准 candidate。
+- L14: 開工摘要的阻塞語義必須只代表直接不可忽略問題；間接依賴與父子卡提示應引導 `memory_deps` / `memory_graph` 複審，不應阻止開工。
 
 ## Relations
 

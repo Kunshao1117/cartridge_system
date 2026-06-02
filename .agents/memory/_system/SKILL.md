@@ -2,7 +2,7 @@
 name: _system
 description: |
   專案記憶：系統技術堆疊與部署設定。 Use when: 確認技術選型、環境設定、部署組態時載入。
-last_updated: '2026-05-29T19:07:31+08:00'
+last_updated: '2026-06-02T21:25:10+08:00'
 status: stable
 staleness: 0
 metadata:
@@ -30,8 +30,8 @@ metadata:
 ## Runtime & Host
 
 - OS: Windows 11 家用版 (10.0.26200, 64-bit)
-- Node.js: v22.13.1
-- npm: 10.9.2
+- Node.js: v24.15.0
+- npm: 11.14.1
 
 ## Tech Stack
 
@@ -41,7 +41,7 @@ metadata:
 - YAML Parser: `gray-matter`
 - Build: `tsup` v8.5.1（Extension/MCP 為 CJS；卡匣機櫃 Webview 為 browser IIFE）
 - Linter: `eslint` v9.x + `@typescript-eslint` v8.x（Flat Config）
-- Test: `vitest`
+- Test: `vitest` 4.x
 - Config: JSON
 - Webview Visualization: `cytoscape`
 
@@ -70,11 +70,11 @@ metadata:
 - `@types/node` ^25.5.0
 - `tsup` ^8.0.0
 - `typescript` ^5.5.0
-- `vitest` ^3.0.0
+- `vitest` ^4.1.8
 
 ## Config Files
 
-- `package.json` — VS Code Extension 元數據（含 activationEvents / contributes），當前版本 **5.4.0**；同時公開 `cartridge-system` / `cartridge-mcp` npm bin 指向 `dist/mcp-server.js`，`files` 同時作為 npm 與 VSIX 發布白名單，`npm run package` 委派 `scripts/package-vsix.mjs`，repository URL 採 npm 正規化後的 `git+https://...`；`cartridge.updateCheck.enabled` 控制啟動時 GitHub Release 更新檢查，手動命令不受此設定影響
+- `package.json` — VS Code Extension 元數據（含 activationEvents / contributes），當前版本 **5.4.1**；同時公開 `cartridge-system` / `cartridge-mcp` npm bin 指向 `dist/mcp-server.js`，`files` 同時作為 npm 與 VSIX 發布白名單，`npm run package` 委派 `scripts/package-vsix.mjs`，repository URL 採 npm 正規化後的 `git+https://...`；`cartridge.updateCheck.enabled` 控制啟動時 GitHub Release 更新檢查，手動命令不受此設定影響
 - `tsconfig.json` — CommonJS + node 模組解析
 - `tsup.config.ts` — entry: extension.ts / mcp-server.ts 使用 cjs；cabinet-webview.ts 使用 browser iife；external: vscode / noExternal: gray-matter、ignore、cytoscape
 - `eslint.config.js` — ESLint v9 Flat Config（CJS 格式，@typescript-eslint）
@@ -138,6 +138,8 @@ D27: v5.4.0 專案脈絡層 npm 發布版 — package/package-lock、README、CH
 D28: npm Trusted Publishing workflow — 新增 `.github/workflows/npm-publish.yml` 作為 npm 發布入口，使用 GitHub OIDC (`id-token: write`) 與 npm package trusted publisher，不保存長期 `NPM_TOKEN`；workflow 會確認 tag/input 與 `package.json` version 一致後再執行 lint/test/build/tsc/pack dry-run/publish。若 npm package access 填入 environment `npm publish`，GitHub Actions job environment 必須同名。
 D29: npm 既有版本保護 — `.github/workflows/npm-publish.yml` 在執行 npm 發布前先查詢 `cartridge-system@版本` 是否已存在；若 registry 已有同版本，workflow 成功跳過 npm 發布，避免補推既有 release tag 時因 npm 版本不可覆蓋而失敗。
 D30: 發布 tag 分流 — `v*` tag 保留給 VSIX 插件 release workflow；npm MCP runtime 改用 `npm-v*` tag 或 `Publish npm` 手動 workflow。兩種知識資產共用 package 版本欄位，但不再由同一個 tag 同時觸發兩種發布產物。
+D31: v5.4.1 記憶警示分層 — 保留依賴圖與 indirect stale 傳播引擎，但高階治理與 UI 只把直接 stale、ghost、untracked、compatibility 視為 blocking；上游影響與父子卡衍生提示改為 review/advisory warning。
+D32: 依賴安全漏洞清零 — 保留 package 版本 5.4.1、不升級 `@modelcontextprotocol/sdk` / `@vscode/vsce` direct range；僅將直接測試框架升至 `vitest` ^4.1.8，並用 lockfile resolver 將 `qs`、`tmp`、`@azure/msal-node` 提升至安全版本，完整與生產 `npm audit` 皆歸零。
 
 ## Known Issues
 
@@ -174,6 +176,8 @@ D30: 發布 tag 分流 — `v*` tag 保留給 VSIX 插件 release workflow；npm
 - L27: (2026-05-29) — npm Trusted Publishing 的 owner、repository、workflow filename 與 environment name 皆需和 npm package access 設定完全一致；本 repo 採 `Kunshao1117/cartridge_system`、`npm-publish.yml`、environment `npm publish`。
 - L28: (2026-05-29) — npm registry 的同名同版本不可覆蓋；若要補推已手動發布過的 tag，npm workflow 必須先偵測既有版本並成功跳過 publish，否則 Actions 會在 npm 發布步驟失敗。
 - L29: (2026-05-29) — MCP runtime 與 VSIX 插件是不同發布面；未來 npm 發布使用 `npm-vX.Y.Z`，插件發布使用 `vX.Y.Z`，避免測 npm Trusted Publishing 時重建 VSIX release。
+- L30: (2026-06-02) — 直接狀態與衍生傳播提醒必須分層治理；若只改警示語義，不能碰底層依賴圖建構與 BFS 傳播，降低啟動、監聽與記憶查詢風險。
+- L31: (2026-06-02) — 當直接依賴存在安全修復 major（例如 `vitest` 4.x）時，先只升必要 direct package，再用 `npm update` 抬升相容的傳遞套件；若 audit 歸零且 package/VSCE/MCP direct range 未改，即不需要同步版本號或發布文件。
 
 ## Applicable Skills
 

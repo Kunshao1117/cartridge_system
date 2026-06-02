@@ -3,7 +3,7 @@ name: extension.cabinet-workbench
 description: >
   專案記憶：卡匣機櫃工作台。Use when: 修改編輯區 WebviewPanel、卡匣工作台模型、 V2 記憶卡 metadata
   解析、Cytoscape Webview 前端或卡匣機櫃測試時載入。
-last_updated: '2026-05-19T07:59:15+08:00'
+last_updated: '2026-06-02T20:59:58+08:00'
 status: stable
 staleness: 0
 dependencies:
@@ -47,6 +47,7 @@ metadata:
 - D10: v5.3.2 圖譜狀態修復 — `cabinet-webview.ts` 只在模式、搜尋/篩選結果或重置視角時重排；點選卡匣只更新右側詳情與 focus class，不再觸發 layout。
 - D11: 圖譜 viewport/layout 狀態已拆到 `extension.cabinet-workbench.graph-viewport` 子卡，父卡不追蹤 helper 檔，避免超過 8 個 tracked files。
 - D12: v5.3.3 右下角控制列新增縮小、百分比、放大按鈕；按鈕縮放只更新 Cytoscape viewport 與百分比文字，不觸發 layout。
+- D13: v5.4.1 卡匣工作台模型新增 `reviewScore` 承接 indirect staleness；`maintenanceScore` 與卡片健康燈號只看直接 stale、pending changes 與 ghost，避免間接過期改變卡片自身狀態。
 
 ## Known Issues
 
@@ -60,6 +61,7 @@ metadata:
 - L04: 記憶模式不能只依賴既有依賴線；若沒有 note 線也要透過記憶分數、詳情內容與模式專屬 layout 形成明顯差異。
 - L05: Cytoscape 的 layout、fit 與使用者 viewport 要分層處理；若 render 時總是 remove/add + layout，縮放和平移會被重設。
 - L06: 圖譜控制文字要以使用者意義命名；縮放百分比可兼作回到 100% 的明確入口，比工程縮寫更容易理解。
+- L07: 工作台健康燈號必須表示卡片自身直接狀態；傳播影響適合放在複審提醒、篩選與輔助統計，避免父子卡連鎖染色。
 
 ## Relations
 

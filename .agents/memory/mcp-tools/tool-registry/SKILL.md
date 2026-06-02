@@ -3,7 +3,7 @@ name: tool-registry
 description: >
   專案記憶：MCP 工具名冊與統一回傳契約。Use when: 處理工具風險分級、MCP tools 清單生成、治理 envelope
   或高階工具回傳格式時載入。
-last_updated: '2026-05-29T18:32:19+08:00'
+last_updated: '2026-06-02T20:59:58+08:00'
 status: stable
 staleness: 0
 dependencies:
@@ -58,6 +58,7 @@ metadata:
 - D25: v5.3.5 發版時 `src/tests/tool-registry.test.ts` 的 package manifest 版本斷言同步更新為 5.3.5；此為側邊欄更新按鈕的 VSIX 版本 bump，不改 MCP server runtime 版本常數。
 - D26: v5.4 tools/list 擴充為十七個工具，新增 `project_context_list`、`project_context_read`、`project_context_validate`、`project_context_status`；四者皆 readOnly 且不需要 explicit approval，語義上與 `.agents/memory/` stale / `memory_commit` 分離。
 - D27: v5.4.0 發布時 `src/tests/tool-registry.test.ts` 的 package manifest 版本斷言同步更新為 5.4.0；本版作為 npm runtime 發布版，版本測試需與 package manifest 一致。
+- D28: v5.4.1 發布時 `src/tests/tool-registry.test.ts` 的 package manifest 版本斷言同步更新為 5.4.1；警示分層是插件可見行為變更，package manifest 需同步 patch 版。
 
 ## Known Issues
 

@@ -6,6 +6,20 @@
 
 - 發布流程分流 — npm MCP runtime 改用 `npm-v*` tag 或手動 workflow 發布，`v*` tag 保留給 VSIX 插件 release，避免同一 tag 同時觸發兩種不同產物。
 
+## [5.4.1] — 2026-06-02
+
+### feat
+
+- 記憶卡警示分層 — 新增共用警示分類 helper，將直接過期、幽靈檔案、未歸屬檔案與相容性阻塞歸為 blocking；間接過期、上游影響與父子卡衍生提示歸為非阻塞 review/info。
+- 治理表面一致化 — `workspace_brief`、`commit_preflight`、治理總覽與待處理清單新增 `reviewItems` / `advisories` 語義；只有間接過期時回 `warning` / `needs_review`，不再升級成 `blocked`。
+- 卡匣工作台警示分離 — 卡片健康燈號只反映直接狀態，間接過期改顯示為複審提醒與維護艙輔助統計，避免父子卡狀態被連鎖污染。
+
+### chore
+
+- 版本升級 — package、lockfile、README 安裝範例、版本測試與 MCP server 對外版本同步至 5.4.1。
+- 測試覆蓋 — 新增警示分層、開工摘要、提交前檢查、治理側邊欄與卡匣工作台回歸案例；README 測試數同步為 28 個測試檔案、232 個測試案例。
+- 依賴安全修補 — 測試框架升級至 Vitest 4，並更新 lockfile 中 `qs`、`tmp` 與 `@azure/msal-node` 的相容安全版本，完整與生產 `npm audit` 皆歸零。
+
 ## [5.4.0] — 2026-05-29
 
 ### feat

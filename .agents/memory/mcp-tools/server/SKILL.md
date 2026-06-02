@@ -3,7 +3,7 @@ name: mcp-tools.server
 description: >
   專案記憶：MCP SDK server 入口與工具公開清單。Use when: 處理 mcp-server.ts、
   ListToolsRequestSchema、CallToolRequestSchema 或 stdio server 啟動時載入。
-last_updated: '2026-05-29T18:32:19+08:00'
+last_updated: '2026-06-02T20:59:58+08:00'
 status: stable
 staleness: 0
 dependencies:
@@ -34,12 +34,12 @@ metadata:
 - D02: 工具公開清單由 `CARTRIDGE_TOOLS` 生成，避免 server 入口手寫工具 metadata。
 - D03: 工具呼叫路由交由 `dispatchToolCall()`，server 不再維護 if/else handler routing。
 - D04: 本卡的 `dependencies` 只保留實際 import 的 `mcp-tools.dispatcher` 與 `mcp-tools.tool-registry`；父卡關係寫在 Relations。
-- D05: v5.4 MCP server metadata 版本同步為 5.4.0；版本升級時仍需同時檢查 package.json 與此硬編碼 SDK metadata。
+- D05: v5.4 MCP server metadata 版本同步為 5.4.1；版本升級時仍需同時檢查 package.json 與此硬編碼 SDK metadata。
 - D06: v5.1 tools/list description 由 `tool.description` 加上 `安全性：tool.safetySummary` 組成，讓外部 AI 只看公開工具清單也能理解工具安全邊界。
 - D07: v5.2 `mcp-server.ts` 新增 `--workspace`、`--help`、`--version` CLI 入口；MCP 模式不使用 `process.cwd()` fallback，避免 Gateway 或 npm runtime 從錯誤目錄啟動時掃錯專案。
 - D08: v5.2 server 只把 `defaultProjectRoot` 交給 dispatcher；實際 projectRoot 注入、衝突防線與舊客戶端相容由 `mcp-tools.dispatcher` 承接，server 仍保持薄層。
 - D09: v5.3.3 tools/list 由 registry 自動公開十三個工具，包含 `memory_graph`；server 薄層不需要新增手寫路由。
-- D10: v5.4.0 發布目標包含 npm runtime，因此 `MCP_SERVER_VERSION` 與 package version 同步為 5.4.0，避免 `cartridge-system --version` 顯示舊版。
+- D10: v5.4.1 發布目標包含 npm runtime，因此 `MCP_SERVER_VERSION` 與 package version 同步為 5.4.1，避免 `cartridge-system --version` 顯示舊版。
 
 ## Known Issues
 

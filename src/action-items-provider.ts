@@ -70,6 +70,7 @@ export class ActionItemsProvider implements vscode.TreeDataProvider<ActionNode> 
     if (node.severity === "error") return new vscode.ThemeIcon("error");
     if (node.kind === "context") return new vscode.ThemeIcon("symbol-event");
     if (node.kind === "ghost") return new vscode.ThemeIcon("warning");
+    if (node.kind === "review") return new vscode.ThemeIcon("warning");
     if (node.kind === "untracked") return new vscode.ThemeIcon("question");
     return new vscode.ThemeIcon("pulse");
   }

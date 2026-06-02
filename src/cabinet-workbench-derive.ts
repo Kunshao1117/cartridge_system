@@ -21,15 +21,15 @@ export function buildCabinetLines(index: CartridgeIndex, cards: CabinetCard[]): 
 export function buildLensStats(
   cards: CabinetCard[],
   lines: CabinetLine[],
-  untrackedFiles: number,
+  _untrackedFiles: number,
 ): Record<CabinetLens, CabinetLensStat> {
   return {
     maintenance: {
-      cards: cards.filter((card) => card.maintenanceScore > 0).length,
+      cards: cards.filter((card) => card.maintenanceScore > 0 || card.reviewScore > 0).length,
       primaryLabel: "發熱卡",
-      primaryValue: cards.filter((card) => card.staleness > 0 || card.indirectStaleness > 0).length,
-      secondaryLabel: "待歸屬",
-      secondaryValue: untrackedFiles,
+      primaryValue: cards.filter((card) => card.maintenanceScore > 0).length,
+      secondaryLabel: "複審",
+      secondaryValue: cards.filter((card) => card.reviewScore > 0).length,
       lineCount: lines.filter((line) => line.type === "heat" || line.type === "signal").length,
     },
     memory: {
@@ -53,11 +53,10 @@ export function buildLensStats(
 
 export function maintenanceScore(
   staleness: number,
-  indirectStaleness: number,
   pendingChangesCount: number,
   ghostFilesCount: number,
 ): number {
-  return staleness + indirectStaleness + pendingChangesCount * 8 + ghostFilesCount * 20;
+  return staleness + pendingChangesCount * 8 + ghostFilesCount * 20;
 }
 
 export function memoryScore(description: string, metadata: CabinetMemoryMetadata): number {

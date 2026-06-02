@@ -3,7 +3,7 @@ name: commit-preflight
 description: >
   專案記憶：commit_preflight 提交前治理檢查工具。Use when: 處理 git dirty state、記憶卡健康阻塞、
   提交前建議動作與收尾治理決策時載入。
-last_updated: '2026-05-15T15:42:06+08:00'
+last_updated: '2026-06-02T20:59:58+08:00'
 status: stable
 staleness: 0
 dependencies:
@@ -19,6 +19,7 @@ metadata:
     - 'filesystem:read'
     - 'filesystem:write'
 ---
+
 # Commit Preflight — 提交前治理檢查記憶
 
 > 本模組提供 `commit_preflight` MCP 工具的提交前決策邏輯，作為 `workspace_brief` 之後的收尾治理入口。
@@ -33,10 +34,10 @@ metadata:
 
 - D01: `commit_preflight` 採用低副作用設計，只讀 `.cartridge/index.json` 並執行 `git status --porcelain=v1`，不自動測試、不自動 commit、不自動修改記憶卡。
 - D02: Handler 與摘要 builder 分離：`commit-preflight.ts` 負責參數驗證、路徑安全、讀取索引與 git status；`commit-preflight-summary.ts` 負責 memory blockers、git dirty summary、recommendedActions 與 suggestedCommands。
-- D03: readiness 使用保守阻擋模型；只要存在記憶卡 stale/ghost/untracked/indirect stale 或 git dirty state，即回傳 `blocked`。
+- D03: readiness 使用分層阻擋模型；直接 stale、ghost、untracked、compatibility blocker 或 git dirty state 才回傳 `blocked`，單純 indirect stale / 上游影響 / 父子卡衍生提示只回 `warning`。
 - D04: git 狀態解析使用 `git status --porcelain=v1`，避免依賴人類可讀輸出格式；handler 使用 `execFile` 固定參數呼叫，避免 shell 字串組合。
 - D05: Handler 回傳改用 `mcp-response.ts` envelope，外層 status 與 preflight status 同步，原本 preflight 內容保留在 `summary` 欄位。
-- D06: blockers 會轉成 error findings，讓 AI 或未來 UI 可直接顯示提交前阻擋原因。
+- D06: blockers 會轉成 error findings；review warnings 會轉成 warning findings，讓 AI 或未來 UI 可直接區分提交前阻擋原因與非阻塞複審提醒。
 - D07: 父卡 `mcp-tools` 改為 Relations 導覽，不再寫入 `dependencies`；本卡僅依賴 `mcp-tools.tool-registry` 提供的 envelope 契約。
 - D08: `commit_preflight` 會針對 git dirty 相關記憶卡執行 best-effort dependency semantics 摘要，將可疑 dependencies 轉為 warning findings；此檢查不改變 blocked/ready 判斷。
 - D09: `commit_preflight` 摘要新增 `readiness` 區塊，將 blocking reasons 與 warning reasons 分層，讓 AI 不需自行從 blockers 與 dependency semantics 摘要重組提交狀態。
@@ -46,6 +47,7 @@ metadata:
 - D13: MCP stdio E2E 與 Gateway 實測都必須確認 dependency semantics warnings 為 0；若 blocked 只來自 git dirty state，表示工具層可用但尚未封存。
 - D14: `commit_preflight` 新增 compatibility gate；缺索引或舊索引欄位會以 `memory_compatibility` blocker 阻擋封存，並建議先跑 `memory_audit`，避免在記憶判讀不完整時提交。
 - D15: `commit_preflight` 實際依賴 `mcp-tools.memory-audit` 持有的 `memory-compatibility.ts`；若 compatibility warning 規則過期，提交前 compatibility blocker 也必須重新檢查。
+- D16: v5.4.1 `commit_preflight` memory gate 新增 additive `memoryWarnings`、`reviewItems` 與 `advisories`；`memory_indirect_stale` 不再是 blocker，但仍保留原始 indirect 欄位供舊解析器讀取。
 
 ## Known Issues
 
@@ -63,6 +65,7 @@ metadata:
 - L08: 提交前工具測試應與功能記憶卡一起維護；測試檔混放在 handlers 卡會製造假的高階依賴。
 - L09: commit_preflight 的 blocked 不等於工具錯誤；封存前需分辨 dirty files、memory blockers、dependency semantics warnings 三種原因。
 - L10: 提交前工具可以因 compatibility mode 阻擋封存，但不應自行執行完整掃描或自動修復；深度診斷交給 `memory_audit`。
+- L11: 提交前封存不可把上游影響或父子卡閱讀提示等同直接失真；warning readiness 可要求複審，但 blockingReasons 不應包含 indirectStaleness。
 
 ## Relations
 

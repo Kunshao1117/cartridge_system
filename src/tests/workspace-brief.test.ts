@@ -101,7 +101,7 @@ describe("handleWorkspaceBrief", () => {
     expect(brief.readiness.status).toBe("blocked");
     expect(brief.startupReadiness.label).toBe("需要先處理記憶卡提醒");
     expect(brief.startupReadiness.nextTool).toBe("memory_audit");
-    expect(brief.readiness.reasons).toContain("_system staleness=10");
+    expect(brief.readiness.reasons).toContain("_system: staleness=10");
     expect(brief.submitReadiness.status).toBe("blocked");
     expect(brief.submitReadiness.reason).toBe("memory readiness is blocked");
     expect(brief.submitReadiness.label).toBe("記憶卡還有待處理項目，先不要提交");
@@ -153,6 +153,54 @@ describe("handleWorkspaceBrief", () => {
     expect(brief.submitReadiness.nextAction).toBe("run_commit_preflight");
     expect(brief.submitReadiness.nextTool).toBe("commit_preflight");
     expect(brief.recommendedActions).toEqual([]);
+  });
+
+  it("只有間接過期時應回傳 warning 且不阻塞開工", async () => {
+    vi.mocked(fs.readFile).mockImplementation(async (filePath) => {
+      const fp = filePath as string;
+      if (fp.endsWith("package.json")) {
+        return JSON.stringify({ name: "ok" }) as unknown as Awaited<
+          ReturnType<typeof fs.readFile>
+        >;
+      }
+      if (fp.includes("index.json") && fp.includes(".cartridge")) {
+        return JSON.stringify({
+          cartridges: {
+            "mcp-tools.consumer": {
+              staleness: 0,
+              pendingChanges: [],
+              trackedFiles: ["src/consumer.ts"],
+              ghostFiles: [],
+              indirectStaleness: 7,
+              dependencies: ["mcp-tools"],
+              parent: "mcp-tools",
+            },
+          },
+          fileMap: {},
+          untrackedFiles: [],
+        }) as unknown as Awaited<ReturnType<typeof fs.readFile>>;
+      }
+      throw new Error("unexpected path");
+    });
+
+    const result = await handleWorkspaceBrief({ projectRoot: PROJECT_ROOT });
+    const envelope = JSON.parse(result.content[0].text);
+    const brief = envelope.summary;
+
+    expect(envelope.status).toBe("warning");
+    expect(brief.readiness.status).toBe("warning");
+    expect(brief.readiness.reasons).toEqual([]);
+    expect(brief.readiness.reviewReasons).toContain(
+      "mcp-tools.consumer: indirectStaleness=7",
+    );
+    expect(brief.startupReadiness.status).toBe("needs_review");
+    expect(brief.submitReadiness.status).toBe("needs_review");
+    expect(brief.recommendedActions).toContainEqual(
+      expect.objectContaining({
+        action: "review_upstream_staleness",
+        blocking: false,
+      }),
+    );
   });
 
   it("workspace_brief 應揭露 dependencies 總邊數且不產生語義誤報", async () => {

@@ -3,7 +3,7 @@ name: _assets
 scopePath: null
 description: |
   專案記憶：靜態檔案與一般文檔收納。 Use when: 處理不需要業務邏輯追蹤的靜態圖檔、授權文件或更新日誌等。
-last_updated: '2026-06-02T21:39:13+08:00'
+last_updated: '2026-06-03T07:13:15+08:00'
 status: stable
 staleness: 0
 metadata:
@@ -24,6 +24,7 @@ metadata:
 - LICENSE
 - assets/logo.png
 - assets/cartridge-activity.svg
+- desktop-assets/cartridge-desktop.ico
 
 ## Key Decisions
 
@@ -55,6 +56,8 @@ metadata:
 - L31: (2026-05-29) README.md 與 CHANGELOG.md 已同步發布流程分流：`vX.Y.Z` 保留給 VSIX 插件 release，npm MCP runtime 改用 `npm-vX.Y.Z` 或手動 workflow，避免同一 tag 同時觸發兩種產物。
 - L32: (2026-06-02) README.md 與 CHANGELOG.md 已同步 v5.4.1 記憶警示分層：版本 badge、VSIX/npm tag 範例、測試數 232、`staleness.ts` 架構樹與 review/advisory 行為皆已更新。
 - L33: (2026-06-02) CHANGELOG.md 已補入 v5.4.1 依賴安全修補紀錄：Vitest 4、`qs`、`tmp` 與 `@azure/msal-node` 更新後，完整與生產 `npm audit` 皆歸零。
+- L34: (2026-06-03) README.md 與 CHANGELOG.md 已同步 Desktop Console 產品線：新增桌面監控台功能、桌面建構命令、桌面/VSIX/npm runtime 發布分流、桌面監控行為說明、桌面打包圖示、操作型控制台、分區滾輪與系統匣偏好設定，並同步 35 個測試檔案與 254 個測試案例；桌面專用 `.ico` 放在 `desktop-assets/`，避免進入 npm runtime 白名單。
+- L35: (2026-06-03) Desktop Console 正式發布入口採 `desktop-vX.Y.Z`，README 與 CHANGELOG 已將第一版收斂為 `desktop-v5.4.1`；桌面 Release 不標記為 GitHub Latest，避免 VSIX 更新檢查誤讀桌面版；VSIX 仍用 `vX.Y.Z`，npm MCP runtime 仍用 `npm-vX.Y.Z`。
 - L03: (2026-05-14) README 已補齊 `workspace_brief` 與 `commit_preflight` 高階 MCP 工具說明，並同步測試數 123 passed 與架構樹新檔案。
 - L04: (2026-05-14) CHANGELOG 已新增 2026-05-14 治理工具、依賴衰減、MCP 版本同步與 GitNexus CLI 修復紀錄。
 - L05: (2026-05-14) README 已同步 MCP 工具名冊、統一治理回傳 envelope、測試數 128 passed 與新架構檔案。

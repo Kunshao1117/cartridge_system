@@ -2,7 +2,7 @@
 name: _system
 description: |
   專案記憶：系統技術堆疊與部署設定。 Use when: 確認技術選型、環境設定、部署組態時載入。
-last_updated: '2026-06-02T21:25:10+08:00'
+last_updated: '2026-06-03T07:13:15+08:00'
 status: stable
 staleness: 0
 metadata:
@@ -21,11 +21,15 @@ metadata:
 - package.json
 - tsconfig.json
 - tsup.config.ts
+- tsup.desktop.config.ts
+- desktop.vite.config.ts
+- electron-builder.desktop.yml
 - eslint.config.js
 - vitest.config.ts
 - package-lock.json
 - .github/workflows/release.yml
 - .github/workflows/npm-publish.yml
+- .github/workflows/desktop-release.yml
 
 ## Runtime & Host
 
@@ -44,6 +48,9 @@ metadata:
 - Test: `vitest` 4.x
 - Config: JSON
 - Webview Visualization: `cytoscape`
+- Desktop Shell: Electron 42 + React 19 + Fluent UI v9（桌面監控台產品線）
+- Desktop Renderer Build: Vite 8 + React plugin
+- Desktop Installer: electron-builder
 
 ## VS Code Extension & MCP
 
@@ -59,15 +66,27 @@ metadata:
 ## Dependencies（生產）
 
 - `@modelcontextprotocol/sdk` ^1.0.1
+- `@fluentui/react-components` ^9.74.1
+- `@fluentui/react-icons` ^2.0.328
 - `cytoscape` ^3.33.3
 - `gray-matter` ^4.0.3
 - `ignore` ^7.0.5
+- `react` ^19.2.7
+- `react-dom` ^19.2.7
 
 ## DevDependencies
 
 - `@types/vscode` ^1.85.0
+- `@types/react` ^19.2.16
+- `@types/react-dom` ^19.2.3
+- `@vitejs/plugin-react` ^6.0.2
 - `@vscode/vsce` ^3.0.0
 - `@types/node` ^25.5.0
+- `electron` ^42.3.2
+- `electron-builder` ^26.8.1
+- `vite` ^8.0.16
+- `concurrently` ^10.0.3
+- `wait-on` ^9.0.10
 - `tsup` ^8.0.0
 - `typescript` ^5.5.0
 - `vitest` ^4.1.8
@@ -81,7 +100,11 @@ metadata:
 - `package.json files` — npm runtime 發布白名單：`dist/*.js`、`assets/**`、README、CHANGELOG、LICENSE；排除 `.agents/`、`src/`、測試、source map 與 GitHub workflow；卡匣機櫃 Webview 產物為 `dist/cabinet-webview.global.js`
 - `.github/workflows/release.yml` — VSIX 自動發版流程：推送 `v*` tag 或手動輸入版本後執行 test/lint/build/package，並建立或更新 GitHub Release 附件；`v*` tag 保留給 VSIX 插件 release，不發布 npm MCP runtime；workflow 使用 Node 24 相容 GitHub Actions 與 Node 24 打包環境
 - `.github/workflows/npm-publish.yml` — npm Trusted Publishing 發布流程：推送 `npm-v*` tag 或手動輸入版本後檢查 package 版本一致性與 npm registry 既有版本；若版本已存在則成功跳過 npm 發布，若版本未存在則執行 lint/test/build/tsc/pack dry-run，再透過 GitHub OIDC 發布 npm；job environment 固定為 `npm publish`，必須與 npm package access 設定一致
+- `.github/workflows/desktop-release.yml` — Desktop Console 自動發版流程：推送 `desktop-v*` tag 或手動輸入版本後，在 Windows runner 執行 test/lint/tsc/desktop:dist，建立或更新 `Cartridge Desktop Console desktop-vX.Y.Z` Release 並上傳 Windows installer；此流程不觸發 VSIX 或 npm MCP runtime 發布，且建立 release 時明確 `--latest=false`，避免 VSIX 更新檢查誤讀桌面版
 - `.cartridge/index.json` — 執行期產生（索引檔）
+- `tsup.desktop.config.ts` — 桌面主程序與 preload 的 CJS bundle，輸出至 `dist/desktop`，external: electron，noExternal: gray-matter / ignore
+- `desktop.vite.config.ts` — React + Fluent UI renderer build，root 指向 `src/desktop/renderer`，base 使用相對路徑，輸出至 `dist/desktop/renderer`；桌面本機 bundle 警告門檻設為 700KB，避免 Fluent UI 單檔約 510KB 時產生誤導性警告
+- `electron-builder.desktop.yml` — Desktop Console Windows installer 設定，透過 extraMetadata 指定 Electron main，Windows icon 指向 `desktop-assets/cartridge-desktop.ico`，不改 VSIX manifest
 
 ## 專案身份與工作模式
 
@@ -140,6 +163,8 @@ D29: npm 既有版本保護 — `.github/workflows/npm-publish.yml` 在執行 np
 D30: 發布 tag 分流 — `v*` tag 保留給 VSIX 插件 release workflow；npm MCP runtime 改用 `npm-v*` tag 或 `Publish npm` 手動 workflow。兩種知識資產共用 package 版本欄位，但不再由同一個 tag 同時觸發兩種發布產物。
 D31: v5.4.1 記憶警示分層 — 保留依賴圖與 indirect stale 傳播引擎，但高階治理與 UI 只把直接 stale、ghost、untracked、compatibility 視為 blocking；上游影響與父子卡衍生提示改為 review/advisory warning。
 D32: 依賴安全漏洞清零 — 保留 package 版本 5.4.1、不升級 `@modelcontextprotocol/sdk` / `@vscode/vsce` direct range；僅將直接測試框架升至 `vitest` ^4.1.8，並用 lockfile resolver 將 `qs`、`tmp`、`@azure/msal-node` 提升至安全版本，完整與生產 `npm audit` 皆歸零。
+D33: Desktop Console 產品線 — 新增 Electron + React + Fluent UI 桌面監控台，桌面建構與發行設定獨立於 VSIX `v*` 與 npm MCP runtime `npm-v*`；桌面版重用 Cartridge 監控規則但不新增 MCP 工具能力，Windows installer 使用 `desktop-assets/cartridge-desktop.ico` 避免 Electron 預設圖示，且不進 npm `assets/**` 白名單。
+D34: Desktop Console 發布分流 — 桌面安裝檔使用 `desktop-v*` tag 與 `Release Desktop Console` workflow 發布，Release title 採 `Cartridge Desktop Console desktop-vX.Y.Z`，建立時明確不標記 GitHub Latest；`v*` 繼續只代表 VSIX 插件，`npm-v*` 繼續只代表 npm MCP runtime。
 
 ## Known Issues
 
@@ -178,6 +203,7 @@ D32: 依賴安全漏洞清零 — 保留 package 版本 5.4.1、不升級 `@mode
 - L29: (2026-05-29) — MCP runtime 與 VSIX 插件是不同發布面；未來 npm 發布使用 `npm-vX.Y.Z`，插件發布使用 `vX.Y.Z`，避免測 npm Trusted Publishing 時重建 VSIX release。
 - L30: (2026-06-02) — 直接狀態與衍生傳播提醒必須分層治理；若只改警示語義，不能碰底層依賴圖建構與 BFS 傳播，降低啟動、監聽與記憶查詢風險。
 - L31: (2026-06-02) — 當直接依賴存在安全修復 major（例如 `vitest` 4.x）時，先只升必要 direct package，再用 `npm update` 抬升相容的傳遞套件；若 audit 歸零且 package/VSCE/MCP direct range 未改，即不需要同步版本號或發布文件。
+- L32: (2026-06-03) — Desktop Console 第一版發布不升 package 版本，沿用 5.4.1 核心版本但以 `desktop-v5.4.1` 獨立 release；桌面 tag 不應觸發 VSIX 或 npm workflow。
 
 ## Applicable Skills
 

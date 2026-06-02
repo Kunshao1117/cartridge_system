@@ -2,7 +2,7 @@
 name: watcher
 description: |
   專案記憶：檔案監聯引擎模組。 Use when: 處理檔案監聽、原生Watcher設定、監聽生命週期管理時載入。
-last_updated: '2026-05-18T19:46:54+08:00'
+last_updated: '2026-06-03T07:11:32+08:00'
 staleness: 0
 status: stable
 metadata:
@@ -39,6 +39,8 @@ metadata:
 - D14: `handleSkillFileChange()` 在 markDirty 後立即 `flushIfDirty()`，確保 `.cartridge/index.json` 與側邊欄狀態同步，不需要手動跑「重新掃描未歸屬檔案」。
 - D15: 記憶卡 `SKILL.md` 事件必須在 `.gitignore` / exclude 檢查前優先處理；本 repo `.gitignore` 有 `.agents/*`，若先套 gitignore，`.agents/memory/**/SKILL.md` 會被擋掉，導致自動清除未歸屬提醒失效。
 - D16: `handleSkillFileChange()` 比對索引 `skillPath` 時必須先正規化 Windows `\` 為 `/`，並在命中記憶卡後同時清除 pendingChanges 與 ghostFiles，避免 extension RAM index 在 MCP `memory_commit` 之後把舊索引狀態覆寫回磁碟。
+- D17: vNext watcher 事件處理抽成 `monitoring/project-event-handler.ts` 共用 helper；VSIX watcher 保留 VS Code FileSystemWatcher 與 debounceMap，實際記憶卡優先、`.gitignore`、tracked/untracked/ghost 處理語意由共用 helper 執行，讓桌面版與插件規則一致。
+- D18: 2026-06-03 桌面版發布前確認 `CartridgeWatcher.handleEvent()` 僅委派共用事件 helper，不改 VS Code watcher 註冊、300ms debounce、技能卡變更刷新與 UI callback 生命週期；此變更是共享語意抽取，不是插件監聽入口替換。
 
 ## Known Issues
 
@@ -54,10 +56,13 @@ metadata:
 - L06: (2026-05-17) 記憶卡變更事件與 memory_commit 是兩條不同同步路徑；watcher 需負責 extension RAM index / UI refresh，memory_commit 負責 MCP 磁碟索引同步，兩者都要清理 untrackedFiles。
 - L07: (2026-05-17) `.agents/memory` 雖是 Git 白名單保留目錄，但 `.gitignore` 的 `.agents/*` 仍可能讓 runtime GitignoreFilter 回傳 ignored；watcher 的記憶卡路徑判斷不可放在 gitignore 檢查後面。
 - L08: (2026-05-18) `.cartridge/index.json` 的 `skillPath` 可能由 Windows path relative 產生反斜線；watcher 接收到的 `relPath` 已被轉為斜線，未正規化會導致 `clearPendingChanges()` 漏跑，進而讓已存在的 ghost/pending drift 重新落地。
+- L09: (2026-06-02) 高風險索引器與寫入器不應為桌面版重寫；以共用事件 helper 組合既有類別，可在不改公開契約的情況下支援 VSIX 與桌面監控。
+- L10: (2026-06-03) 發布桌面版前需同時跑 VSIX watcher 回歸與桌面 monitoring event handler 測試，確保共用 helper 沒有讓插件忽略 `.agents/memory/**/SKILL.md` 優先處理或 `.gitignore` reload。
 
 ## Relations
 
 - extension（父卡：外掛啟動後委託監聽）
+- desktop-console.monitoring（共用事件處理 helper）
 - analyzer（兄弟卡：接收異動事件的下游消費者）
 - index-manager（根層共用服務：提供需監聽的檔案清單）
 

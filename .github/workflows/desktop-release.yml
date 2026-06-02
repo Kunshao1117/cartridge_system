@@ -1,0 +1,141 @@
+name: Release Desktop Console
+
+on:
+  push:
+    tags:
+      - "desktop-v*"
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "Desktop release version, for example 5.4.1, v5.4.1, or desktop-v5.4.1"
+        required: true
+        type: string
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    name: Build and publish desktop installer
+    runs-on: windows-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: "24"
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Resolve desktop release version
+        shell: pwsh
+        run: |
+          if ("${{ github.event_name }}" -eq "push") {
+            $rawVersion = "${{ github.ref_name }}"
+          } else {
+            $rawVersion = "${{ inputs.version }}"
+          }
+
+          $releaseVersion = $rawVersion
+          if ($releaseVersion.StartsWith("desktop-v")) {
+            $releaseVersion = $releaseVersion.Substring("desktop-v".Length)
+          } elseif ($releaseVersion.StartsWith("v")) {
+            $releaseVersion = $releaseVersion.Substring("v".Length)
+          }
+
+          if ([string]::IsNullOrWhiteSpace($releaseVersion)) {
+            Write-Error "Invalid desktop version: $rawVersion"
+            exit 1
+          }
+
+          $packageVersion = node -p "require('./package.json').version"
+          if ($packageVersion -ne $releaseVersion) {
+            Write-Error "Version mismatch: package.json is $packageVersion, desktop release is desktop-v$releaseVersion"
+            exit 1
+          }
+
+          "DESKTOP_RELEASE_VERSION=$releaseVersion" | Out-File -FilePath $env:GITHUB_ENV -Append
+          "DESKTOP_RELEASE_TAG=desktop-v$releaseVersion" | Out-File -FilePath $env:GITHUB_ENV -Append
+          "DESKTOP_RELEASE_TITLE=Cartridge Desktop Console desktop-v$releaseVersion" | Out-File -FilePath $env:GITHUB_ENV -Append
+
+      - name: Run tests
+        run: npm test
+
+      - name: Run lint
+        run: npm run lint
+
+      - name: Type check
+        run: npx tsc --noEmit
+
+      - name: Build desktop installer
+        run: npm run desktop:dist
+
+      - name: Prepare desktop release notes
+        shell: pwsh
+        run: |
+          $version = $env:DESKTOP_RELEASE_VERSION
+          $changelog = Get-Content -LiteralPath "CHANGELOG.md" -Raw
+          $lines = $changelog -split "`r?`n"
+          $escaped = [regex]::Escape($version)
+          $headingPattern = "^##\s+(?:\[desktop-v$escaped\]|desktop-v$escaped)(?:\s|$)"
+          $start = -1
+
+          for ($i = 0; $i -lt $lines.Length; $i++) {
+            if ($lines[$i] -match $headingPattern) {
+              $start = $i
+              break
+            }
+          }
+
+          if ($start -ge 0) {
+            $end = $lines.Length
+            for ($i = $start + 1; $i -lt $lines.Length; $i++) {
+              if ($lines[$i] -match "^##\s+") {
+                $end = $i
+                break
+              }
+            }
+            $body = ($lines[$start..($end - 1)] -join "`n").Trim()
+          } else {
+            $body = @(
+              "# Cartridge Desktop Console desktop-v$version",
+              "",
+              "此版本未在 CHANGELOG.md 找到 desktop-v$version 對應段落。",
+              "",
+              "請下載下方 Windows 安裝檔安裝桌面監控台。"
+            ) -join "`n"
+          }
+
+          Set-Content -LiteralPath "DESKTOP_RELEASE_NOTES.md" -Value ($body + "`n") -Encoding utf8
+
+      - name: Locate desktop installer
+        shell: pwsh
+        run: |
+          $files = Get-ChildItem -LiteralPath "release/desktop" -Filter "Cartridge Desktop Console Setup *.exe" -File
+          if ($files.Count -ne 1) {
+            Write-Error "Expected exactly one desktop setup exe, found $($files.Count)."
+            $files | ForEach-Object { Write-Error $_.FullName }
+            exit 1
+          }
+
+          "DESKTOP_INSTALLER_PATH=$($files[0].FullName)" | Out-File -FilePath $env:GITHUB_ENV -Append
+
+      - name: Create or update GitHub Release
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          $null = gh release view $env:DESKTOP_RELEASE_TAG 2>$null
+          if ($LASTEXITCODE -eq 0) {
+            gh release edit $env:DESKTOP_RELEASE_TAG --title $env:DESKTOP_RELEASE_TITLE --notes-file DESKTOP_RELEASE_NOTES.md
+            gh release upload $env:DESKTOP_RELEASE_TAG $env:DESKTOP_INSTALLER_PATH --clobber
+          } else {
+            gh release create $env:DESKTOP_RELEASE_TAG $env:DESKTOP_INSTALLER_PATH --title $env:DESKTOP_RELEASE_TITLE --notes-file DESKTOP_RELEASE_NOTES.md --target $env:GITHUB_SHA --latest=false
+          }

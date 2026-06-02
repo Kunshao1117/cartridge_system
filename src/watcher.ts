@@ -10,6 +10,7 @@ import type { CartridgeIndexManager } from "./index-manager.js";
 import type { StalenessAnalyzer } from "./analyzer.js";
 import type { GitignoreFilter } from "./gitignore-filter.js";
 import type { MemoryWriter } from "./writer.js";
+import { handleProjectFileEvent } from "./monitoring/project-event-handler.js";
 
 /**
  * 檔案監聽引擎（v2.0 VS Code 原生監聽模式）
@@ -106,110 +107,33 @@ export class CartridgeWatcher {
     absFilePath: string,
     eventType: FileEventType,
   ): Promise<void> {
-    const relPath = path
-      .relative(this.config.projectRoot, absFilePath)
-      .replace(/\\/g, "/");
-
-    // 系統產物豁免：跳過外掛自身產出的檔案，防止自我監聽迴圈
-    if (this.config.ignoreFiles.some((f) => relPath.endsWith(f))) {
-      return;
-    }
-
-    // 記憶卡 SKILL.md 即使被 .gitignore 的 .agents/* 規則涵蓋，也必須優先處理。
-    if (this.isMemorySkillPath(relPath)) {
-      await this.handleSkillFileChange(relPath);
-      return;
-    }
-
-    // 安全網排除（DEFAULT_EXCLUDES）+ Gitignore 動態排除
-    if (
-      this.config.excludeDirs.some((d) => relPath.startsWith(d)) ||
-      this.gitignoreFilter.isIgnored(relPath)
-    ) {
-      return;
-    }
-
-    // .agents/ 內但非記憶卡的變動（如 rules/、skills/）不觸發過期分析
-    if (
-      relPath.startsWith(".agents/") &&
-      !relPath.includes(".agents/memory/") &&
-      !relPath.includes(".agents/skills/mem-")
-    ) {
-      return;
-    }
-
-    // 已追蹤檔案 → 更新過期指數
-    const affected = this.indexManager.getAffectedCartridges(relPath);
-    if (affected.length > 0) {
-      console.log(`[監聽引擎] 偵測到異動: ${eventType} ${relPath}`);
-      await this.analyzer.processFileEvent(relPath, eventType);
-      // 刪除事件 → 標記幽靈檔案並觸發第二次 UI 刷新
-      if (eventType === "unlink") {
-        for (const cartridgeId of affected) {
-          this.indexManager.markGhostFile(cartridgeId, relPath);
-        }
-        this.indexManager.markDirty();
-      }
-      this.onUpdate?.();
-      return;
-    }
-
-    // .gitignore 本身被修改 → 重載排除引擎並重新過濾幽靈池
-    if (relPath === ".gitignore" && eventType === "change") {
-      console.log("[監聽引擎] .gitignore 已變更，重載排除引擎");
-      this.gitignoreFilter.reload();
-      this.indexManager.refilterUntrackedFiles(this.gitignoreFilter);
-      this.indexManager.markDirty();
-      this.onUpdate?.();
-      return;
-    }
-
-    // 刪除事件 → 從幽靈池移除
-    if (eventType === "unlink") {
-      this.indexManager.removeUntrackedFile(relPath);
-      this.indexManager.markDirty();
-      this.onUpdate?.();
-      return;
-    }
-
-    // 以上皆非 → 未歸屬檔案，加入幽靈池
-    this.indexManager.addUntrackedFile(relPath, eventType);
-    this.indexManager.markDirty();
-    this.onUpdate?.();
+    await handleProjectFileEvent({
+      config: this.config,
+      indexManager: this.indexManager,
+      analyzer: this.analyzer,
+      gitignoreFilter: this.gitignoreFilter,
+      writer: this.writer,
+      absFilePath,
+      eventType,
+      onUpdate: this.onUpdate,
+      onRefresh: () => this.refresh(),
+    });
   }
 
   /**
-   * 處理記憶卡匣自身的變動（偵測 AI 是否重設了過期指數）
+   * 測試與舊內部 seam 相容：實際處理委派給共用事件 helper。
    */
   private async handleSkillFileChange(relPath: string): Promise<void> {
-    // 偵測記憶卡匣變動時，重新掃描索引以同步快取
-    const normalizedRelPath = relPath.replace(/\\/g, "/");
-    const index = this.indexManager.getIndex();
-    const cartridgeEntry = Object.entries(index.cartridges).find(
-      ([, entry]) => entry.skillPath.replace(/\\/g, "/") === normalizedRelPath,
-    );
-
-    if (cartridgeEntry) {
-      this.indexManager.clearPendingChanges(cartridgeEntry[0]);
-      this.indexManager.clearGhostFiles(cartridgeEntry[0]);
-    }
-
-    await this.writer.checkAndCleanWarning(relPath);
-
-    await this.indexManager.scan();
-    this.indexManager.refilterUntrackedFiles(this.gitignoreFilter);
-    this.indexManager.markDirty(); // 強制觸發 UI 變動通知 (onChanged)
-    await this.indexManager.flushIfDirty();
-    this.refresh();
-    console.log(`[監聽引擎] 偵測到記憶卡重設: ${relPath}`);
-    this.onUpdate?.();
-  }
-
-  private isMemorySkillPath(relPath: string): boolean {
-    return (
-      (relPath.includes(".agents/memory/") ||
-        relPath.includes(".agents/skills/mem-")) &&
-      relPath.endsWith("SKILL.md")
-    );
+    await handleProjectFileEvent({
+      config: this.config,
+      indexManager: this.indexManager,
+      analyzer: this.analyzer,
+      gitignoreFilter: this.gitignoreFilter,
+      writer: this.writer,
+      absFilePath: path.resolve(this.config.projectRoot, relPath),
+      eventType: "change",
+      onUpdate: this.onUpdate,
+      onRefresh: () => this.refresh(),
+    });
   }
 }

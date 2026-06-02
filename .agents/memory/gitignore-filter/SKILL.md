@@ -3,7 +3,7 @@ name: gitignore-filter
 description: >
   專案記憶：Gitignore 排除引擎模組。讀取 .gitignore 規則進行路徑排除過濾。Use when:
   涉及檔案掃描、監聽排除、未歸屬檔案偵測時載入。
-last_updated: '2026-05-29T18:14:53+08:00'
+last_updated: '2026-06-03T07:11:32+08:00'
 status: stable
 staleness: 0
 metadata:
@@ -32,6 +32,8 @@ metadata:
 - D06: `reload()` 允許重新載入 `.gitignore` 內容（用以在修改 `.gitignore` 時即時更新過濾機制）
 - D07: v5.3.0 起 `.vscodeignore` 已被 `package.json.files` 單一白名單取代；GitHub Actions 與本機 VSIX 打包不再依賴 `.vscodeignore`。
 - D08: v5.4 `.agents/` 白名單除 `.agents/memory/` 外，也放行 `.agents/context/` 與 `.agents/project_skills/`；專案脈絡與專案衍生技能是版本化知識資產，不應被 broad `/.agents/*` 排除。
+- D09: Desktop Console 本機安裝檔輸出至 `release/desktop`；根層 `.gitignore` 以 `release/` 排除桌面打包產物，避免 installer、unpacked app 與 blockmap 進版控。
+- D10: 2026-06-03 桌面正式發布仍不追蹤 `release/desktop/**`；桌面 installer 透過 GitHub Release asset 上傳，source 版控只保留桌面建構設定、workflow、圖示與原始碼。
 
 ## Known Issues
 
@@ -44,6 +46,7 @@ metadata:
 - L03: (2026-05-18) 舊版 VSIX 自動發版曾使用 `.vscodeignore` 排除規則；v5.3.0 後已改由 `package.json.files` 統一控制打包內容。
 - L04: (2026-05-19) 本次卡匣機櫃建構期間重新檢查 `.gitignore`，未發現新的語意規則變更；staleness 來自檔案 mtime 偵測，可透過記憶同步核銷。
 - L05: (2026-05-29) `git check-ignore -v --no-index` 應同時驗證 `.agents/context/**` 與 `.agents/project_skills/**` 放行，以及 `.agents/skills/**` 等部署產物仍被忽略，避免框架升級後誤收或誤擋治理資產。
+- L06: (2026-06-03) 發布桌面版前用 `git check-ignore -v release/desktop/...` 確認 installer 與 unpacked exe 都由 `release/` 規則排除，再由 GitHub Release 管理下載檔。
 
 ## Relations
 

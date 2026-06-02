@@ -1,6 +1,7 @@
 ﻿# [產物 | 忽略] Node / 建置 / 發布檔案
 node_modules/
 dist/
+release/
 *.vsix
 .vscode-test/
 .DS_Store

@@ -6,10 +6,10 @@ const tsParser = require('@typescript-eslint/parser')
 module.exports = [
   // ESLint v9 全域 ignores（CJS 版本）
   {
-    ignores: ['dist/**', 'node_modules/**'],
+    ignores: ['dist/**', 'release/**', 'node_modules/**'],
   },
   {
-    files: ['src/**/*.ts'],
+    files: ['src/**/*.ts', 'src/**/*.tsx'],
     languageOptions: {
       parser: tsParser,
       parserOptions: {

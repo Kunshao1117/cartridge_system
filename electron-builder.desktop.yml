@@ -1,0 +1,19 @@
+appId: com.cartridge.desktop
+productName: Cartridge Desktop Console
+directories:
+  output: release/desktop
+files:
+  - dist/desktop/**/*
+  - assets/**/*
+extraMetadata:
+  main: dist/desktop/main.js
+win:
+  icon: desktop-assets/cartridge-desktop.ico
+  target:
+    - target: nsis
+      arch:
+        - x64
+nsis:
+  oneClick: false
+  perMachine: false
+  allowToChangeInstallationDirectory: true

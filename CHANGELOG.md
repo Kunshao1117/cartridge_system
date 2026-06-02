@@ -2,9 +2,18 @@
 
 ## [Unreleased]
 
+## [desktop-v5.4.1] — 2026-06-03
+
+### feat
+
+- Cartridge Desktop Console — 新增 Electron + React + Fluent UI 桌面監控台產品線，支援多專案記憶卡健康總覽、操作型控制台、分區滾輪、系統匣、桌面通知、專案暫停/恢復與單一專案詳情。
+- 桌面監控核心 — 抽出純 Node 監控 runtime，讓桌面版與 VSIX watcher 共用記憶卡優先、`.gitignore` 重載、過期警報、幽靈檔案與未歸屬檔案規則；MCP runtime 不納入本次桌面版能力。
+
 ### chore
 
-- 發布流程分流 — npm MCP runtime 改用 `npm-v*` tag 或手動 workflow 發布，`v*` tag 保留給 VSIX 插件 release，避免同一 tag 同時觸發兩種不同產物。
+- 發布流程分流 — npm MCP runtime 改用 `npm-v*` tag 或手動 workflow 發布，Desktop Console 改用 `desktop-v*` tag 發布，`v*` tag 保留給 VSIX 插件 release，避免同一 tag 同時觸發多種不同產物。
+- 桌面建構設定 — 新增桌面專用 tsup、Vite 與 electron-builder 設定，桌面 bundle 輸出至 `dist/desktop`，發行產物輸出至 `release/desktop`，不改 VSIX manifest 與 npm runtime bin。
+- 桌面安全與測試 — renderer 採 context isolation、sandbox 與 preload IPC 白名單，開檔操作加上 project root path guard；新增本機偏好設定、通知開關、關閉視窗行為與分區滾輪測試，README 測試數同步為 35 個測試檔案、254 個測試案例。
 
 ## [5.4.1] — 2026-06-02
 

@@ -3,7 +3,7 @@
 > **現實感知 AI 記憶防禦引擎** — 自動偵測記憶卡過期、幽靈檔案、跨模組依賴傳播，確保 AI 不讀取失效的上下文。
 
 [![version](https://img.shields.io/badge/version-5.4.1-blue)](./CHANGELOG.md)
-[![tests](https://img.shields.io/badge/tests-232%20passed-brightgreen)](#-執行測試)
+[![tests](https://img.shields.io/badge/tests-254%20passed-brightgreen)](#-執行測試)
 [![license](https://img.shields.io/badge/license-MIT-green)](#)
 
 ---
@@ -47,6 +47,7 @@ Cartridge System 是一個為 [Antigravity 框架](https://github.com/Kunshao111
 | 🧬 **專案脈絡層** | **v5.4 新增** — 只讀支援 `.agents/context/` 專案脈絡卡，提供清單、讀取、驗證與狀態摘要，不併入原始碼記憶 stale，也不走 `memory_commit`。 |
 | 📦 **npm MCP Runtime** | **v5.2 新增** — 可用 `npx cartridge-system --workspace ...` 直接啟動 MCP server，方便線上安裝與多專案接入。 |
 | 🧭 **規則檔檢查** | **v5.1 增強** — 掃描 Codex `AGENTS.md`、Claude `CLAUDE.md` / skills / subagents、GitHub Copilot instructions、Antigravity skills 與 `.agents/memory/`，用白話列出規則衝突、原因、相關檔案與建議工具。 |
+| 🖥️ **Desktop Console** | **desktop-v5.4.1 新增** — Electron + React + Fluent UI 桌面監控台，可同時監控多個專案的記憶卡健康、幽靈檔案、未歸屬檔案與阻塞項目；支援操作型控制台、分區滾輪、系統匣背景監控與本機偏好設定，且此產品線獨立於 VSIX 與 npm MCP runtime。 |
 | 🧭 **MCP 工具名冊** | **v5.1 增強** — 集中管理工具描述、風險等級、讀寫屬性、授權需求、開工安全性與預期耗時，並驅動 MCP dispatcher 執行路由。 |
 | 🧯 **MCP 工具防線** | **v4.1.1 增強** — 寫入型工具 `memory_commit` 需要 `confirm: true`，由 server dispatcher 層硬性阻擋未確認呼叫。 |
 | 🧪 **依賴語義警告** | **v4.1.1 增強** — `memory_commit` 會檢查 `dependencies` 是否疑似混入父子導覽、技能建議或缺少依賴理由；只產生 warning，不取代 `D:\AI_Rules` 的核心規範。`workspace_brief` 僅揭露依賴總邊數，避免在缺少 SKILL.md 內文時產生誤報。 |
@@ -138,11 +139,37 @@ MCP client 設定範例：
 
 ---
 
+### 方法五：桌面監控台（Desktop Console）
+
+若需要在不依賴 VS Code / Antigravity 插件的情況下同時監控多個專案，可使用桌面版。桌面版是獨立產品線：它沿用插件的記憶卡監控規則，但不新增或修改 MCP runtime。
+
+開發預覽：
+
+```bash
+npm run desktop:preview
+```
+
+桌面版建構：
+
+```bash
+npm run desktop:build
+```
+
+Windows 安裝檔打包：
+
+```bash
+npm run desktop:dist
+```
+
+桌面版會把監控專案清單保存於使用者本機 AppData，不寫入被監控專案；各專案的 `.cartridge/index.json` 與記憶卡警報行為則維持與插件一致。
+
+---
+
 ## 📦 發布 VSIX
 
 Cartridge System 使用 GitHub Actions 自動發布 VSIX。正式版本不需要手動開 GitHub Release 拖檔案。
 
-VSIX 插件與 npm MCP runtime 使用不同發布入口：`vX.Y.Z` tag 僅代表 VSIX 插件 release；npm MCP runtime 請使用 `npm-vX.Y.Z` tag 或手動執行 npm workflow。
+VSIX 插件、Desktop Console 與 npm MCP runtime 使用不同發布入口：`vX.Y.Z` tag 僅代表 VSIX 插件 release；`desktop-vX.Y.Z` tag 代表桌面監控台 release；npm MCP runtime 請使用 `npm-vX.Y.Z` tag 或手動執行 npm workflow。
 
 ### 自動發布正式版
 
@@ -176,6 +203,32 @@ GitHub Actions 會自動執行測試、打包 `cartridge-system-*.vsix`、建立
 ### 手動補發
 
 如果需要補發目前版本，進入 GitHub 的 **Actions → Release VSIX → Run workflow**，輸入版本號，例如 `5.4.1` 或 `v5.4.1`。Workflow 會確認輸入版本與 `package.json` 一致，然後重新打包並覆蓋 Release 裡的 VSIX 附件。
+
+---
+
+## 📦 發布 Desktop Console
+
+Desktop Console 是桌面監控台產品線。它沿用 VSIX 的記憶卡監控規則，但以 Windows 安裝檔形式發布，且不觸發 VSIX 或 npm MCP runtime 發布。
+
+正式發布前先完成本機驗證：
+
+```bash
+npm test
+npm run lint
+npx tsc --noEmit
+npm run desktop:dist
+```
+
+推送桌面版 tag：
+
+```bash
+git tag desktop-v5.4.1
+git push origin desktop-v5.4.1
+```
+
+GitHub Actions 會在 Windows runner 上重新打包桌面安裝檔，建立 `Cartridge Desktop Console desktop-v5.4.1` Release，並把 `Cartridge Desktop Console Setup 5.4.1.exe` 掛到附件。桌面版 Release 不會標記為 GitHub Latest，避免 VSIX 更新檢查誤讀桌面版本；此流程也不會將 `release/desktop` 產物提交進 Git。
+
+若需要手動補發，進入 GitHub 的 **Actions → Release Desktop Console → Run workflow**，輸入版本號，例如 `5.4.1`、`v5.4.1` 或 `desktop-v5.4.1`。Workflow 會確認輸入版本與 `package.json` 一致，然後重新打包並覆蓋桌面版 Release 裡的安裝檔附件。
 
 ---
 
@@ -395,7 +448,7 @@ npm test
 npm run test:watch
 ```
 
-測試涵蓋 28 個測試檔案（**232 個案例**）：
+測試涵蓋 35 個測試檔案（**254 個案例**）：
 
 | 測試模組 | 案例數 | 涵蓋範圍 |
 |----------|--------|----------|
@@ -410,6 +463,7 @@ npm run test:watch
 | 路徑安全驗證 | 10 | 絕對/相對路徑、穿越攻擊拒絕、工作區身分比較 |
 | 時間戳格式 | 3 | ISO 8601 格式、台灣時區後綴 |
 | 離線變動偵測 | 10 | 啟動校驗、目錄跳過、去重、幽靈標記 |
+| 桌面監控台 | 4 | 分區滾輪 overflow 判斷、滾動位置推進、邊界 clamp、line/page delta 正規化 |
 | 警報寫入器 | 9 | 冪等植入、條件式清除、狀態回復 |
 | import 掃描器 | 5 | ES/動態/CJS 語法擷取、去重、node_modules 過濾 |
 | 依賴傳播引擎 | 8 | 反向圖建構、BFS 傳播深度、平方衰減權重、循環偵測 |
@@ -482,7 +536,7 @@ cartridge_system/
 │   ├── path-guard.ts         # 路徑安全驗證（雙層防禦）
 │   ├── timestamp.ts          # 時間戳生成（Intl API）
 │   ├── types.ts              # 共用型別定義（含 ghostFiles、dependencies）
-│   └── tests/                # vitest 單元測試（28 檔 232 案例）
+│   └── tests/                # vitest 單元測試（35 檔 254 案例）
 ├── scripts/
 │   └── package-vsix.mjs      # VSIX 打包 wrapper（使用 package.json files 白名單）
 ├── .agents/

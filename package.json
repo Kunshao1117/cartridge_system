@@ -4,6 +4,7 @@
   "version": "5.4.1",
   "description": "記憶卡匣動態熱處理外掛 — 主動式檔案監聽與記憶過期防禦系統",
   "publisher": "cartridge-system",
+  "author": "cartridge-system",
   "repository": {
     "type": "git",
     "url": "git+https://github.com/Kunshao1117/cartridge_system.git"
@@ -158,6 +159,11 @@
   "scripts": {
     "dev": "tsup --watch",
     "build": "tsup",
+    "desktop:build:main": "tsup --config tsup.desktop.config.ts",
+    "desktop:build:renderer": "vite build --config desktop.vite.config.ts",
+    "desktop:build": "npm run desktop:build:main && npm run desktop:build:renderer",
+    "desktop:preview": "npm run desktop:build && electron dist/desktop/main.js",
+    "desktop:dist": "npm run desktop:build && electron-builder --config electron-builder.desktop.yml",
     "lint": "eslint src/",
     "package": "node scripts/package-vsix.mjs",
     "prepublishOnly": "npm run lint && npm test && npm run build && npx tsc --noEmit && npm pack --dry-run",
@@ -166,19 +172,31 @@
   },
   "devDependencies": {
     "@types/node": "^25.5.0",
+    "@types/react": "^19.2.16",
+    "@types/react-dom": "^19.2.3",
     "@types/vscode": "^1.85.0",
     "@typescript-eslint/eslint-plugin": "^8.0.0",
     "@typescript-eslint/parser": "^8.0.0",
+    "@vitejs/plugin-react": "^6.0.2",
     "@vscode/vsce": "^3.0.0",
+    "concurrently": "^10.0.3",
+    "electron": "^42.3.2",
+    "electron-builder": "^26.8.1",
     "eslint": "^9.0.0",
     "tsup": "^8.0.0",
     "typescript": "^5.5.0",
-    "vitest": "^4.1.8"
+    "vite": "^8.0.16",
+    "vitest": "^4.1.8",
+    "wait-on": "^9.0.10"
   },
   "dependencies": {
+    "@fluentui/react-components": "^9.74.1",
+    "@fluentui/react-icons": "^2.0.328",
     "@modelcontextprotocol/sdk": "^1.0.1",
     "cytoscape": "^3.33.3",
     "gray-matter": "^4.0.3",
-    "ignore": "^7.0.5"
+    "ignore": "^7.0.5",
+    "react": "^19.2.7",
+    "react-dom": "^19.2.7"
   }
 }

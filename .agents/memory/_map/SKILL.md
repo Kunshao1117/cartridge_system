@@ -3,7 +3,7 @@ name: _map
 scopePath: null
 description: |
   專案記憶：全局導航卡與模組總覽。 Use when: 查詢架構全貌、模組依賴關係、各子模組層級分配時載入。
-last_updated: '2026-05-16T18:03:38+08:00'
+last_updated: '2026-06-02T23:16:55+08:00'
 status: stable
 staleness: 0
 metadata:
@@ -38,6 +38,7 @@ metadata:
 - \_system
 - core-types
 - extension
+- desktop-console
 - gitignore-filter
 - index-manager
 - mcp-tools

@@ -3,7 +3,7 @@ name: desktop-console.app
 description: >
   專案記憶：Electron 桌面外殼、IPC、系統匣、通知與專案清單設定。Use when: 修改桌面主程序、 預載橋接、AppData
   專案設定、桌面通知或桌面打包設定時載入。
-last_updated: '2026-06-03T01:16:56+08:00'
+last_updated: '2026-06-03T07:24:38+08:00'
 status: stable
 staleness: 0
 dependencies:
@@ -49,14 +49,16 @@ metadata:
 - D09: Windows 桌面版移除 Electron 預設 Application Menu，避免首次啟動只看到英文 File/Edit/View/Window 選單而誤判應用沒有內容。
 - D10: 桌面設定與專案清單共用 `desktop-projects.json`，全域設定包含按 X 縮到系統匣、桌面通知與新手說明；設定保存於 Electron userData，不寫入被監控專案。
 - D11: 視窗 close 事件依 `window-behavior` 判斷是否縮到系統匣；只有系統匣退出或明確退出流程會真正停止監控。
+- D12: `desktop-notifier.ts` 不在 module load 階段直接載入 Electron Notification；改採 lazy loading 與可注入 notification API，避免 CI 單元測試依賴 Electron binary path。
 
 ## Known Issues
 
-- Electron 安裝檔尚未建立正式 release workflow；目前只有本機 `desktop:dist` 打包入口。
+- 無
 
 ## Module Lessons
 
 - L01: 桌面打包必須和 VSIX/npm runtime 發布分流，否則 `package.json` 同時承載三條產品線時容易造成產物污染。
+- L02: 2026-06-03 GitHub Windows runner 執行單元測試時，`electron` 套件可能尚未具備 `path.txt`；測試通知邏輯應使用注入物件，不應載入真實 Electron binary。
 
 ## Relations
 

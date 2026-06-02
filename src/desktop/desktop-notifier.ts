@@ -1,8 +1,23 @@
-import { Notification } from "electron";
+import type { NotificationConstructorOptions } from "electron";
 import type { DesktopProjectSnapshot } from "../monitoring/project-snapshot.js";
+
+type DesktopNotification = {
+  show(): void;
+};
+
+type NotificationApi = {
+  isSupported(): boolean;
+  new (options: NotificationConstructorOptions): DesktopNotification;
+};
+
+function getElectronNotification(): NotificationApi {
+  return require("electron").Notification as NotificationApi;
+}
 
 export class DesktopNotifier {
   private previous = new Map<string, DesktopProjectSnapshot["status"]>();
+
+  constructor(private notificationApi: NotificationApi | null = null) {}
 
   getPreviousStatus(projectId: string): DesktopProjectSnapshot["status"] | undefined {
     return this.previous.get(projectId);
@@ -18,6 +33,7 @@ export class DesktopNotifier {
       return;
     }
 
+    const Notification = this.getNotificationApi();
     if (!Notification.isSupported()) return;
 
     for (const snapshot of snapshots) {
@@ -44,5 +60,10 @@ export class DesktopNotifier {
       `${snapshot.counts.ghostFiles} 個幽靈檔案`,
       `${snapshot.counts.untrackedFiles} 個未歸屬檔案`,
     ].join("，");
+  }
+
+  private getNotificationApi(): NotificationApi {
+    this.notificationApi ??= getElectronNotification();
+    return this.notificationApi;
   }
 }

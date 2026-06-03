@@ -7,14 +7,17 @@ import {
   type MemoryWarningClassification,
   type MemoryWarningItem,
 } from "./staleness.js";
+import type { MemoryCompactionMetrics } from "./memory-compaction.js";
 
 export interface PreflightCartridgeEntry {
   skillPath?: string;
   staleness?: number;
   ghostFiles?: unknown[];
   indirectStaleness?: number;
+  trackedFiles?: string[];
   parent?: string | null;
   dependencies?: string[];
+  compaction?: MemoryCompactionMetrics;
 }
 
 export interface PreflightIndex {
@@ -36,6 +39,9 @@ type Blocker = {
     | "memory_stale"
     | "memory_ghost_files"
     | "memory_untracked_files"
+    | "memory_compaction_due"
+    | "memory_compaction_invalid"
+    | "memory_archive_volume_due"
     | "memory_compatibility"
     | "git_dirty";
   target: string;
@@ -106,6 +112,35 @@ function buildMemoryGate(index: PreflightIndex) {
       indirectStaleness: entry.indirectStaleness ?? 0,
     }));
   const untrackedFiles = index.untrackedFiles?.length ?? 0;
+  const compactionModules = entries
+    .filter(([, entry]) => entry.compaction?.needsCompaction)
+    .map(([module, entry]) => ({
+      module,
+      reasons: entry.compaction?.reasons ?? [],
+      cycleEventCount: entry.compaction?.cycleEventCount ?? 0,
+      sizeBytes: entry.compaction?.sizeBytes ?? 0,
+      lineCount: entry.compaction?.lineCount ?? 0,
+      compliance: entry.compaction?.compliance ?? "ok",
+    }));
+  const splitSuggestions = entries
+    .filter(([, entry]) => (entry.trackedFiles?.length ?? 0) > 8)
+    .map(([module, entry]) => ({
+      module,
+      trackedFilesCount: entry.trackedFiles?.length ?? 0,
+      blocking: false,
+    }));
+  const archiveVolumeDue = entries.reduce(
+    (sum, [, entry]) =>
+      sum +
+      (entry.compaction?.archiveVolumes?.filter((volume) => volume.needsCompaction)
+        .length ?? 0),
+    0,
+  );
+  const legacyCards = entries.filter(([, entry]) => entry.compaction?.isLegacy)
+    .length;
+  const languageWarnings = entries.filter(([, entry]) =>
+    entry.compaction?.reasons.includes("highChineseRatio"),
+  ).length;
   const blockers: Blocker[] = classification.blocking.map((item) => ({
     type: item.code as Blocker["type"],
     target: item.target,
@@ -117,10 +152,21 @@ function buildMemoryGate(index: PreflightIndex) {
       ghostFiles: ghostModules.reduce((sum, item) => sum + item.ghostFiles, 0),
       untrackedFiles,
       indirectStale: indirectStaleModules.length,
+      compactionDue: compactionModules.length,
+      compactionModules,
+      archiveVolumeDue,
+      splitSuggestions,
+      granularityAdvisories: splitSuggestions.length,
+      legacyCards,
+      languageWarnings,
     },
     blockers,
     reviewItems: classification.review,
-    advisories: [...classification.review, ...classification.info],
+    advisories: [
+      ...classification.review,
+      ...classification.advisory,
+      ...classification.info,
+    ],
   };
 }
 
@@ -175,6 +221,11 @@ function buildRecommendedActions(
       action:
         blocker.type === "memory_stale"
           ? "repair_stale_memory"
+          : blocker.type === "memory_compaction_due" ||
+              blocker.type === "memory_compaction_invalid"
+            ? "compact_memory_card"
+            : blocker.type === "memory_archive_volume_due"
+              ? "open_next_archive_volume"
           : "repair_memory_health",
       target: blocker.target,
       reason: blocker.reason,
@@ -182,6 +233,9 @@ function buildRecommendedActions(
   }
   for (const item of memory.reviewItems) {
     actions.push(toReviewAction(item));
+  }
+  for (const item of memory.advisories) {
+    if (item.tier === "advisory") actions.push(toReviewAction(item));
   }
   if (git.summary.dirty) {
     actions.push({
@@ -195,6 +249,38 @@ function buildRecommendedActions(
 }
 
 function toReviewAction(item: MemoryWarningItem): RecommendedAction {
+  if (item.code === "memory_legacy_schema") {
+    return {
+      priority: "P2",
+      action: "lazy_upgrade_memory_card",
+      target: item.target,
+      reason: item.reason,
+    };
+  }
+  if (item.code === "memory_language_ratio") {
+    return {
+      priority: "P2",
+      action: "reduce_memory_card_chinese_body",
+      target: item.target,
+      reason: item.reason,
+    };
+  }
+  if (item.code === "memory_granularity_advisory") {
+    return {
+      priority: "P2",
+      action: "review_memory_card_split_suggestion",
+      target: item.target,
+      reason: item.reason,
+    };
+  }
+  if (item.code === "memory_archive_migration") {
+    return {
+      priority: "P2",
+      action: "migrate_archive_path",
+      target: item.target,
+      reason: item.reason,
+    };
+  }
   return {
     priority: "P2",
     action:
@@ -224,6 +310,7 @@ function buildReadiness(
 ): PreflightReadiness {
   const warningReasons = [
     ...memoryWarnings.review.map((item) => `${item.target}: ${item.reason}`),
+    ...memoryWarnings.advisory.map((item) => `${item.target}: ${item.reason}`),
     ...dependencySemantics.modules.map(
       (item) => `${item.module}: ${item.codes.join(", ")}`,
     ),

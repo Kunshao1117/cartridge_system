@@ -24,6 +24,7 @@ import {
   resolveProjectFilePath,
 } from "./path-guard.js";
 import { shouldHideWindowOnClose } from "./window-behavior.js";
+import type { DesktopOperationResult } from "./ipc-channels.js";
 
 let mainWindow: BrowserWindow | undefined;
 let tray: Tray | undefined;
@@ -139,53 +140,157 @@ function registerIpcHandlers(): void {
   ipcMain.handle(
     DesktopIpc.updateSettings,
     async (_event, patch: Partial<DesktopSettings>) => {
-      settings = await store.writeSettings(patch);
-      updateTray(monitor.getSnapshots());
-      return settings;
+      try {
+        settings = await store.writeSettings(patch);
+        updateTray(monitor.getSnapshots());
+        return operation("success", "設定已更新。", settings);
+      } catch (error) {
+        return operation(
+          "error",
+          `設定更新失敗：${formatErrorMessage(error)}`,
+          settings,
+        );
+      }
     },
   );
   ipcMain.handle(DesktopIpc.addProjects, async () => {
-    const result = await dialog.showOpenDialog({
-      title: "加入監控專案",
-      properties: ["openDirectory", "multiSelections"],
-    });
-    if (result.canceled) return monitor.getSnapshots();
-    for (const root of result.filePaths) await monitor.addProject(root);
-    await persistProjects();
-    return monitor.getSnapshots();
+    try {
+      const result = await dialog.showOpenDialog({
+        title: "加入監控專案",
+        properties: ["openDirectory", "multiSelections"],
+      });
+      if (result.canceled || result.filePaths.length === 0) {
+        return operation(
+          "cancelled",
+          "已取消加入監控專案。",
+          monitor.getSnapshots(),
+        );
+      }
+      for (const root of result.filePaths) await monitor.addProject(root);
+      await persistProjects();
+      return operation(
+        "success",
+        `已加入 ${result.filePaths.length} 個監控專案。`,
+        monitor.getSnapshots(),
+      );
+    } catch (error) {
+      return operation(
+        "error",
+        `加入監控專案失敗：${formatErrorMessage(error)}`,
+        monitor.getSnapshots(),
+      );
+    }
   });
   ipcMain.handle(DesktopIpc.removeProject, async (_event, root: string) => {
-    const snapshots = await monitor.removeProject(root);
-    await persistProjects();
-    return snapshots;
+    if (!isKnownProjectRoot(root, getKnownRoots())) {
+      return operation("blocked", "找不到這個監控專案，未移除。", monitor.getSnapshots());
+    }
+    try {
+      const snapshots = await monitor.removeProject(root);
+      await persistProjects();
+      return operation("success", "監控專案已移除。", snapshots);
+    } catch (error) {
+      return operation(
+        "error",
+        `移除監控專案失敗：${formatErrorMessage(error)}`,
+        monitor.getSnapshots(),
+      );
+    }
   });
   ipcMain.handle(DesktopIpc.pauseProject, async (_event, root: string) => {
-    const snapshots = await monitor.pauseProject(root);
-    await persistProjects();
-    return snapshots;
+    if (!isKnownProjectRoot(root, getKnownRoots())) {
+      return operation("blocked", "找不到這個監控專案，無法暫停。", monitor.getSnapshots());
+    }
+    try {
+      const snapshots = await monitor.pauseProject(root);
+      await persistProjects();
+      return operation("success", "專案監控已暫停。", snapshots);
+    } catch (error) {
+      return operation(
+        "error",
+        `暫停監控失敗：${formatErrorMessage(error)}`,
+        monitor.getSnapshots(),
+      );
+    }
   });
   ipcMain.handle(DesktopIpc.resumeProject, async (_event, root: string) => {
-    const snapshots = await monitor.resumeProject(root);
-    await persistProjects();
-    return snapshots;
+    if (!isKnownProjectRoot(root, getKnownRoots())) {
+      return operation("blocked", "找不到這個監控專案，無法恢復。", monitor.getSnapshots());
+    }
+    try {
+      const snapshots = await monitor.resumeProject(root);
+      await persistProjects();
+      return operation("success", "專案監控已恢復。", snapshots);
+    } catch (error) {
+      return operation(
+        "error",
+        `恢復監控失敗：${formatErrorMessage(error)}`,
+        monitor.getSnapshots(),
+      );
+    }
   });
-  ipcMain.handle(DesktopIpc.rescanProject, (_event, root: string) =>
-    monitor.rescanProject(root),
-  );
-  ipcMain.handle(DesktopIpc.rescanAll, () => monitor.rescanAll());
+  ipcMain.handle(DesktopIpc.rescanProject, async (_event, root: string) => {
+    if (!isKnownProjectRoot(root, getKnownRoots())) {
+      return operation("blocked", "找不到這個監控專案，無法掃描。", monitor.getSnapshots());
+    }
+    try {
+      return operation("success", "專案掃描已完成。", await monitor.rescanProject(root));
+    } catch (error) {
+      return operation(
+        "error",
+        `專案掃描失敗：${formatErrorMessage(error)}`,
+        monitor.getSnapshots(),
+      );
+    }
+  });
+  ipcMain.handle(DesktopIpc.rescanAll, async () => {
+    try {
+      return operation("success", "全部專案掃描已完成。", await monitor.rescanAll());
+    } catch (error) {
+      return operation(
+        "error",
+        `全部掃描失敗：${formatErrorMessage(error)}`,
+        monitor.getSnapshots(),
+      );
+    }
+  });
   ipcMain.handle(DesktopIpc.openProject, async (_event, root: string) => {
-    if (!isKnownProjectRoot(root, getKnownRoots())) return;
-    await shell.openPath(path.resolve(root));
+    if (!isKnownProjectRoot(root, getKnownRoots())) {
+      return operation("blocked", "找不到這個監控專案，無法開啟。");
+    }
+    const error = await shell.openPath(path.resolve(root));
+    if (error) return operation("error", `開啟專案資料夾失敗：${error}`);
+    return operation("success", "已開啟專案資料夾。");
   });
   ipcMain.handle(
     DesktopIpc.openFile,
     async (_event, root: string, relativePath: string) => {
-      if (!isKnownProjectRoot(root, getKnownRoots())) return;
+      if (!isKnownProjectRoot(root, getKnownRoots())) {
+        return operation("blocked", "找不到這個監控專案，無法開啟檔案。");
+      }
       const target = resolveProjectFilePath(root, relativePath);
-      if (!target) return;
-      await shell.openPath(target);
+      if (!target) {
+        return operation("blocked", "檔案路徑不在監控專案內，已阻擋開啟。");
+      }
+      const error = await shell.openPath(target);
+      if (error) return operation("error", `開啟檔案失敗：${error}`);
+      return operation("success", "已開啟檔案。");
     },
   );
+}
+
+function operation<T>(
+  outcome: DesktopOperationResult<T>["outcome"],
+  message: string,
+  data?: T,
+): DesktopOperationResult<T> {
+  const result: DesktopOperationResult<T> = { outcome, message };
+  if (data !== undefined) result.data = data;
+  return result;
+}
+
+function formatErrorMessage(error: unknown): string {
+  return error instanceof Error ? error.message : String(error);
 }
 
 function quitApp(): void {

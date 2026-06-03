@@ -62,8 +62,13 @@ export class GovernanceTreeProvider
       },
       {
         label: "記憶卡健康",
-        description: `${summary.memory.total} 張，${summary.memory.stale} 張需更新`,
-        status: summary.memory.critical > 0 ? "blocked" : summary.memory.stale > 0 ? "warning" : "ready",
+        description: `${summary.memory.total} 張，${summary.memory.blockingItems} 阻塞 / ${summary.memory.advisoryItems} 建議`,
+        status:
+          summary.memory.blockingItems > 0
+            ? "blocked"
+            : summary.memory.reviewItems > 0 || summary.memory.advisoryItems > 0
+              ? "warning"
+              : "ready",
         command: "cartridge.status",
       },
       {
@@ -71,9 +76,20 @@ export class GovernanceTreeProvider
         description: `${summary.memory.ghostFiles} 幽靈 / ${summary.memory.untrackedFiles} 未歸屬`,
         status:
           summary.memory.ghostFiles > 0 || summary.memory.untrackedFiles > 0
-            ? "warning"
+            ? "blocked"
             : "ready",
         command: "cartridge.scanGhosts",
+      },
+      {
+        label: "壓縮治理",
+        description: `${summary.memory.compactionDue} 到期 / ${summary.memory.advisoryItems} 建議`,
+        status:
+          summary.memory.compactionDue > 0
+            ? "blocked"
+            : summary.memory.advisoryItems > 0
+              ? "warning"
+              : "ready",
+        command: "cartridge.status",
       },
       {
         label: "規則檔檢查",

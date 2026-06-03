@@ -96,7 +96,9 @@ describe("handleWorkspaceBrief", () => {
     expect(brief.memory.ghostFiles).toBe(1);
     expect(brief.memory.untrackedFiles).toBe(1);
     expect(brief.memory.indirectStale).toBe(1);
-    expect(brief.memory.oversized[0].module).toBe("mcp-tools");
+    expect(brief.memory.oversized).toEqual([]);
+    expect(brief.memory.splitSuggestions[0].module).toBe("mcp-tools");
+    expect(brief.memory.splitSuggestions[0].blocking).toBe(false);
     expect(brief.memory.dependencies.totalEdges).toBe(1);
     expect(brief.readiness.status).toBe("blocked");
     expect(brief.startupReadiness.label).toBe("需要先處理記憶卡提醒");
@@ -153,6 +155,71 @@ describe("handleWorkspaceBrief", () => {
     expect(brief.submitReadiness.nextAction).toBe("run_commit_preflight");
     expect(brief.submitReadiness.nextTool).toBe("commit_preflight");
     expect(brief.recommendedActions).toEqual([]);
+  });
+
+  it("壓縮到期記憶卡應阻擋開工摘要", async () => {
+    vi.mocked(fs.readFile).mockImplementation(async (filePath) => {
+      const fp = filePath as string;
+      if (fp.endsWith("package.json")) {
+        return JSON.stringify({ name: "ok" }) as unknown as Awaited<
+          ReturnType<typeof fs.readFile>
+        >;
+      }
+      if (fp.includes("index.json") && fp.includes(".cartridge")) {
+        return JSON.stringify({
+          cartridges: {
+            "full-cycle": {
+              staleness: 0,
+              pendingChanges: [],
+              trackedFiles: ["src/full-cycle.ts"],
+              ghostFiles: [],
+              indirectStaleness: 0,
+              dependencies: [],
+              compaction: {
+                schemaVersion: 2,
+                isLegacy: false,
+                contentLanguage: "en",
+                humanLanguage: "zh-TW",
+                sizeBytes: 8000,
+                lineCount: 80,
+                chineseCharCount: 0,
+                bodyCharCount: 1000,
+                chineseRatio: 0,
+                cycleId: "2026-06-04-001",
+                cycleEventCount: 30,
+                cycleEventLimit: 30,
+                sizeLimitBytes: 16384,
+                lineLimit: 120,
+                archivePolicy: "volume",
+                compactionStatus: "due",
+                needsCompaction: true,
+                recommendedAction: "compact",
+                reasons: ["cycleEventLimit"],
+              },
+            },
+          },
+          fileMap: {},
+          untrackedFiles: [],
+        }) as unknown as Awaited<ReturnType<typeof fs.readFile>>;
+      }
+      throw new Error("unexpected path");
+    });
+
+    const result = await handleWorkspaceBrief({ projectRoot: PROJECT_ROOT });
+    const envelope = JSON.parse(result.content[0].text);
+    const brief = envelope.summary;
+
+    expect(envelope.status).toBe("blocked");
+    expect(brief.memory.compactionDue).toBe(1);
+    expect(brief.readiness.status).toBe("blocked");
+    expect(brief.readiness.reasons[0]).toContain("cycleEvents=30/30");
+    expect(brief.recommendedActions).toContainEqual(
+      expect.objectContaining({
+        action: "compact_memory_card",
+        target: "full-cycle",
+        blocking: true,
+      }),
+    );
   });
 
   it("只有間接過期時應回傳 warning 且不阻塞開工", async () => {

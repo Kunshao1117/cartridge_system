@@ -2,7 +2,14 @@ import type { ContextAuditFinding, ContextInventory } from "./context-types.js";
 import { classifyMemoryWarnings } from "./staleness.js";
 import type { CartridgeIndex } from "./types.js";
 
-export type ActionItemKind = "stale" | "ghost" | "untracked" | "review" | "context";
+export type ActionItemKind =
+  | "stale"
+  | "ghost"
+  | "untracked"
+  | "compaction"
+  | "review"
+  | "advisory"
+  | "context";
 
 export interface GovernanceActionItem {
   kind: ActionItemKind;
@@ -66,6 +73,33 @@ export function buildGovernanceActionItems(args: {
     });
   }
 
+  for (const item of memoryWarnings.blocking) {
+    if (
+      ![
+        "memory_compaction_due",
+        "memory_compaction_invalid",
+        "memory_archive_volume_due",
+      ].includes(item.code)
+    ) {
+      continue;
+    }
+    const target = args.index.cartridges[item.target];
+    items.push({
+      kind: "compaction",
+      label: item.label,
+      description: item.code === "memory_archive_volume_due" ? "歸檔卷超限" : "壓縮治理阻擋",
+      reason: item.reason,
+      recommendedAction:
+        item.code === "memory_archive_volume_due"
+          ? "開啟下一個 archive-###.md 歸檔卷。"
+          : "先彙整 Cycle Events 或拆分/歸檔主卡內容，再同步記憶卡。",
+      affectedPath: item.target,
+      targetPath: target?.skillPath,
+      cartridgeId: item.target,
+      severity: "error",
+    });
+  }
+
   for (const item of memoryWarnings.review) {
     const target = args.index.cartridges[item.target];
     items.push({
@@ -81,6 +115,35 @@ export function buildGovernanceActionItems(args: {
         item.code === "memory_child_review"
           ? "檢查子卡狀態；父卡內容未必需要更新。"
           : "使用 memory_deps 檢查上游來源；只有內容失真時才更新記憶卡。",
+      affectedPath: item.target,
+      targetPath: target?.skillPath,
+      cartridgeId: item.target,
+      severity: "warning",
+    });
+  }
+
+  for (const item of memoryWarnings.advisory) {
+    const target = args.index.cartridges[item.target];
+    items.push({
+      kind: "advisory",
+      label: item.label,
+      description:
+        item.code === "memory_granularity_advisory"
+          ? "拆分建議"
+          : item.code === "memory_legacy_schema"
+            ? "舊卡待懶升級"
+            : item.code === "memory_archive_migration"
+              ? "舊式歸檔路徑"
+              : "記憶卡內容建議",
+      reason: item.reason,
+      recommendedAction:
+        item.code === "memory_granularity_advisory"
+          ? "只在維護困難或語義混雜時拆卡；此提醒不阻擋提交。"
+          : item.code === "memory_legacy_schema"
+            ? "下次修改此卡時升級為 schema v2。"
+            : item.code === "memory_archive_migration"
+              ? "將 archive/001/SKILL.md 類路徑改為 archive-001.md 平面檔名。"
+              : "將主體維持英文，中文保留在摘要與觸發描述。",
       affectedPath: item.target,
       targetPath: target?.skillPath,
       cartridgeId: item.target,

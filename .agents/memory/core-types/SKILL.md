@@ -2,8 +2,8 @@
 name: core-types
 description: |
   專案記憶：共用型別、設定與跨層小工具模組。 Use when: 處理系統共用型別定義、設定工廠函式、路徑驗證、時間戳或 staleness 等級轉換時載入。
-last_updated: '2026-06-02T20:59:58+08:00'
-status: stable
+last_updated: '2026-06-04T06:35:24+08:00'
+status: active
 staleness: 0
 scopePath: src/
 metadata:
@@ -15,7 +15,6 @@ metadata:
     - 'filesystem:read'
     - 'filesystem:write'
 ---
-
 # Core Types & Config — 共用型別與設定記憶
 
 > 本模組包含整個系統的共用型別定義和設定工廠函式，被幾乎所有其他模組引用。
@@ -24,9 +23,11 @@ metadata:
 
 - src/types.ts
 - src/config.ts
+- src/memory-compaction.ts
 - src/path-guard.ts
 - src/staleness.ts
 - src/timestamp.ts
+- src/tests/memory-compaction.test.ts
 - src/tests/path-guard.test.ts
 - src/tests/staleness.test.ts
 - src/tests/timestamp.test.ts
@@ -47,6 +48,7 @@ metadata:
 - D12: v5.2 `path-guard.ts` 新增 projectRoot 身分比較 helper；Windows 會以 resolved path 小寫化比較，讓 Gateway/CLI workspace 與 tool argument 能判斷是否指向同一工作區。
 - D13: v5.3.3 `path-guard.ts` 改為依輸入格式選擇 `path.win32` 或 `path.posix` 驗證，讓 Windows projectRoot 在 GitHub Ubuntu runner 與本機 Windows 都能一致通過，同時保留 `..` 片段防線。
 - D14: v5.4.1 `staleness.ts` 新增 `classifyMemoryWarnings()`，集中把 index 訊號分成 blocking、review、info；依賴傳播分數仍保留原欄位，警示語義改由衍生 helper 解讀。
+- D15: v5.4.2 `memory-compaction.ts` 與 `MemoryCompactionMetrics` 定義 schema v2 偵測、主卡 16KB/120 行、根層索引 8KB、平面歸檔卷 32KB/200 行、中文比例排除、週期事件 29/30/31 分段與建議動作；`classifyMemoryWarnings()` 只把硬限制與 compaction due 升為 blocking，legacy schema、中文比例與 tracked files 超過 8 維持 advisory。
 
 ## Known Issues
 

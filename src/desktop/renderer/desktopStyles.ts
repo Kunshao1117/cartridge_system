@@ -2,9 +2,20 @@ import { makeStyles } from "@fluentui/react-components";
 import type { Tone } from "./status";
 
 export const useDesktopStyles = makeStyles({
-  shell: {
+  appFrame: {
     width: "100vw",
     height: "100vh",
+    minHeight: 0,
+    display: "grid",
+    gridTemplateRows: "minmax(0, 1fr) auto",
+    overflow: "hidden",
+    backgroundColor: "#f5f6f8",
+  },
+  shell: {
+    width: "100%",
+    height: "100%",
+    minHeight: 0,
+    minWidth: 0,
     overflow: "hidden",
     display: "grid",
     gridTemplateColumns: "250px clamp(440px, 34vw, 660px) minmax(520px, 1fr)",
@@ -36,13 +47,15 @@ export const useDesktopStyles = makeStyles({
   },
   scrollPane: {
     minHeight: 0,
+    minWidth: 0,
     overflowY: "auto",
     overflowX: "hidden",
-    overscrollBehavior: "contain",
+    overscrollBehavior: "auto",
     scrollbarGutter: "stable",
     outline: "none",
   },
   projectList: {
+    minHeight: 0,
     padding: "4px 10px 10px",
     display: "grid",
     alignContent: "start",
@@ -122,6 +135,7 @@ export const useDesktopStyles = makeStyles({
     letterSpacing: "0",
   },
   centerScroll: {
+    minHeight: 0,
     padding: "12px 20px 18px",
   },
   detailColumn: {
@@ -146,9 +160,10 @@ export const useDesktopStyles = makeStyles({
     alignItems: "center",
   },
   detailScroll: {
+    minHeight: 0,
     padding: "14px 18px 22px",
     display: "grid",
-    gridTemplateRows: "minmax(300px, 1fr) auto",
+    gridTemplateRows: "minmax(240px, 1fr) minmax(150px, auto)",
     alignContent: "stretch",
     gap: "12px",
   },
@@ -263,7 +278,10 @@ export const useDesktopStyles = makeStyles({
     alignContent: "start",
     gap: "0",
     minHeight: 0,
+    minWidth: 0,
     overflowY: "auto",
+    overflowX: "hidden",
+    scrollbarGutter: "stable",
   },
   settingRow: {
     minHeight: "58px",
@@ -334,6 +352,64 @@ export const useDesktopStyles = makeStyles({
   small: {
     fontSize: "12px",
     lineHeight: "18px",
+  },
+  operationStatusBar: {
+    minHeight: "34px",
+    padding: "5px 14px",
+    display: "grid",
+    gridTemplateColumns: "18px minmax(0, 1fr)",
+    gap: "8px",
+    alignItems: "center",
+    borderTop: "1px solid #d9dee7",
+    color: "#344054",
+    backgroundColor: "#ffffff",
+  },
+  operationStatusIndicator: {
+    width: "18px",
+    height: "18px",
+    display: "grid",
+    placeItems: "center",
+    borderRadius: "999px",
+    backgroundColor: "#d5dce7",
+    "::before": {
+      content: '""',
+      width: "7px",
+      height: "7px",
+      borderRadius: "999px",
+      backgroundColor: "currentColor",
+    },
+  },
+  operationStatusIndicatorPending: {
+    backgroundColor: "transparent",
+    "::before": {
+      content: "none",
+    },
+  },
+  operationStatusText: {
+    minWidth: 0,
+    overflow: "hidden",
+    textOverflow: "ellipsis",
+    whiteSpace: "nowrap",
+  },
+  operationStatusIdle: {
+    color: "#475467",
+    backgroundColor: "#ffffff",
+  },
+  operationStatusPending: {
+    color: "#0f6cbd",
+    backgroundColor: "#f5f9ff",
+  },
+  operationStatusSuccess: {
+    color: "#0b6b19",
+    backgroundColor: "#f6fbf7",
+  },
+  operationStatusCancelled: {
+    color: "#667085",
+    backgroundColor: "#fafbfc",
+  },
+  operationStatusDanger: {
+    color: "#b42318",
+    backgroundColor: "#fff8f7",
   },
 });
 

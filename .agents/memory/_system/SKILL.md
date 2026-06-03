@@ -2,8 +2,8 @@
 name: _system
 description: |
   專案記憶：系統技術堆疊與部署設定。 Use when: 確認技術選型、環境設定、部署組態時載入。
-last_updated: '2026-06-03T07:45:39+08:00'
-status: stable
+last_updated: '2026-06-04T06:35:24+08:00'
+status: active
 staleness: 0
 metadata:
   author: antigravity
@@ -13,7 +13,6 @@ metadata:
   tool_scope:
     - 'filesystem:read'
 ---
-
 # System — 系統記憶
 
 ## Tracked Files
@@ -93,7 +92,7 @@ metadata:
 
 ## Config Files
 
-- `package.json` — VS Code Extension 元數據（含 activationEvents / contributes），當前版本 **5.4.1**；同時公開 `cartridge-system` / `cartridge-mcp` npm bin 指向 `dist/mcp-server.js`，`files` 同時作為 npm 與 VSIX 發布白名單，`npm run package` 委派 `scripts/package-vsix.mjs`，repository URL 採 npm 正規化後的 `git+https://...`；`cartridge.updateCheck.enabled` 控制啟動時 GitHub Release 更新檢查，手動命令不受此設定影響
+- `package.json` — VS Code Extension 元數據（含 activationEvents / contributes），當前版本 **5.4.2**；同時公開 `cartridge-system` / `cartridge-mcp` npm bin 指向 `dist/mcp-server.js`，`files` 同時作為 npm 與 VSIX 發布白名單，`npm run package` 委派 `scripts/package-vsix.mjs`，repository URL 採 npm 正規化後的 `git+https://...`；`cartridge.updateCheck.enabled` 控制啟動時 GitHub Release 更新檢查，手動命令不受此設定影響
 - `tsconfig.json` — CommonJS + node 模組解析
 - `tsup.config.ts` — entry: extension.ts / mcp-server.ts 使用 cjs；cabinet-webview.ts 使用 browser iife；external: vscode / noExternal: gray-matter、ignore、cytoscape
 - `eslint.config.js` — ESLint v9 Flat Config（CJS 格式，@typescript-eslint）
@@ -164,6 +163,7 @@ D30: 發布 tag 分流 — `v*` tag 保留給 VSIX 插件 release workflow；npm
 D31: v5.4.1 記憶警示分層 — 保留依賴圖與 indirect stale 傳播引擎，但高階治理與 UI 只把直接 stale、ghost、untracked、compatibility 視為 blocking；上游影響與父子卡衍生提示改為 review/advisory warning。
 D32: 依賴安全漏洞清零 — 保留 package 版本 5.4.1、不升級 `@modelcontextprotocol/sdk` / `@vscode/vsce` direct range；僅將直接測試框架升至 `vitest` ^4.1.8，並用 lockfile resolver 將 `qs`、`tmp`、`@azure/msal-node` 提升至安全版本，完整與生產 `npm audit` 皆歸零。
 D33: Desktop Console 產品線 — 新增 Electron + React + Fluent UI 桌面監控台，桌面建構與發行設定獨立於 VSIX `v*` 與 npm MCP runtime `npm-v*`；桌面版重用 Cartridge 監控規則但不新增 MCP 工具能力，Windows installer 使用 `desktop-assets/cartridge-desktop.ico` 避免 Electron 預設圖示，且不進 npm `assets/**` 白名單。
+D34: v5.4.2 發布包含三條產品線：VSIX 插件、npm MCP runtime 與 Desktop Console；正式發布需分別推送 `v5.4.2`、`npm-v5.4.2` 與 `desktop-v5.4.2`，且三者都要求 package 版本一致。
 D34: Desktop Console 發布分流 — 桌面安裝檔使用 `desktop-v*` tag 與 `Release Desktop Console` workflow 發布，Release title 採 `Cartridge Desktop Console desktop-vX.Y.Z`，建立時明確不標記 GitHub Latest；`v*` 繼續只代表 VSIX 插件，`npm-v*` 繼續只代表 npm MCP runtime。
 D35: Desktop Console CI 打包隔離 — `.github/workflows/desktop-release.yml` 的 build step 必須以 `npm run desktop:dist -- --publish never` 執行，避免 electron-builder 在 GitHub Actions 中自行進入 publish 流程；GitHub Release 建立與附件覆蓋只由後續 `gh release` 步驟負責。
 
@@ -205,6 +205,7 @@ D35: Desktop Console CI 打包隔離 — `.github/workflows/desktop-release.yml`
 - L30: (2026-06-02) — 直接狀態與衍生傳播提醒必須分層治理；若只改警示語義，不能碰底層依賴圖建構與 BFS 傳播，降低啟動、監聽與記憶查詢風險。
 - L31: (2026-06-02) — 當直接依賴存在安全修復 major（例如 `vitest` 4.x）時，先只升必要 direct package，再用 `npm update` 抬升相容的傳遞套件；若 audit 歸零且 package/VSCE/MCP direct range 未改，即不需要同步版本號或發布文件。
 - L32: (2026-06-03) — Desktop Console 第一版發布不升 package 版本，沿用 5.4.1 核心版本但以 `desktop-v5.4.1` 獨立 release；桌面 tag 不應觸發 VSIX 或 npm workflow。
+- L33: (2026-06-04) — schema v2 壓縮治理與桌面操作/滾輪維修一起收斂為 5.4.2；因 npm runtime 也要發布，`package.json`、lockfile、README、MCP server `--version` 與版本測試必須同步。
 - L33: (2026-06-03) — electron-builder 在 CI/release 環境可能自動嘗試 publish；若 release workflow 已用 GitHub CLI 控制 Release，打包步驟要加 `--publish never`，否則會在未配置 `GH_TOKEN` 的 build step 失敗。
 
 ## Applicable Skills

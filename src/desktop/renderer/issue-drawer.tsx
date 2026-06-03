@@ -6,6 +6,7 @@ import type {
   DesktopProjectSnapshot,
   DesktopUntrackedFileSnapshot,
 } from "../../monitoring/project-snapshot";
+import type { DesktopOperationResult } from "../ipc-channels";
 import { desktopApi } from "./desktop-api";
 import { useDesktopStyles } from "./desktopStyles";
 import { useDetailStyles } from "./detailStyles";
@@ -15,15 +16,30 @@ export function IssueDrawer(props: {
   project: DesktopProjectSnapshot;
   selection: IssueSelection;
   onClose: () => void;
+  onOperation: (
+    pendingMessage: string,
+    action: Promise<DesktopOperationResult>,
+  ) => void;
+  onCopyText: (text: string) => void;
 }) {
   const target = resolveIssueTarget(props.project, props.selection);
   if (!target) return null;
   return (
     <DrawerShell title={target.title} subtitle={target.subtitle} onClose={props.onClose}>
       {target.type === "untracked" ? (
-        <UntrackedGuidance project={props.project} file={target.file} />
+        <UntrackedGuidance
+          project={props.project}
+          file={target.file}
+          onOperation={props.onOperation}
+          onCopyText={props.onCopyText}
+        />
       ) : (
-        <CartridgeGuidance project={props.project} cartridge={target.cartridge} />
+        <CartridgeGuidance
+          project={props.project}
+          cartridge={target.cartridge}
+          onOperation={props.onOperation}
+          onCopyText={props.onCopyText}
+        />
       )}
     </DrawerShell>
   );
@@ -63,6 +79,11 @@ function DrawerShell(props: {
 function CartridgeGuidance(props: {
   project: DesktopProjectSnapshot;
   cartridge: DesktopCartridgeSnapshot;
+  onOperation: (
+    pendingMessage: string,
+    action: Promise<DesktopOperationResult>,
+  ) => void;
+  onCopyText: (text: string) => void;
 }) {
   const styles = useDesktopStyles();
   const detail = useDetailStyles();
@@ -78,7 +99,10 @@ function CartridgeGuidance(props: {
           <Button
             size="small"
             onClick={() =>
-              void desktopApi.openFile(props.project.root, props.cartridge.skillPath)
+              props.onOperation(
+                "正在開啟記憶卡...",
+                desktopApi.openFile(props.project.root, props.cartridge.skillPath),
+              )
             }
           >
             開啟記憶卡
@@ -86,15 +110,29 @@ function CartridgeGuidance(props: {
           <Button
             size="small"
             icon={<FolderOpen20Regular />}
-            onClick={() => void desktopApi.openProject(props.project.root)}
+            onClick={() =>
+              props.onOperation(
+                "正在開啟專案資料夾...",
+                desktopApi.openProject(props.project.root),
+              )
+            }
           >
             專案資料夾
           </Button>
-          <Button size="small" onClick={() => void copyText(prompt)}>
+          <Button size="small" onClick={() => props.onCopyText(prompt)}>
             複製提示
           </Button>
         </div>
       </section>
+
+      {props.cartridge.compaction && (
+        <section className={detail.drawerSection}>
+          <Text weight="semibold">壓縮治理</Text>
+          <Text size={200} className={styles.muted}>
+            {formatCompactionSummary(props.cartridge)}
+          </Text>
+        </section>
+      )}
 
       <FileSection
         title="造成過期的檔案"
@@ -104,7 +142,12 @@ function CartridgeGuidance(props: {
           meta: `${item.label} · ${item.timestamp}`,
           openable: true,
         }))}
-        onOpen={(filePath) => void desktopApi.openFile(props.project.root, filePath)}
+        onOpen={(filePath) =>
+          props.onOperation(
+            "正在開啟造成過期的檔案...",
+            desktopApi.openFile(props.project.root, filePath),
+          )
+        }
       />
       <FileSection
         title="幽靈檔案"
@@ -123,7 +166,12 @@ function CartridgeGuidance(props: {
           meta: "已被這張記憶卡追蹤",
           openable: true,
         }))}
-        onOpen={(filePath) => void desktopApi.openFile(props.project.root, filePath)}
+        onOpen={(filePath) =>
+          props.onOperation(
+            "正在開啟追蹤檔案...",
+            desktopApi.openFile(props.project.root, filePath),
+          )
+        }
       />
     </>
   );
@@ -132,6 +180,11 @@ function CartridgeGuidance(props: {
 function UntrackedGuidance(props: {
   project: DesktopProjectSnapshot;
   file: DesktopUntrackedFileSnapshot;
+  onOperation: (
+    pendingMessage: string,
+    action: Promise<DesktopOperationResult>,
+  ) => void;
+  onCopyText: (text: string) => void;
 }) {
   const styles = useDesktopStyles();
   const detail = useDetailStyles();
@@ -149,7 +202,12 @@ function UntrackedGuidance(props: {
         <div className={detail.sectionActions}>
           <Button
             size="small"
-            onClick={() => void desktopApi.openFile(props.project.root, props.file.filePath)}
+            onClick={() =>
+              props.onOperation(
+                "正在開啟新檔案...",
+                desktopApi.openFile(props.project.root, props.file.filePath),
+              )
+            }
           >
             開啟新檔案
           </Button>
@@ -157,12 +215,16 @@ function UntrackedGuidance(props: {
             size="small"
             disabled={!suggested}
             onClick={() =>
-              suggested && void desktopApi.openFile(props.project.root, suggested.skillPath)
+              suggested &&
+              props.onOperation(
+                "正在開啟建議記憶卡...",
+                desktopApi.openFile(props.project.root, suggested.skillPath),
+              )
             }
           >
             開啟建議記憶卡
           </Button>
-          <Button size="small" onClick={() => void copyText(prompt)}>
+          <Button size="small" onClick={() => props.onCopyText(prompt)}>
             複製提示
           </Button>
         </div>
@@ -183,7 +245,12 @@ function UntrackedGuidance(props: {
             openable: true,
           },
         ]}
-        onOpen={(filePath) => void desktopApi.openFile(props.project.root, filePath)}
+        onOpen={(filePath) =>
+          props.onOperation(
+            "正在開啟未歸屬檔案...",
+            desktopApi.openFile(props.project.root, filePath),
+          )
+        }
       />
     </>
   );
@@ -279,12 +346,38 @@ function issueTitle(kind: IssueSelection["kind"]): string {
 function buildCartridgePrompt(cartridge: DesktopCartridgeSnapshot): string {
   const pending = cartridge.pendingChangeFiles.map((item) => item.filePath).join(", ");
   const ghosts = cartridge.ghostFilePaths.join(", ");
+  const compaction = cartridge.compaction
+    ? `壓縮狀態：${formatCompactionSummary(cartridge)}`
+    : "沒有壓縮治理度量。";
   return [
     `請檢查記憶卡 ${cartridge.id}。`,
     cartridge.guidance,
+    compaction,
     pending ? `待處理檔案：${pending}` : "沒有待處理異動檔案。",
     ghosts ? `幽靈檔案：${ghosts}` : "沒有幽靈檔案。",
   ].join("\n");
+}
+
+function formatCompactionSummary(cartridge: DesktopCartridgeSnapshot): string {
+  const metrics = cartridge.compaction;
+  if (!metrics) return "尚無壓縮治理度量。";
+  const advice =
+    metrics.needsCompaction
+      ? "需要先彙整或拆卡"
+      : metrics.isLegacy
+        ? "待懶升級"
+        : cartridge.trackedFiles.length > 8
+          ? "建議評估拆分"
+          : metrics.reasons.includes("highChineseRatio")
+            ? "建議降低主體中文比例"
+            : "目前健康";
+  return [
+    `${metrics.cardKind} / ${metrics.compactionStatus}`,
+    `大小 ${metrics.sizeBytes}/${metrics.sizeLimitBytes} bytes`,
+    `行數 ${metrics.lineCount}/${metrics.lineLimit ?? "無上限"}`,
+    `週期 ${metrics.cycleEventCount}/${metrics.cycleEventLimit}`,
+    advice,
+  ].join(" · ");
 }
 
 function buildUntrackedPrompt(file: DesktopUntrackedFileSnapshot): string {
@@ -299,8 +392,4 @@ function eventLabel(eventType: DesktopUntrackedFileSnapshot["lastEvent"]): strin
   if (eventType === "add") return "新增";
   if (eventType === "unlink") return "刪除";
   return "變更";
-}
-
-async function copyText(text: string): Promise<void> {
-  await navigator.clipboard?.writeText(text);
 }

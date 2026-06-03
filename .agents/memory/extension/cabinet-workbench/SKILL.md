@@ -3,8 +3,8 @@ name: extension.cabinet-workbench
 description: >
   專案記憶：卡匣機櫃工作台。Use when: 修改編輯區 WebviewPanel、卡匣工作台模型、 V2 記憶卡 metadata
   解析、Cytoscape Webview 前端或卡匣機櫃測試時載入。
-last_updated: '2026-06-02T20:59:58+08:00'
-status: stable
+last_updated: '2026-06-04T06:35:24+08:00'
+status: active
 staleness: 0
 dependencies:
   - core-types
@@ -17,7 +17,6 @@ metadata:
   tool_scope:
     - 'filesystem:read'
 ---
-
 # Cartridge Cabinet Workbench — 卡匣機櫃工作台記憶
 
 > 本子卡記錄編輯區卡匣機櫃工作台。它使用 WebviewPanel 開啟精緻視覺介面，但產品語言維持卡匣、卡槽、訊號線與熱度線，不把 Cartridge System 轉成通用知識圖譜產品。
@@ -48,6 +47,7 @@ metadata:
 - D11: 圖譜 viewport/layout 狀態已拆到 `extension.cabinet-workbench.graph-viewport` 子卡，父卡不追蹤 helper 檔，避免超過 8 個 tracked files。
 - D12: v5.3.3 右下角控制列新增縮小、百分比、放大按鈕；按鈕縮放只更新 Cytoscape viewport 與百分比文字，不觸發 layout。
 - D13: v5.4.1 卡匣工作台模型新增 `reviewScore` 承接 indirect staleness；`maintenanceScore` 與卡片健康燈號只看直接 stale、pending changes 與 ghost，避免間接過期改變卡片自身狀態。
+- D14: v5.5 卡匣工作台模型與 Webview 新增 compaction due / advisory 訊號；due/invalid 可提高維護分數與 critical 樣式，legacy、中文比例與 split suggestion 只進入 advisory 篩選與詳情，不把 tracked files 超過 8 單獨染成阻擋。
 
 ## Known Issues
 

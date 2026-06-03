@@ -1,5 +1,6 @@
 import path from "node:path";
 import { classifyMemoryWarnings } from "../staleness.js";
+import type { MemoryCompactionMetrics } from "../memory-compaction.js";
 import type {
   CartridgeEntry,
   CartridgeIndex,
@@ -26,6 +27,7 @@ export interface DesktopCartridgeSnapshot {
   trackedFiles: string[];
   pendingChangeFiles: DesktopPendingChangeSnapshot[];
   ghostFilePaths: string[];
+  compaction: MemoryCompactionMetrics | null;
   guidance: string;
 }
 
@@ -56,6 +58,7 @@ export interface DesktopProjectSnapshot {
     cartridges: number;
     blocking: number;
     review: number;
+    advisory: number;
     info: number;
     stale: number;
     ghostFiles: number;
@@ -89,7 +92,7 @@ export function buildDesktopProjectSnapshot(args: {
     enabled: args.enabled,
     error: args.error,
     blocking: warnings.blocking.length,
-    review: warnings.review.length,
+    review: warnings.review.length + warnings.advisory.length,
   });
 
   return {
@@ -104,6 +107,7 @@ export function buildDesktopProjectSnapshot(args: {
       cartridges: cartridges.length,
       blocking: warnings.blocking.length,
       review: warnings.review.length,
+      advisory: warnings.advisory.length,
       info: warnings.info.length,
       stale: cartridges.filter((item) => item.staleness > 0).length,
       ghostFiles,
@@ -132,6 +136,7 @@ function toCartridgeSnapshot(
       .map(toPendingChangeSnapshot)
       .sort((a, b) => a.filePath.localeCompare(b.filePath)),
     ghostFilePaths: [...(entry.ghostFiles ?? [])].sort(),
+    compaction: entry.compaction ?? null,
     guidance: buildCartridgeGuidance(id, entry),
   };
 }
@@ -165,6 +170,13 @@ function buildCartridgeGuidance(id: string, entry: CartridgeEntry): string {
   const pending = entry.pendingChanges?.length ?? 0;
   const ghosts = entry.ghostFiles?.length ?? 0;
   const indirect = entry.indirectStaleness ?? 0;
+  const compaction = entry.compaction;
+  if (compaction?.needsCompaction) {
+    if (compaction.reasons.includes("cycleEventLimitExceeded")) {
+      return `${id} 的 Cycle Events 已超過 ${compaction.cycleEventLimit} 筆，必須先彙整後再同步。`;
+    }
+    return `先彙整 ${id} 記憶卡；目前大小 ${compaction.sizeBytes}/${compaction.sizeLimitBytes} bytes，週期事件 ${compaction.cycleEventCount}/${compaction.cycleEventLimit}。`;
+  }
   if (pending > 0 && ghosts > 0) {
     return `先更新 ${id} 記憶卡內容，再清理已不存在的追蹤檔案。`;
   }
@@ -176,6 +188,12 @@ function buildCartridgeGuidance(id: string, entry: CartridgeEntry): string {
   }
   if (indirect > 0) {
     return `檢查 ${id} 是否受上游記憶卡變更影響；若內容仍正確，可保留不改。`;
+  }
+  if (compaction?.isLegacy) {
+    return `${id} 是舊格式記憶卡；下次修改時再懶升級為 schema v2。`;
+  }
+  if ((entry.trackedFiles?.length ?? 0) > 8) {
+    return `${id} 追蹤檔案數偏高，這是拆分建議，不會單獨阻擋。`;
   }
   return "目前沒有需要處理的記憶問題。";
 }

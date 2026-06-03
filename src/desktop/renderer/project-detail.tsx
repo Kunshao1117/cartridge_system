@@ -1,4 +1,15 @@
-import { Button, Text, Title3, ToolbarButton } from "@fluentui/react-components";
+import {
+  Button,
+  Dialog,
+  DialogActions,
+  DialogBody,
+  DialogContent,
+  DialogSurface,
+  DialogTitle,
+  Text,
+  Title3,
+  ToolbarButton,
+} from "@fluentui/react-components";
 import {
   ArrowClockwise20Regular,
   Delete20Regular,
@@ -6,15 +17,23 @@ import {
   Pause20Regular,
   Play20Regular,
 } from "@fluentui/react-icons";
+import { useState } from "react";
 import type {
   DesktopCartridgeSnapshot,
   DesktopProjectSnapshot,
 } from "../../monitoring/project-snapshot";
+import type { DesktopOperationResult } from "../ipc-channels";
 import type { DesktopSettings } from "../project-store";
 import { desktopApi } from "./desktop-api";
 import { cx, useDesktopStyles } from "./desktopStyles";
 import { useDetailStyles } from "./detailStyles";
-import { EmptyState, ScrollPane, StatusPill, CartridgeStatusPill } from "./common";
+import {
+  EmptyState,
+  ScrollPane,
+  StatusPill,
+  CartridgeStatusPill,
+  type OperationStatusKind,
+} from "./common";
 import { IssueDrawer } from "./issue-drawer";
 import { SettingsPanel } from "./settings-panel";
 import type { IssueKind, IssueSelection } from "./status";
@@ -26,13 +45,37 @@ export function ProjectDetail(props: {
   issueSelection: IssueSelection | null;
   onSettingsOpenChange: (open: boolean) => void;
   onSettingsChange: (patch: Partial<DesktopSettings>) => void;
-  onRefresh: (action: Promise<DesktopProjectSnapshot[]>) => void;
+  onProjectOperation: (
+    pendingMessage: string,
+    action: Promise<DesktopOperationResult<DesktopProjectSnapshot[]>>,
+  ) => void;
+  onOperation: (
+    pendingMessage: string,
+    action: Promise<DesktopOperationResult>,
+  ) => void;
+  onLocalFeedback: (status: OperationStatusKind, message: string) => void;
+  onCopyText: (text: string) => void;
   onSelectCartridge: (kind: IssueKind, cartridgeId: string) => void;
   onSelectUntracked: (filePath: string) => void;
   onCloseIssue: () => void;
 }) {
   const styles = useDesktopStyles();
   const project = props.project;
+  const [pendingRemove, setPendingRemove] =
+    useState<DesktopProjectSnapshot | null>(null);
+
+  function cancelRemove(): void {
+    setPendingRemove(null);
+    props.onLocalFeedback("cancelled", "已取消移除監控專案。");
+  }
+
+  function confirmRemove(projectToRemove: DesktopProjectSnapshot): void {
+    setPendingRemove(null);
+    props.onProjectOperation(
+      "正在移除監控專案...",
+      desktopApi.removeProject(projectToRemove.root),
+    );
+  }
 
   if (!project) {
     return (
@@ -60,20 +103,31 @@ export function ProjectDetail(props: {
         <div className={styles.compactToolbar}>
           <ToolbarButton
             icon={<ArrowClockwise20Regular />}
-            onClick={() => props.onRefresh(desktopApi.rescanProject(project.root))}
+            onClick={() =>
+              props.onProjectOperation(
+                "正在掃描專案...",
+                desktopApi.rescanProject(project.root),
+              )
+            }
           >
             掃描
           </ToolbarButton>
           <ToolbarButton
             icon={<FolderOpen20Regular />}
-            onClick={() => void desktopApi.openProject(project.root)}
+            onClick={() =>
+              props.onOperation(
+                "正在開啟專案資料夾...",
+                desktopApi.openProject(project.root),
+              )
+            }
           >
             開啟
           </ToolbarButton>
           <ToolbarButton
             icon={project.enabled ? <Pause20Regular /> : <Play20Regular />}
             onClick={() =>
-              props.onRefresh(
+              props.onProjectOperation(
+                project.enabled ? "正在暫停監控..." : "正在恢復監控...",
                 project.enabled
                   ? desktopApi.pauseProject(project.root)
                   : desktopApi.resumeProject(project.root),
@@ -84,7 +138,7 @@ export function ProjectDetail(props: {
           </ToolbarButton>
           <ToolbarButton
             icon={<Delete20Regular />}
-            onClick={() => props.onRefresh(desktopApi.removeProject(project.root))}
+            onClick={() => setPendingRemove(project)}
           >
             移除
           </ToolbarButton>
@@ -97,11 +151,13 @@ export function ProjectDetail(props: {
           selectedCartridgeId={props.issueSelection?.cartridgeId ?? null}
           activeIssue={props.issueSelection?.kind ?? "blocking"}
           onSelectCartridge={props.onSelectCartridge}
+          onOperation={props.onOperation}
         />
         <UntrackedFiles
           project={project}
           selectedFilePath={props.issueSelection?.filePath ?? null}
           onSelectUntracked={props.onSelectUntracked}
+          onOperation={props.onOperation}
         />
       </ScrollPane>
 
@@ -110,6 +166,8 @@ export function ProjectDetail(props: {
           project={project}
           selection={props.issueSelection}
           onClose={props.onCloseIssue}
+          onOperation={props.onOperation}
+          onCopyText={props.onCopyText}
         />
       )}
       {props.settingsOpen && (
@@ -119,6 +177,11 @@ export function ProjectDetail(props: {
           onChange={props.onSettingsChange}
         />
       )}
+      <RemoveProjectDialog
+        project={pendingRemove}
+        onCancel={cancelRemove}
+        onConfirm={confirmRemove}
+      />
     </aside>
   );
 }
@@ -128,6 +191,10 @@ function CartridgeTable(props: {
   selectedCartridgeId: string | null;
   activeIssue: IssueKind;
   onSelectCartridge: (kind: IssueKind, cartridgeId: string) => void;
+  onOperation: (
+    pendingMessage: string,
+    action: Promise<DesktopOperationResult>,
+  ) => void;
 }) {
   const styles = useDesktopStyles();
   const detail = useDetailStyles();
@@ -155,6 +222,7 @@ function CartridgeTable(props: {
               selected={cartridge.id === props.selectedCartridgeId}
               activeIssue={props.activeIssue}
               onSelect={props.onSelectCartridge}
+              onOperation={props.onOperation}
             />
           ))}
         </div>
@@ -169,6 +237,10 @@ function CartridgeRow(props: {
   selected: boolean;
   activeIssue: IssueKind;
   onSelect: (kind: IssueKind, cartridgeId: string) => void;
+  onOperation: (
+    pendingMessage: string,
+    action: Promise<DesktopOperationResult>,
+  ) => void;
 }) {
   const detail = useDetailStyles();
   const kind = pickIssueForCartridge(props.cartridge, props.activeIssue);
@@ -194,7 +266,10 @@ function CartridgeRow(props: {
         className={detail.tableButton}
         onClick={(event) => {
           event.stopPropagation();
-          void desktopApi.openFile(props.project.root, props.cartridge.skillPath);
+          props.onOperation(
+            "正在開啟記憶卡...",
+            desktopApi.openFile(props.project.root, props.cartridge.skillPath),
+          );
         }}
       >
         開啟
@@ -204,18 +279,25 @@ function CartridgeRow(props: {
 }
 
 function formatCartridgeMetrics(cartridge: DesktopCartridgeSnapshot): string {
-  return `過期 ${cartridge.staleness} · 待 ${cartridge.pendingChanges} · 幽 ${cartridge.ghostFiles}`;
+  const compaction = cartridge.compaction;
+  const base = `過期 ${cartridge.staleness} · 待 ${cartridge.pendingChanges} · 幽 ${cartridge.ghostFiles}`;
+  if (!compaction) return base;
+  return `${base} · ${Math.ceil(compaction.sizeBytes / 1024)}KB · ${compaction.lineCount} 行 · 週期 ${compaction.cycleEventCount}/${compaction.cycleEventLimit}`;
 }
 
 function UntrackedFiles(props: {
   project: DesktopProjectSnapshot;
   selectedFilePath: string | null;
   onSelectUntracked: (filePath: string) => void;
+  onOperation: (
+    pendingMessage: string,
+    action: Promise<DesktopOperationResult>,
+  ) => void;
 }) {
   const styles = useDesktopStyles();
   const detail = useDetailStyles();
   return (
-    <section className={detail.tablePanel}>
+    <section className={cx(detail.tablePanel, detail.untrackedPanel)}>
       <div className={detail.tableHeader}>
         <Text weight="semibold">未歸屬檔案</Text>
         <Text size={200} className={styles.muted}>
@@ -226,7 +308,7 @@ function UntrackedFiles(props: {
         <EmptyState>目前沒有未歸屬檔案。</EmptyState>
       ) : (
         <div className={detail.untrackedList}>
-          {props.project.untrackedFiles.slice(0, 12).map((file) => (
+          {props.project.untrackedFiles.map((file) => (
             <button
               key={file.filePath}
               type="button"
@@ -248,7 +330,10 @@ function UntrackedFiles(props: {
                 size="small"
                 onClick={(event) => {
                   event.stopPropagation();
-                  void desktopApi.openFile(props.project.root, file.filePath);
+                  props.onOperation(
+                    "正在開啟未歸屬檔案...",
+                    desktopApi.openFile(props.project.root, file.filePath),
+                  );
                 }}
               >
                 開啟
@@ -266,9 +351,15 @@ function pickIssueForCartridge(
   preferred: IssueKind,
 ): IssueKind {
   if (preferred === "ghost" && cartridge.ghostFiles > 0) return "ghost";
-  if (preferred === "review" && cartridge.indirectStaleness > 0) return "review";
+  if (
+    preferred === "review" &&
+    (cartridge.indirectStaleness > 0 || hasCompactionAdvisory(cartridge))
+  ) {
+    return "review";
+  }
   if (cartridge.ghostFiles > 0) return "ghost";
   if (
+    cartridge.compaction?.needsCompaction ||
     cartridge.staleness > 0 ||
     cartridge.pendingChanges > 0 ||
     preferred === "blocking"
@@ -276,5 +367,52 @@ function pickIssueForCartridge(
     return "blocking";
   }
   if (cartridge.indirectStaleness > 0) return "review";
+  if (hasCompactionAdvisory(cartridge)) return "review";
   return "blocking";
+}
+
+function hasCompactionAdvisory(cartridge: DesktopCartridgeSnapshot): boolean {
+  return Boolean(
+    cartridge.compaction?.isLegacy ||
+      cartridge.compaction?.reasons.includes("highChineseRatio") ||
+      cartridge.trackedFiles.length > 8 ||
+      (cartridge.compaction?.archiveMigrationWarnings?.length ?? 0) > 0,
+  );
+}
+
+function RemoveProjectDialog(props: {
+  project: DesktopProjectSnapshot | null;
+  onCancel: () => void;
+  onConfirm: (project: DesktopProjectSnapshot) => void;
+}) {
+  return (
+    <Dialog
+      open={Boolean(props.project)}
+      onOpenChange={(_event, data) => {
+        if (!data.open && props.project) props.onCancel();
+      }}
+    >
+      <DialogSurface>
+        <DialogBody>
+          <DialogTitle>移除監控專案？</DialogTitle>
+          <DialogContent>
+            {props.project
+              ? `將停止監控 ${props.project.name}（${props.project.root}）。專案檔案不會被刪除。`
+              : ""}
+          </DialogContent>
+          <DialogActions>
+            <Button appearance="secondary" onClick={props.onCancel}>
+              取消
+            </Button>
+            <Button
+              appearance="primary"
+              onClick={() => props.project && props.onConfirm(props.project)}
+            >
+              移除
+            </Button>
+          </DialogActions>
+        </DialogBody>
+      </DialogSurface>
+    </Dialog>
+  );
 }

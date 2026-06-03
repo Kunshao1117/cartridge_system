@@ -5,7 +5,7 @@
 
 import * as vscode from "vscode";
 import path from "node:path";
-import type { CartridgeIndex } from "./types.js";
+import type { CartridgeEntry, CartridgeIndex } from "./types.js";
 import type { CartridgeIndexManager } from "./index-manager.js";
 
 type ItemType = "cartridge" | "file" | "ghost-header" | "ghost-file";
@@ -58,14 +58,14 @@ export class CartridgeTreeProvider implements vscode.TreeDataProvider<CartridgeT
     const items: CartridgeTreeItem[] = [];
     for (const [id, entry] of Object.entries(index.cartridges)) {
       if (entry.depth !== 1) continue;
-      const icon = this.stalenessIcon(entry.staleness);
+      const icon = this.cartridgeIcon(entry);
       const item = new CartridgeTreeItem(
         `${icon} ${id}`,
         "cartridge",
         vscode.TreeItemCollapsibleState.Collapsed,
         { cartridgeId: id },
       );
-      item.tooltip = `過期指數: ${entry.staleness} | 追蹤 ${entry.trackedFiles.length} 個檔案`;
+      item.tooltip = this.cartridgeTooltip(entry);
       item.command = {
         command: "vscode.open",
         title: "開啟記憶卡",
@@ -99,14 +99,14 @@ export class CartridgeTreeProvider implements vscode.TreeDataProvider<CartridgeT
     // 子卡
     for (const [childId, childEntry] of Object.entries(index.cartridges)) {
       if (childEntry.parent !== id) continue;
-      const icon = this.stalenessIcon(childEntry.staleness);
+      const icon = this.cartridgeIcon(childEntry);
       const item = new CartridgeTreeItem(
         `${icon} ${childId.split(".").pop()}`,
         "cartridge",
         vscode.TreeItemCollapsibleState.Collapsed,
         { cartridgeId: childId },
       );
-      item.tooltip = `過期指數: ${childEntry.staleness} | 追蹤 ${childEntry.trackedFiles.length} 個檔案`;
+      item.tooltip = this.cartridgeTooltip(childEntry);
       item.command = {
         command: "vscode.open",
         title: "開啟記憶卡",
@@ -172,6 +172,37 @@ export class CartridgeTreeProvider implements vscode.TreeDataProvider<CartridgeT
     if (s >= 30) return "🟡";
     if (s >= 10) return "🔵";
     return "🟢";
+  }
+
+  private cartridgeIcon(entry: CartridgeEntry): string {
+    if (entry.compaction?.needsCompaction) return "🔴";
+    if (
+      entry.compaction?.isLegacy ||
+      entry.compaction?.reasons.includes("highChineseRatio") ||
+      (entry.trackedFiles?.length ?? 0) > 8
+    ) {
+      return "🟡";
+    }
+    return this.stalenessIcon(entry.staleness);
+  }
+
+  private cartridgeTooltip(entry: CartridgeEntry): string {
+    const parts = [
+      `過期指數: ${entry.staleness}`,
+      `追蹤 ${entry.trackedFiles.length} 個檔案`,
+    ];
+    if (entry.compaction) {
+      parts.push(
+        `壓縮: ${entry.compaction.compactionStatus}`,
+        `大小 ${entry.compaction.sizeBytes}/${entry.compaction.sizeLimitBytes} bytes`,
+        `行數 ${entry.compaction.lineCount}/${entry.compaction.lineLimit ?? "無上限"}`,
+        `週期 ${entry.compaction.cycleEventCount}/${entry.compaction.cycleEventLimit}`,
+      );
+    }
+    if ((entry.trackedFiles?.length ?? 0) > 8) {
+      parts.push("拆分建議：檔案數偏高但不阻擋");
+    }
+    return parts.join(" | ");
   }
 
   /** 釋放資源 */

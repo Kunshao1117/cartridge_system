@@ -112,6 +112,64 @@ describe("handleCommitPreflight", () => {
     ).toBe(true);
   });
 
+  it("記憶卡壓縮到期時應阻擋提交預檢", async () => {
+    vi.mocked(fs.readFile).mockResolvedValue(
+      JSON.stringify({
+        cartridges: {
+          "full-cycle": {
+            staleness: 0,
+            ghostFiles: [],
+            indirectStaleness: 0,
+            dependencies: [],
+            compaction: {
+              schemaVersion: 2,
+              isLegacy: false,
+              contentLanguage: "en",
+              humanLanguage: "zh-TW",
+              sizeBytes: 8000,
+              lineCount: 80,
+              chineseCharCount: 0,
+              bodyCharCount: 1000,
+              chineseRatio: 0,
+              cycleId: "2026-06-04-001",
+              cycleEventCount: 30,
+              cycleEventLimit: 30,
+              sizeLimitBytes: 16384,
+              lineLimit: 120,
+              archivePolicy: "volume",
+              compactionStatus: "due",
+              needsCompaction: true,
+              recommendedAction: "compact",
+              reasons: ["cycleEventLimit"],
+            },
+          },
+        },
+        fileMap: {},
+        untrackedFiles: [],
+      }) as unknown as Awaited<ReturnType<typeof fs.readFile>>,
+    );
+    mockGitStatus("");
+
+    const result = await handleCommitPreflight({ projectRoot: PROJECT_ROOT });
+    const envelope = JSON.parse(result.content[0].text);
+    const preflight = envelope.summary;
+
+    expect(envelope.status).toBe("blocked");
+    expect(preflight.summary.memory.compactionDue).toBe(1);
+    expect(preflight.summary.readiness.blockingReasons[0]).toContain(
+      "cycleEvents=30/30",
+    );
+    expect(preflight.blockers).toContainEqual(
+      expect.objectContaining({
+        type: "memory_compaction_due",
+        target: "full-cycle",
+      }),
+    );
+    expect(preflight.recommendedActions).toContainEqual(
+      expect.objectContaining({ action: "compact_memory_card" }),
+    );
+  });
+
   it("只有間接過期且 git 乾淨時應回傳 warning 且不列為 blocker", async () => {
     vi.mocked(fs.readFile).mockResolvedValue(
       JSON.stringify({
@@ -151,6 +209,90 @@ describe("handleCommitPreflight", () => {
         action: "review_upstream_staleness",
         target: "mcp-tools.consumer",
       }),
+    );
+  });
+
+  it("健康記憶卡只需拆分建議且 git dirty 時，只應以 dirtyFiles 阻擋", async () => {
+    vi.mocked(fs.readFile).mockResolvedValue(
+      JSON.stringify({
+        cartridges: {
+          "wide-card": {
+            staleness: 0,
+            ghostFiles: [],
+            indirectStaleness: 0,
+            dependencies: [],
+            trackedFiles: [
+              "src/a.ts",
+              "src/b.ts",
+              "src/c.ts",
+              "src/d.ts",
+              "src/e.ts",
+              "src/f.ts",
+              "src/g.ts",
+              "src/h.ts",
+              "src/i.ts",
+            ],
+            compaction: {
+              schemaVersion: 2,
+              cardKind: "main",
+              limitKind: "main",
+              compliance: "ok",
+              isLegacy: false,
+              contentLanguage: "en",
+              humanLanguage: "zh-TW",
+              sizeBytes: 4000,
+              lineCount: 60,
+              chineseCharCount: 0,
+              bodyCharCount: 1000,
+              chineseRatio: 0,
+              cycleId: "2026-06-04-001",
+              cycleEventCount: 4,
+              cycleEventLimit: 30,
+              sizeLimitBytes: 16384,
+              lineLimit: 120,
+              archivePolicy: "volume",
+              compactionStatus: "ready",
+              needsCompaction: false,
+              recommendedAction: "none",
+              reasons: [],
+            },
+          },
+        },
+        fileMap: {},
+        untrackedFiles: [],
+      }) as unknown as Awaited<ReturnType<typeof fs.readFile>>,
+    );
+    mockGitStatus(" M src/index.ts\n");
+
+    const result = await handleCommitPreflight({ projectRoot: PROJECT_ROOT });
+    const envelope = JSON.parse(result.content[0].text);
+    const preflight = envelope.summary;
+
+    expect(envelope.status).toBe("blocked");
+    expect(preflight.blockers).toEqual([
+      expect.objectContaining({
+        type: "git_dirty",
+        target: "workspace",
+      }),
+    ]);
+    expect(
+      preflight.blockers.some((blocker: { type: string }) =>
+        blocker.type.includes("granularity"),
+      ),
+    ).toBe(false);
+    expect(preflight.summary.memory.granularityAdvisories).toBe(1);
+    expect(preflight.summary.memory.splitSuggestions[0]).toEqual(
+      expect.objectContaining({
+        module: "wide-card",
+        trackedFilesCount: 9,
+        blocking: false,
+      }),
+    );
+    expect(preflight.summary.readiness.blockingReasons).toEqual([
+      "workspace: dirtyFiles=1",
+    ]);
+    expect(preflight.summary.readiness.warningReasons).toContain(
+      "wide-card: trackedFiles=9",
     );
   });
 

@@ -1,6 +1,7 @@
 import type { CartridgeIndex } from "./types.js";
 import { emptyMetadata, loadCabinetMemoryMetadata, type CabinetMemoryMetadata } from "./cabinet-memory-metadata.js";
 import { buildCabinetLines, buildLensStats, maintenanceScore, memoryScore, structureScore } from "./cabinet-workbench-derive.js";
+import type { MemoryCompactionMetrics } from "./memory-compaction.js";
 import { getTaiwanISO } from "./timestamp.js";
 export type CabinetLens = "maintenance" | "memory" | "structure";
 export type CabinetLineType = "slot" | "signal" | "note" | "heat";
@@ -19,6 +20,8 @@ export interface CabinetCard {
   trackedFilesCount: number;
   pendingChangesCount: number;
   ghostFilesCount: number;
+  compactionDue: boolean;
+  compactionAdvisoryCount: number;
   maintenanceScore: number;
   reviewScore: number;
   memoryScore: number;
@@ -29,6 +32,7 @@ export interface CabinetCard {
   trackedFiles: string[];
   pendingChanges: string[];
   ghostFiles: string[];
+  compaction: MemoryCompactionMetrics | null;
   metadata: CabinetMemoryMetadata;
 }
 export interface CabinetSlot {
@@ -96,6 +100,11 @@ export function buildCabinetWorkbenchModel(
     const trackedFilesCount = entry.trackedFiles.length;
     const pendingChangesCount = entry.pendingChanges.length;
     const ghostFilesCount = entry.ghostFiles.length;
+    const compactionDue = entry.compaction?.needsCompaction ?? false;
+    const compactionAdvisoryCount =
+      (entry.compaction?.isLegacy ? 1 : 0) +
+      (entry.compaction?.reasons.includes("highChineseRatio") ? 1 : 0) +
+      (trackedFilesCount > 8 ? 1 : 0);
     const reviewScore = entry.indirectStaleness;
     const children = childrenByCard.get(id) ?? [];
     const dependencies = [...(entry.dependencies ?? [])];
@@ -108,13 +117,17 @@ export function buildCabinetWorkbenchModel(
       skillPath: normalizePath(entry.skillPath),
       depth: entry.depth,
       parent: entry.parent,
-      status: statusFromStaleness(entry.staleness),
+      status: statusFromEntry(entry.staleness, compactionDue),
       staleness: entry.staleness,
       indirectStaleness: entry.indirectStaleness,
       trackedFilesCount,
       pendingChangesCount,
       ghostFilesCount,
-      maintenanceScore: maintenanceScore(entry.staleness, pendingChangesCount, ghostFilesCount),
+      compactionDue,
+      compactionAdvisoryCount,
+      maintenanceScore:
+        maintenanceScore(entry.staleness, pendingChangesCount, ghostFilesCount) +
+        (compactionDue ? 30 : compactionAdvisoryCount * 5),
       reviewScore,
       memoryScore: memoryScore(entry.description, metadata),
       structureScore: structureScore(trackedFilesCount, dependencies.length, dependents.length, children.length),
@@ -124,6 +137,7 @@ export function buildCabinetWorkbenchModel(
       trackedFiles: [...entry.trackedFiles],
       pendingChanges: entry.pendingChanges.map((change) => change.filePath),
       ghostFiles: [...entry.ghostFiles],
+      compaction: entry.compaction ?? null,
       metadata,
     };
   });
@@ -196,6 +210,14 @@ function statusFromStaleness(staleness: number): CabinetCardStatus {
   if (staleness >= 60) return "significant";
   if (staleness >= 10) return "mild";
   return "healthy";
+}
+
+function statusFromEntry(
+  staleness: number,
+  compactionDue: boolean,
+): CabinetCardStatus {
+  if (compactionDue) return "critical";
+  return statusFromStaleness(staleness);
 }
 
 function normalizePath(filePath: string): string {

@@ -74,14 +74,17 @@ export function buildProjectActionItems(
     },
     {
       key: "review",
-      kind: counts.review > 0 ? "warning" : "ok",
-      title: counts.review > 0 ? "查看複審提醒" : "沒有複審提醒",
+      kind: counts.review > 0 || counts.advisory > 0 ? "warning" : "ok",
+      title:
+        counts.review > 0 || counts.advisory > 0
+          ? "查看複審與建議"
+          : "沒有複審提醒",
       description:
-        counts.review > 0
-          ? "這個專案有上游或間接影響，建議確認但不一定要立刻修。"
+        counts.review > 0 || counts.advisory > 0
+          ? "這個專案有上游影響、舊卡、語言比例或拆分建議，建議確認但不一定要立刻修。"
           : "這個專案目前沒有需要額外確認的間接影響。",
-      count: counts.review,
-      tone: counts.review > 0 ? "warning" : "success",
+      count: counts.review + counts.advisory,
+      tone: counts.review > 0 || counts.advisory > 0 ? "warning" : "success",
     },
   ];
 }
@@ -104,6 +107,9 @@ export function getCartridgeStatus(cartridge: DesktopCartridgeSnapshot): {
   label: string;
   tone: Tone;
 } {
+  if (cartridge.compaction?.needsCompaction) {
+    return { label: "阻塞", tone: "danger" };
+  }
   if (
     cartridge.ghostFiles > 0 ||
     cartridge.pendingChanges > 0 ||
@@ -114,6 +120,9 @@ export function getCartridgeStatus(cartridge: DesktopCartridgeSnapshot): {
   if (cartridge.indirectStaleness > 0) {
     return { label: "複審", tone: "warning" };
   }
+  if (hasCompactionAdvisory(cartridge)) {
+    return { label: "建議", tone: "warning" };
+  }
   return { label: "健康", tone: "success" };
 }
 
@@ -122,7 +131,9 @@ export function cartridgesForIssue(
   issue: IssueKind,
 ): DesktopCartridgeSnapshot[] {
   if (issue === "review") {
-    return project.cartridges.filter((item) => item.indirectStaleness > 0);
+    return project.cartridges.filter(
+      (item) => item.indirectStaleness > 0 || hasCompactionAdvisory(item),
+    );
   }
   if (issue === "ghost") {
     return project.cartridges.filter((item) => item.ghostFiles > 0);
@@ -130,8 +141,20 @@ export function cartridgesForIssue(
   if (issue === "blocking") {
     return project.cartridges.filter(
       (item) =>
-        item.staleness > 0 || item.pendingChanges > 0 || item.ghostFiles > 0,
+        item.staleness > 0 ||
+        item.pendingChanges > 0 ||
+        item.ghostFiles > 0 ||
+        Boolean(item.compaction?.needsCompaction),
     );
   }
   return [];
+}
+
+function hasCompactionAdvisory(cartridge: DesktopCartridgeSnapshot): boolean {
+  return Boolean(
+    cartridge.compaction?.isLegacy ||
+      cartridge.compaction?.reasons.includes("highChineseRatio") ||
+      cartridge.trackedFiles.length > 8 ||
+      (cartridge.compaction?.archiveMigrationWarnings?.length ?? 0) > 0,
+  );
 }

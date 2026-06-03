@@ -15,6 +15,11 @@ import type {
 } from "./types.js";
 import type { GitignoreFilter } from "./gitignore-filter.js";
 import { getSkillsAbsPath, getMemoryAbsPath } from "./config.js";
+import {
+  buildArchiveVolumeMetrics,
+  buildCompactionMetrics,
+  type MemoryArchiveVolumeMetrics,
+} from "./memory-compaction.js";
 import { getTaiwanISO } from "./timestamp.js";
 import { suggestOwner } from "./smart-owner.js";
 
@@ -213,7 +218,13 @@ export class CartridgeIndexManager {
         continue;
       }
 
+      const cardDir = path.dirname(skillPath);
       const trackedFiles = parseTrackedFiles(content);
+      const compaction = buildCompactionMetrics(raw, frontmatter, {
+        cardPath: skillPath,
+        archiveVolumes: this.scanArchiveVolumes(cardDir),
+        archiveMigrationWarnings: this.findArchiveMigrationWarnings(cardDir),
+      });
       if (shouldWarnEmptyTrackedFiles(content)) {
         console.warn(
           `[記憶卡匣] 疑似格式偏差，Tracked Files 解析為空：${skillPath}`,
@@ -238,6 +249,7 @@ export class CartridgeIndexManager {
         indirectStaleness: 0,
         depth,
         parent: parentId,
+        compaction,
       };
 
       // 建立反向映射
@@ -258,6 +270,66 @@ export class CartridgeIndexManager {
         false,
       );
     }
+  }
+
+  private scanArchiveVolumes(cardDir: string): MemoryArchiveVolumeMetrics[] {
+    let entries: fs.Dirent[];
+    try {
+      entries = fs.readdirSync(cardDir, { withFileTypes: true });
+    } catch {
+      return [];
+    }
+
+    return entries
+      .filter((entry) => entry.isFile() && /^archive-\d{3}\.md$/i.test(entry.name))
+      .map((entry) => {
+        const archivePath = path.join(cardDir, entry.name);
+        const relativePath = path
+          .relative(this.config.projectRoot, archivePath)
+          .replace(/\\/g, "/");
+        try {
+          return buildArchiveVolumeMetrics(
+            fs.readFileSync(archivePath, "utf-8"),
+            relativePath,
+          );
+        } catch {
+          return null;
+        }
+      })
+      .filter((item): item is MemoryArchiveVolumeMetrics => item !== null);
+  }
+
+  private findArchiveMigrationWarnings(cardDir: string): string[] {
+    const archiveDir = path.join(cardDir, "archive");
+    if (!fs.existsSync(archiveDir)) return [];
+
+    const warnings: string[] = [];
+    const stack = [archiveDir];
+    while (stack.length > 0) {
+      const current = stack.pop();
+      if (!current) continue;
+
+      let entries: fs.Dirent[];
+      try {
+        entries = fs.readdirSync(current, { withFileTypes: true });
+      } catch {
+        continue;
+      }
+
+      for (const entry of entries) {
+        const entryPath = path.join(current, entry.name);
+        if (entry.isDirectory()) {
+          stack.push(entryPath);
+          continue;
+        }
+        if (entry.isFile() && entry.name.toLowerCase() === "skill.md") {
+          warnings.push(
+            path.relative(this.config.projectRoot, entryPath).replace(/\\/g, "/"),
+          );
+        }
+      }
+    }
+    return warnings;
   }
 
   /**

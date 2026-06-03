@@ -151,10 +151,11 @@ describe("governance sidebar models", () => {
       contextFindings: [{ severity: "warning" }],
     });
 
-    expect(summary.status).toBe("warning");
+    expect(summary.status).toBe("blocked");
     expect(summary.memory.stale).toBe(1);
     expect(summary.memory.ghostFiles).toBe(1);
     expect(summary.memory.untrackedFiles).toBe(1);
+    expect(summary.memory.blockingItems).toBeGreaterThan(0);
     expect(summary.memory.reviewItems).toBe(0);
     expect(summary.context.warnings).toBe(1);
   });

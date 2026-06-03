@@ -18,6 +18,12 @@ import {
   type McpToolResult,
 } from "./mcp-response.js";
 import { parseTrackedFiles, shouldWarnEmptyTrackedFiles } from "./index-manager.js";
+import {
+  buildArchiveVolumeMetrics,
+  buildCompactionMetrics,
+  type MemoryArchiveVolumeMetrics,
+  type MemoryCompactionMetrics,
+} from "./memory-compaction.js";
 import { validateProjectRoot } from "./path-guard.js";
 import type { CartridgeEntry, CartridgeIndex } from "./types.js";
 
@@ -51,6 +57,15 @@ export interface MemoryAuditReport {
     cycles: number;
     persistedIndexCycles: number;
     dependencySemanticWarnings: number;
+    legacyCards: number;
+    compactionDue: number;
+    cycleLimitReached: number;
+    invalidCycleEvents: number;
+    oversizedContent: number;
+    archiveVolumeDue: number;
+    archiveMigrationWarnings: number;
+    granularityAdvisories: number;
+    languageWarnings: number;
   };
   findings: MemoryAuditFinding[];
   cycles: string[][];
@@ -67,6 +82,7 @@ interface AuditIndexEntry {
   indirectStaleness?: number;
   dependencies?: string[];
   parent?: string | null;
+  compaction?: MemoryCompactionMetrics;
 }
 
 interface AuditIndex {
@@ -83,6 +99,7 @@ interface MemoryCard {
   body: string;
   frontmatter: Record<string, unknown>;
   trackedFiles: string[];
+  compaction: MemoryCompactionMetrics;
 }
 
 const projectRootField = z
@@ -215,17 +232,93 @@ async function readMemoryCards(projectRoot: string): Promise<MemoryCard[]> {
     const raw = await fs.readFile(absolutePath, "utf-8");
     const parsed = matter(raw);
     const skillPath = normalizeRelative(projectRoot, absolutePath);
+    const cardDir = path.dirname(absolutePath);
+    const frontmatter = parsed.data as Record<string, unknown>;
+    const archiveVolumes = await readArchiveVolumes(projectRoot, cardDir);
+    const archiveMigrationWarnings = await findLegacyArchiveSkillPaths(
+      projectRoot,
+      cardDir,
+    );
     cards.push({
       module: moduleNameFromSkillPath(skillPath),
       skillPath,
       absolutePath,
       raw,
       body: parsed.content,
-      frontmatter: parsed.data as Record<string, unknown>,
+      frontmatter,
       trackedFiles: parseTrackedFiles(raw),
+      compaction: buildCompactionMetrics(raw, frontmatter, {
+        cardPath: absolutePath,
+        archiveVolumes,
+        archiveMigrationWarnings,
+      }),
     });
   }
   return cards;
+}
+
+async function readArchiveVolumes(
+  projectRoot: string,
+  cardDir: string,
+): Promise<MemoryArchiveVolumeMetrics[]> {
+  let entries: Array<{ name: string; isFile: () => boolean }>;
+  try {
+    entries = await fs.readdir(cardDir, { withFileTypes: true });
+  } catch {
+    return [];
+  }
+
+  const volumes = await Promise.all(
+    entries
+      .filter((entry) => entry.isFile() && /^archive-\d{3}\.md$/i.test(entry.name))
+      .map(async (entry) => {
+        const archivePath = path.join(cardDir, entry.name);
+        const raw = await fs.readFile(archivePath, "utf-8");
+        return buildArchiveVolumeMetrics(
+          raw,
+          normalizeRelative(projectRoot, archivePath),
+        );
+      }),
+  );
+  return volumes;
+}
+
+async function findLegacyArchiveSkillPaths(
+  projectRoot: string,
+  cardDir: string,
+): Promise<string[]> {
+  const archiveDir = path.join(cardDir, "archive");
+  if (!(await pathExists(archiveDir))) return [];
+
+  const warnings: string[] = [];
+  const stack = [archiveDir];
+  while (stack.length > 0) {
+    const current = stack.pop();
+    if (!current) continue;
+
+    let entries: Array<{
+      name: string;
+      isDirectory: () => boolean;
+      isFile: () => boolean;
+    }>;
+    try {
+      entries = await fs.readdir(current, { withFileTypes: true });
+    } catch {
+      continue;
+    }
+
+    for (const entry of entries) {
+      const entryPath = path.join(current, entry.name);
+      if (entry.isDirectory()) {
+        stack.push(entryPath);
+        continue;
+      }
+      if (entry.isFile() && entry.name.toLowerCase() === "skill.md") {
+        warnings.push(normalizeRelative(projectRoot, entryPath));
+      }
+    }
+  }
+  return warnings;
 }
 
 function parseTrackedFilesLoosely(content: string): string[] {
@@ -303,6 +396,15 @@ function auditTrackedFiles(card: MemoryCard): MemoryAuditFinding[] {
   }
   const trackedFiles =
     card.trackedFiles.length > 0 ? card.trackedFiles : parseTrackedFilesLoosely(card.raw);
+  if (trackedFiles.length > 8) {
+    findings.push({
+      severity: "warning",
+      code: "MEMORY_GRANULARITY_ADVISORY",
+      message: `${card.module} 追蹤 ${trackedFiles.length} 個檔案；這只是拆分建議，不應單獨阻擋提交。`,
+      module: card.module,
+      file: card.skillPath,
+    });
+  }
   for (const trackedFile of trackedFiles) {
     if (path.isAbsolute(trackedFile)) {
       findings.push({
@@ -404,6 +506,102 @@ function auditDependencySemantics(cards: MemoryCard[]): MemoryAuditFinding[] {
   });
 }
 
+function auditCompaction(card: MemoryCard): MemoryAuditFinding[] {
+  const findings: MemoryAuditFinding[] = [];
+  const metrics = card.compaction;
+  if (metrics.isLegacy) {
+    findings.push({
+      severity: "warning",
+      code: "MEMORY_LEGACY_SCHEMA",
+      message: `${card.module} 使用舊記憶格式；可讀取，但下次更新時應懶升級為新版格式。`,
+      module: card.module,
+      file: card.skillPath,
+    });
+  }
+  if (metrics.reasons.includes("mainCardOversize")) {
+    findings.push({
+      severity: "warning",
+      code: "MEMORY_CARD_OVERSIZE",
+      message: `${card.module} 主卡大小 ${metrics.sizeBytes} bytes 超過上限 ${metrics.sizeLimitBytes} bytes。`,
+      module: card.module,
+      file: card.skillPath,
+    });
+  }
+  if (metrics.reasons.includes("mainCardLineLimit")) {
+    findings.push({
+      severity: "warning",
+      code: "MEMORY_CARD_LINE_LIMIT",
+      message: `${card.module} 主卡行數 ${metrics.lineCount} 超過上限 ${metrics.lineLimit}。`,
+      module: card.module,
+      file: card.skillPath,
+    });
+  }
+  if (metrics.reasons.includes("rootIndexOversize")) {
+    findings.push({
+      severity: "warning",
+      code: "MEMORY_ROOT_INDEX_OVERSIZE",
+      message: `${card.module} 根層索引卡大小 ${metrics.sizeBytes} bytes 超過上限 ${metrics.sizeLimitBytes} bytes。`,
+      module: card.module,
+      file: card.skillPath,
+    });
+  }
+  if (metrics.reasons.includes("cycleEventLimitExceeded")) {
+    findings.push({
+      severity: "error",
+      code: "MEMORY_CYCLE_LIMIT_EXCEEDED",
+      message: `${card.module} 週期事件 ${metrics.cycleEventCount}/${metrics.cycleEventLimit} 不合規，必須先彙整。`,
+      module: card.module,
+      file: card.skillPath,
+    });
+  } else if (metrics.reasons.includes("cycleEventLimitReached")) {
+    findings.push({
+      severity: "warning",
+      code: "MEMORY_CYCLE_LIMIT_REACHED",
+      message: `${card.module} 週期事件 ${metrics.cycleEventCount}/${metrics.cycleEventLimit} 已達彙整門檻。`,
+      module: card.module,
+      file: card.skillPath,
+    });
+  }
+  for (const archive of metrics.archiveVolumes ?? []) {
+    if (!archive.needsCompaction) continue;
+    findings.push({
+      severity: "warning",
+      code: "MEMORY_ARCHIVE_VOLUME_LIMIT",
+      message: `${card.module} 的歸檔卷 ${archive.filePath} 已超過 ${archive.sizeLimitBytes} bytes 或 ${archive.lineLimit} 行，請開下一卷。`,
+      module: card.module,
+      file: archive.filePath,
+    });
+  }
+  for (const legacyArchivePath of metrics.archiveMigrationWarnings ?? []) {
+    findings.push({
+      severity: "warning",
+      code: "MEMORY_ARCHIVE_PATH_MIGRATION",
+      message: `${card.module} 使用舊式歸檔路徑 ${legacyArchivePath}；請改為 archive-001.md 平面檔名。`,
+      module: card.module,
+      file: legacyArchivePath,
+    });
+  }
+  if (metrics.needsCompaction) {
+    findings.push({
+      severity: "warning",
+      code: "MEMORY_COMPACTION_REQUIRED",
+      message: `${card.module} 必須先完成彙整或拆卡，才能繼續追加週期事件。`,
+      module: card.module,
+      file: card.skillPath,
+    });
+  }
+  if (metrics.reasons.includes("highChineseRatio")) {
+    findings.push({
+      severity: "warning",
+      code: "MEMORY_LANGUAGE_RATIO",
+      message: `${card.module} 主體中文比例 ${(metrics.chineseRatio * 100).toFixed(1)}%，建議改為英文主體與中文摘要。`,
+      module: card.module,
+      file: card.skillPath,
+    });
+  }
+  return findings;
+}
+
 function buildCycleFindings(cycles: MemoryAuditCycle[]): MemoryAuditFinding[] {
   return cycles.map((cycle) => ({
     severity: "warning" as const,
@@ -470,6 +668,7 @@ function buildEngineeringIndex(
       indirectStaleness: persisted?.indirectStaleness ?? 0,
       depth: 1,
       parent: persisted?.parent ?? null,
+      compaction: card.compaction,
     };
 
     for (const trackedFile of trackedFiles) {
@@ -521,8 +720,10 @@ function buildReport(
       "FRONTMATTER_METADATA_MISSING",
       "TRACKED_FILES_SECTION_MISSING",
       "TRACKED_FILES_HEADING_TYPO",
+      "MEMORY_LEGACY_SCHEMA",
     ].includes(finding.code),
   );
+  const compactionMetrics = cards.map((card) => card.compaction);
   return {
     compatibility: {
       mode: compatibilityWarnings.length > 0 ? "compatibility" : "modern",
@@ -536,7 +737,7 @@ function buildReport(
         0,
       ),
       untrackedFiles: index.untrackedFiles?.length ?? 0,
-      oversized: entries.filter((entry) => (entry.trackedFiles?.length ?? 0) > 8)
+      oversized: compactionMetrics.filter((metrics) => metrics.needsCompaction)
         .length,
       pendingWithZeroStaleness: entries.filter(
         (entry) =>
@@ -545,6 +746,38 @@ function buildReport(
       cycles: cycles.length,
       persistedIndexCycles: persistedIndexCycles.length,
       dependencySemanticWarnings,
+      legacyCards: compactionMetrics.filter((metrics) => metrics.isLegacy).length,
+      compactionDue: compactionMetrics.filter((metrics) => metrics.needsCompaction)
+        .length,
+      cycleLimitReached: compactionMetrics.filter((metrics) =>
+        metrics.reasons.includes("cycleEventLimit"),
+      ).length,
+      invalidCycleEvents: compactionMetrics.filter((metrics) =>
+        metrics.reasons.includes("cycleEventLimitExceeded"),
+      ).length,
+      oversizedContent: compactionMetrics.filter(
+        (metrics) =>
+          metrics.reasons.includes("mainCardOversize") ||
+          metrics.reasons.includes("mainCardLineLimit") ||
+          metrics.reasons.includes("rootIndexOversize"),
+      ).length,
+      archiveVolumeDue: compactionMetrics.reduce(
+        (sum, metrics) =>
+          sum +
+          (metrics.archiveVolumes?.filter((volume) => volume.needsCompaction)
+            .length ?? 0),
+        0,
+      ),
+      archiveMigrationWarnings: compactionMetrics.reduce(
+        (sum, metrics) => sum + (metrics.archiveMigrationWarnings?.length ?? 0),
+        0,
+      ),
+      granularityAdvisories: entries.filter(
+        (entry) => (entry.trackedFiles?.length ?? 0) > 8,
+      ).length,
+      languageWarnings: compactionMetrics.filter((metrics) =>
+        metrics.reasons.includes("highChineseRatio"),
+      ).length,
     },
     findings,
     cycles: cycles.map((cycle) => cycle.path),
@@ -588,6 +821,54 @@ function buildRecommendedActions(report: MemoryAuditReport) {
       reason: `cycles=${report.summary.cycles}`,
     });
   }
+  if (report.summary.compactionDue > 0) {
+    actions.push({
+      priority: "P1",
+      action: "compact_memory_cards",
+      target: "workspace",
+      reason: `compactionDue=${report.summary.compactionDue}`,
+    });
+  }
+  if (report.summary.archiveVolumeDue > 0) {
+    actions.push({
+      priority: "P1",
+      action: "open_next_archive_volume",
+      target: "workspace",
+      reason: `archiveVolumeDue=${report.summary.archiveVolumeDue}`,
+    });
+  }
+  if (report.summary.legacyCards > 0) {
+    actions.push({
+      priority: "P2",
+      action: "lazy_upgrade_memory_cards",
+      target: "workspace",
+      reason: `legacyCards=${report.summary.legacyCards}`,
+    });
+  }
+  if (report.summary.archiveMigrationWarnings > 0) {
+    actions.push({
+      priority: "P2",
+      action: "migrate_archive_paths",
+      target: "workspace",
+      reason: `archiveMigrationWarnings=${report.summary.archiveMigrationWarnings}`,
+    });
+  }
+  if (report.summary.granularityAdvisories > 0) {
+    actions.push({
+      priority: "P2",
+      action: "review_memory_card_split_suggestions",
+      target: "workspace",
+      reason: `granularityAdvisories=${report.summary.granularityAdvisories}`,
+    });
+  }
+  if (report.summary.languageWarnings > 0) {
+    actions.push({
+      priority: "P2",
+      action: "reduce_memory_card_chinese_body",
+      target: "workspace",
+      reason: `languageWarnings=${report.summary.languageWarnings}`,
+    });
+  }
   if (report.summary.dependencySemanticWarnings > 0) {
     actions.push({
       priority: "P2",
@@ -627,6 +908,7 @@ export async function buildMemoryAuditReport(
     ...indexFindings,
     ...cards.flatMap(auditFrontmatter),
     ...cards.flatMap(auditTrackedFiles),
+    ...cards.flatMap(auditCompaction),
     ...auditIndexEntries(index, cards),
     ...auditDependencySemantics(cards),
     ...buildCycleFindings(cycles),

@@ -17,18 +17,43 @@ export const DesktopIpc = {
   snapshotsChanged: "desktop:snapshots-changed",
 } as const;
 
+export type DesktopOperationOutcome =
+  | "success"
+  | "cancelled"
+  | "blocked"
+  | "error";
+
+export interface DesktopOperationResult<T = undefined> {
+  outcome: DesktopOperationOutcome;
+  message: string;
+  data?: T;
+}
+
 export interface DesktopBridge {
   listProjects(): Promise<DesktopProjectSnapshot[]>;
   getSettings(): Promise<DesktopSettings>;
-  updateSettings(settings: Partial<DesktopSettings>): Promise<DesktopSettings>;
-  addProjects(): Promise<DesktopProjectSnapshot[]>;
-  removeProject(projectRoot: string): Promise<DesktopProjectSnapshot[]>;
-  pauseProject(projectRoot: string): Promise<DesktopProjectSnapshot[]>;
-  resumeProject(projectRoot: string): Promise<DesktopProjectSnapshot[]>;
-  rescanProject(projectRoot: string): Promise<DesktopProjectSnapshot[]>;
-  rescanAll(): Promise<DesktopProjectSnapshot[]>;
-  openProject(projectRoot: string): Promise<void>;
-  openFile(projectRoot: string, relativePath: string): Promise<void>;
+  updateSettings(
+    settings: Partial<DesktopSettings>,
+  ): Promise<DesktopOperationResult<DesktopSettings>>;
+  addProjects(): Promise<DesktopOperationResult<DesktopProjectSnapshot[]>>;
+  removeProject(
+    projectRoot: string,
+  ): Promise<DesktopOperationResult<DesktopProjectSnapshot[]>>;
+  pauseProject(
+    projectRoot: string,
+  ): Promise<DesktopOperationResult<DesktopProjectSnapshot[]>>;
+  resumeProject(
+    projectRoot: string,
+  ): Promise<DesktopOperationResult<DesktopProjectSnapshot[]>>;
+  rescanProject(
+    projectRoot: string,
+  ): Promise<DesktopOperationResult<DesktopProjectSnapshot[]>>;
+  rescanAll(): Promise<DesktopOperationResult<DesktopProjectSnapshot[]>>;
+  openProject(projectRoot: string): Promise<DesktopOperationResult>;
+  openFile(
+    projectRoot: string,
+    relativePath: string,
+  ): Promise<DesktopOperationResult>;
   onSnapshotsChanged(
     listener: (snapshots: DesktopProjectSnapshot[]) => void,
   ): () => void;

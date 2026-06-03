@@ -2,8 +2,8 @@
 
 > **現實感知 AI 記憶防禦引擎** — 自動偵測記憶卡過期、幽靈檔案、跨模組依賴傳播，確保 AI 不讀取失效的上下文。
 
-[![version](https://img.shields.io/badge/version-5.4.1-blue)](./CHANGELOG.md)
-[![tests](https://img.shields.io/badge/tests-254%20passed-brightgreen)](#-執行測試)
+[![version](https://img.shields.io/badge/version-5.4.2-blue)](./CHANGELOG.md)
+[![tests](https://img.shields.io/badge/tests-279%20passed-brightgreen)](#-執行測試)
 [![license](https://img.shields.io/badge/license-MIT-green)](#)
 
 ---
@@ -34,6 +34,7 @@ Cartridge System 是一個為 [Antigravity 框架](https://github.com/Kunshao111
 | 💀 **幽靈偵測** | **v4.1.1 增強** — 自動標記已追蹤但磁碟不存在的幽靈檔案。**新增互動式修復指引（Modal）**，點擊側邊欄 💀 項目可直接彈出修復路徑與操作建議。 |
 | 🕸️ **依賴圖引擎** | **v4.0 新增** — 自動掃描 import 語句推導卡匣依賴關係，BFS 演算法傳播間接過期，DFS 偵測循環依賴 |
 | 🧭 **記憶警示分層** | **v5.4.1 增強** — 直接過期、幽靈與未歸屬檔案維持阻塞；間接過期、上游影響與父子卡提示改為非阻塞複審提醒。 |
+| 🗜️ **記憶壓縮治理** | **Unreleased 新增** — 解析 schema v2 記憶卡大小、行數、中文比例、週期事件數、舊格式狀態與歸檔卷；事件滿 30 筆、主卡超限、根層索引超 8KB 或歸檔卷超限時會要求先彙整，31 筆事件不允許同步。 |
 | 👻 **未歸屬檔案池** | 智能偵測專案內新增但未被任何卡匣記錄的檔案，支援歸屬建議。 |
 | 🧹 **未歸屬自動清除** | **v5.0 修復** — 檔案被加入任一記憶卡 `## Tracked Files` 後，`SKILL.md` 變更流程與 `memory_commit` 都會自動移除舊未歸屬提醒。 |
 | 📊 **過期指數計算** | 根據異動類型（新增/修改/刪除）與時間衰退計算分數 |
@@ -72,7 +73,7 @@ Cartridge System 是一個為 [Antigravity 框架](https://github.com/Kunshao111
 3. 在 VS Code / Antigravity 使用 **Install from VSIX** 安裝，或使用 CLI：
 
 ```bash
-antigravity --install-extension cartridge-system-5.4.1.vsix --force
+antigravity --install-extension cartridge-system-5.4.2.vsix --force
 ```
 
 ### 方法二：本機打包安裝
@@ -84,7 +85,7 @@ npm run build
 npm run package
 
 # 使用 Antigravity IDE CLI 安裝（注意：不可用 code 指令）
-antigravity --install-extension cartridge-system-5.4.1.vsix --force
+antigravity --install-extension cartridge-system-5.4.2.vsix --force
 ```
 
 ### 方法三：開發模式
@@ -194,15 +195,15 @@ npm run package
 3. 推送版本 tag：
 
 ```bash
-git tag v5.4.1
-git push origin v5.4.1
+git tag v5.4.2
+git push origin v5.4.2
 ```
 
 GitHub Actions 會自動執行測試、打包 `cartridge-system-*.vsix`、建立或更新 Release，並把 VSIX 掛到 Release 附件；此流程不會發布 npm MCP runtime。
 
 ### 手動補發
 
-如果需要補發目前版本，進入 GitHub 的 **Actions → Release VSIX → Run workflow**，輸入版本號，例如 `5.4.1` 或 `v5.4.1`。Workflow 會確認輸入版本與 `package.json` 一致，然後重新打包並覆蓋 Release 裡的 VSIX 附件。
+如果需要補發目前版本，進入 GitHub 的 **Actions → Release VSIX → Run workflow**，輸入版本號，例如 `5.4.2` 或 `v5.4.2`。Workflow 會確認輸入版本與 `package.json` 一致，然後重新打包並覆蓋 Release 裡的 VSIX 附件。
 
 ---
 
@@ -222,13 +223,13 @@ npm run desktop:dist
 推送桌面版 tag：
 
 ```bash
-git tag desktop-v5.4.1
-git push origin desktop-v5.4.1
+git tag desktop-v5.4.2
+git push origin desktop-v5.4.2
 ```
 
-GitHub Actions 會在 Windows runner 上重新打包桌面安裝檔，建立 `Cartridge Desktop Console desktop-v5.4.1` Release，並把 `Cartridge Desktop Console Setup 5.4.1.exe` 掛到附件。桌面版 Release 不會標記為 GitHub Latest，避免 VSIX 更新檢查誤讀桌面版本；此流程也不會將 `release/desktop` 產物提交進 Git。
+GitHub Actions 會在 Windows runner 上重新打包桌面安裝檔，建立 `Cartridge Desktop Console desktop-v5.4.2` Release，並把 `Cartridge Desktop Console Setup 5.4.2.exe` 掛到附件。桌面版 Release 不會標記為 GitHub Latest，避免 VSIX 更新檢查誤讀桌面版本；此流程也不會將 `release/desktop` 產物提交進 Git。
 
-若需要手動補發，進入 GitHub 的 **Actions → Release Desktop Console → Run workflow**，輸入版本號，例如 `5.4.1`、`v5.4.1` 或 `desktop-v5.4.1`。Workflow 會確認輸入版本與 `package.json` 一致，然後重新打包並覆蓋桌面版 Release 裡的安裝檔附件。
+若需要手動補發，進入 GitHub 的 **Actions → Release Desktop Console → Run workflow**，輸入版本號，例如 `5.4.2`、`v5.4.2` 或 `desktop-v5.4.2`。Workflow 會確認輸入版本與 `package.json` 一致，然後重新打包並覆蓋桌面版 Release 裡的安裝檔附件。
 
 ---
 
@@ -251,8 +252,8 @@ npm publish --dry-run
 若使用 GitHub Actions Trusted Publishing，請推送 npm 專用 tag，不要使用 VSIX 的 `vX.Y.Z` tag：
 
 ```bash
-git tag npm-v5.4.1
-git push origin npm-v5.4.1
+git tag npm-v5.4.2
+git push origin npm-v5.4.2
 ```
 
 `Publish npm` workflow 會確認 tag/input 版本與 `package.json` 一致；若 npm registry 已有同版本，會成功跳過發布，避免同版本不可覆蓋造成失敗。
@@ -286,15 +287,15 @@ Cartridge System 提供 MCP（Model Context Protocol）工具伺服器，供 AI 
 
 | 工具名稱 | 說明 |
 |----------|------|
-| `memory_list` | 列出所有記憶卡匣（含過期指數、幽靈計數、依賴數量、間接過期指數） |
+| `memory_list` | 列出所有記憶卡匣（含過期指數、幽靈計數、依賴數量、間接過期指數、卡片大小、語言比例、週期事件數、舊格式與壓縮建議） |
 | `memory_read` | 讀取特定記憶技能的完整 SKILL.md 內容（自動解析巢狀點分隔路徑）；`moduleName` 只接受卡匣 ID，不接受 `/`、`\` 或 `..` 路徑片段 |
 | `memory_status` | 查詢過期修復診斷：過期指數、待處理異動、**幽靈檔案清單**及清理行動指引 |
-| `memory_commit` | AI 寫入 SKILL.md 後呼叫，自動完成：時間戳注入、staleness 歸零、索引同步、**幽靈清除**、未歸屬池清理與間接過期重算。**v5.2 強化 Gateway-first workspace 注入，仍要求 `confirm:true`，並保留 moduleName 路徑片段拒絕、格式容錯、I/O 防護與 dependencies 語義警告**。 |
+| `memory_commit` | AI 寫入 SKILL.md 後呼叫，自動完成：時間戳注入、staleness 歸零、索引同步、**幽靈清除**、未歸屬池清理與間接過期重算。**v5.2 強化 Gateway-first workspace 注入，仍要求 `confirm:true`，並保留 moduleName 路徑片段拒絕、格式容錯、I/O 防護、dependencies 語義警告與壓縮治理警告；Cycle Events 超過 30 筆時直接拒絕同步**。 |
 | `memory_deps` | **v4.1.1 增強** — 查詢卡匣依賴拓樸，分層回傳工程依賴、frontmatter 依賴、過期傳播與循環依賴警告，並保留舊欄位相容；`moduleName` 同樣拒絕路徑片段 |
 | `memory_graph` | **v5.3.3 新增** — 輸出 AI 可讀的整體記憶卡匣關聯圖譜摘要，支援 `maintenance`、`memory`、`structure`、`all` 視角與 `focusModule` 一跳關聯範圍 |
-| `memory_audit` | **v5.1.x 增強** — 只讀完整健檢專案記憶卡，回報舊格式相容、frontmatter 缺欄位、Tracked Files 問題、索引漂移、依賴循環、dependencies 語義可疑項，以及 `staleness=0` 但 `pendingChanges` 未清的索引同步異常；主要循環依據即時 frontmatter / engineering graph，舊索引循環只作診斷 |
-| `workspace_brief` | **v5.1 增強** — 彙整專案身份、記憶卡健康、規則檔提醒、AI 開工狀態、提交前提醒與建議下一步 |
-| `commit_preflight` | **v4.1.1 新增** — 提交前治理檢查，彙整 git dirty state、記憶卡健康阻塞、dependency semantics warning、建議行動與驗證命令 |
+| `memory_audit` | **v5.1.x 增強** — 只讀完整健檢專案記憶卡，回報舊格式相容、frontmatter 缺欄位、Tracked Files 問題、索引漂移、依賴循環、dependencies 語義可疑項、壓縮到期、平面歸檔卷超限、舊式 `archive/001/SKILL.md` 遷移提示、中文比例偏高，以及 `staleness=0` 但 `pendingChanges` 未清的索引同步異常；主要循環依據即時 frontmatter / engineering graph，舊索引循環只作診斷 |
+| `workspace_brief` | **v5.1 增強** — 彙整專案身份、記憶卡健康、壓縮治理摘要、規則檔提醒、AI 開工狀態、提交前提醒與建議下一步 |
+| `commit_preflight` | **v4.1.1 新增** — 提交前治理檢查，彙整 git dirty state、記憶卡健康阻塞、壓縮到期阻擋、dependency semantics warning、拆卡 advisory、建議行動與驗證命令；tracked files 超過 8 但大小/行數健康時不作為 blocker |
 | `context_inventory` | **v5.1 增強** — 掃描 AI 規則來源，回傳檔案位置、負責代理、適用範圍、優先序、追蹤檔案、依賴、過期狀態與風險。 |
 | `context_audit` | **v5.1 增強** — 檢查 Codex、Claude、Copilot、Antigravity 與記憶卡之間的語言、提交授權與寫入規則，並回傳白話原因、相關檔案與建議工具。 |
 | `context_diff` | **v5.1 增強** — 比對兩個規則來源的治理訊號、優先序、支援代理與差異。 |
@@ -448,22 +449,23 @@ npm test
 npm run test:watch
 ```
 
-測試涵蓋 35 個測試檔案（**254 個案例**）：
+測試涵蓋 36 個測試檔案（**279 個案例**）：
 
 | 測試模組 | 案例數 | 涵蓋範圍 |
 |----------|--------|----------|
 | 索引管理器 | 22 | 掃描、addPendingChange 去重、getChildren、resolveModulePath、空追蹤卡誤報防護、未歸屬池 refilter 自動清理 |
-| MCP 工具介面 | 78 | 正常流程、Gateway-first workspace 注入、workspace/projectRoot 衝突拒絕、CLI `--workspace` 解析、路徑穿越防禦、moduleName 路徑片段拒絕、handler 層 `confirm:true` 驗證、時間戳驗證、過期狀態診斷、十七工具 envelope 契約、memory_commit 後設同步、workspace_brief 專案健康摘要、AI 開工狀態、專案脈絡非阻塞摘要、提交 readiness、commit_preflight 提交前治理檢查、警示分層 reviewItems/advisories 與 dependency semantics 摘要、**標題錯字偵測 (HEADING_TYPO)**、**路徑格式驗證 (PATH_ABSOLUTE / PATH_TRAVERSAL)**、**dependencies 語義警告**、**未歸屬池清理**、**fileMap 同步**、**間接過期重算**、**警告區塊自動清除** |
+| MCP 工具介面 | 82 | 正常流程、Gateway-first workspace 注入、workspace/projectRoot 衝突拒絕、CLI `--workspace` 解析、路徑穿越防禦、moduleName 路徑片段拒絕、handler 層 `confirm:true` 驗證、時間戳驗證、過期狀態診斷、十七工具 envelope 契約、memory_commit 後設同步、31 筆 Cycle Events 阻擋、workspace_brief 專案健康摘要、AI 開工狀態、專案脈絡非阻塞摘要、提交 readiness、commit_preflight 提交前治理檢查、壓縮到期阻擋、拆卡 advisory 不阻擋、警示分層 reviewItems/advisories 與 dependency semantics 摘要、**標題錯字偵測 (HEADING_TYPO)**、**路徑格式驗證 (PATH_ABSOLUTE / PATH_TRAVERSAL)**、**dependencies 語義警告**、**未歸屬池清理**、**fileMap 同步**、**間接過期重算**、**警告區塊自動清除** |
 | 監聽引擎 | 3 | `SKILL.md` 變更後重新 scan、refilter untracked、flush index 並觸發側邊欄刷新；`.agents/memory` 被 `.gitignore` 覆蓋時仍優先處理記憶卡變更；Windows 路徑分隔符不會阻斷 pending/ghost 清理 |
 | 規則檔檢查 | 4 | 多代理指令掃描、規則來源摘要、提交授權衝突 blocking、context_diff 訊號比對與語言提醒 |
 | 治理側邊欄 | 8 | Activity Bar view container、四個 Cartridge TreeView、卡匣機櫃入口、公開 commands、更新檢查設定、governance summary、非阻塞複審提醒與白話 action items 轉換 |
 | 卡匣機櫃工作台 | 9 | 卡匣工作台模型、三模式統計、metadata note 連線、V2 metadata 相容解析、Webview HTML/CSP、圖譜 viewport 保存、layout reason 判斷與百分比縮放 helper |
-| 記憶卡完整健檢 | 6 | memory_audit 現代格式 ready、舊格式 compatibility warning、缺索引 fallback、frontmatter 依賴循環 finding、舊索引循環診斷不誤報主要 cycle、staleness 歸零但 pendingChanges 未清的索引漂移 |
+| 記憶卡完整健檢 | 9 | memory_audit 現代格式 ready、舊格式 compatibility warning、缺索引 fallback、frontmatter 依賴循環 finding、舊索引循環診斷不誤報主要 cycle、staleness 歸零但 pendingChanges 未清的索引漂移、週期事件滿額壓縮提醒、平面歸檔卷超限、舊式 archive 目錄遷移提示 |
+| 記憶卡壓縮度量 | 10 | schema v2 卡片、29/30/31 筆週期事件門檻、主卡硬限制、根層索引 8KB 限制、平面歸檔卷限制、舊卡懶升級、中文比例排除與 Cycle Events 區段計算 |
 | 過期分析器 | 11 | 過期等級四分支、三種事件計分、閾值觸發 |
 | 路徑安全驗證 | 10 | 絕對/相對路徑、穿越攻擊拒絕、工作區身分比較 |
 | 時間戳格式 | 3 | ISO 8601 格式、台灣時區後綴 |
 | 離線變動偵測 | 10 | 啟動校驗、目錄跳過、去重、幽靈標記 |
-| 桌面監控台 | 4 | 分區滾輪 overflow 判斷、滾動位置推進、邊界 clamp、line/page delta 正規化 |
+| 桌面監控台 | 7 | 操作狀態列、選取回饋、原生滾動容器、未歸屬列表不截斷、分區滾輪 overflow 判斷、滾動位置推進、邊界 clamp、line/page delta 正規化 |
 | 警報寫入器 | 9 | 冪等植入、條件式清除、狀態回復 |
 | import 掃描器 | 5 | ES/動態/CJS 語法擷取、去重、node_modules 過濾 |
 | 依賴傳播引擎 | 8 | 反向圖建構、BFS 傳播深度、平方衰減權重、循環偵測 |
@@ -536,7 +538,7 @@ cartridge_system/
 │   ├── path-guard.ts         # 路徑安全驗證（雙層防禦）
 │   ├── timestamp.ts          # 時間戳生成（Intl API）
 │   ├── types.ts              # 共用型別定義（含 ghostFiles、dependencies）
-│   └── tests/                # vitest 單元測試（35 檔 254 案例）
+│   └── tests/                # vitest 單元測試（36 檔 279 案例）
 ├── scripts/
 │   └── package-vsix.mjs      # VSIX 打包 wrapper（使用 package.json files 白名單）
 ├── .agents/
@@ -566,7 +568,7 @@ cartridge_system/
 > 💡 **治理備註**：`.agents/` 目錄在 Git 中採取「白名單模式」，追蹤 `memory/` 原始碼記憶、`context/` 專案脈絡與 `project_skills/` 專案衍生技能；其餘框架部署產物預設不納入版本控制以保持儲存庫輕量化。
 
 ├── CHANGELOG.md              # 更新紀錄（含插件更新檢查 Unreleased 紀錄）
-└── package.json              # v5.4.1
+└── package.json              # v5.4.2
 ```
 
 ### 技術堆疊

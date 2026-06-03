@@ -3,9 +3,9 @@ name: extension
 description: >
   專案記憶：VS Code 外掛入口與 UI 模組。 Use when:
   處理外掛啟動生命週期、指令註冊、狀態列/TreeView/CodeLens/智慧歸屬等 UI 更新時載入。
-last_updated: '2026-05-19T20:29:33+08:00'
+last_updated: '2026-06-04T06:35:24+08:00'
 staleness: 0
-status: stable
+status: active
 metadata:
   author: antigravity
   version: '1.0'
@@ -15,7 +15,6 @@ metadata:
     - 'filesystem:read'
     - 'filesystem:write'
 ---
-
 # Extension & UI Layer — 外掛入口記憶
 
 > 本模組為外掛的主入口和 UI 層，負責編排所有運行時子模組的啟動、監聽和關閉。
@@ -68,6 +67,7 @@ metadata:
 - D34: `governance-views.ts` 歸 extension 父卡，因它負責註冊 VS Code commands / TreeView providers，且會 import 既有 `treeview-provider.ts`；側邊欄子卡只追蹤 provider/model 純檔案，避免記憶卡依賴循環。
 - D35: `governance-views.ts` 新增 `cartridge.openCabinetWorkbench` 註冊與 `CabinetWorkbenchPanel` 生命週期管理；卡匣機櫃本體歸 `extension.cabinet-workbench` 子卡，父卡只持有入口 glue code。
 - D36: v5.3.4 插件更新檢查 — `src/update-checker.ts` 使用 GitHub Releases latest API 比對本機版本與正式 Release，`extension.ts` 在命令註冊區提供 `cartridge.checkForUpdates`，並於啟動時依設定背景檢查新版 VSIX。
+- D37: v5.5 `treeview-provider.ts` 卡匣節點會把 compaction due / invalid 顯示為警示圖示，tooltip 補上 size、line count、cycle events、compaction status 與 split suggestion；此顯示層只消費索引中的 `CartridgeEntry.compaction`，不重新解析記憶卡正文。
 
 ## Known Issues
 

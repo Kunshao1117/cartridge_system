@@ -41,6 +41,8 @@ const filtersByLens: Record<CabinetLens, LensFilter[]> = {
   maintenance: [
     { id: "hot", label: "發熱", test: (card) => card.maintenanceScore > 0 },
     { id: "review", label: "複審", test: (card) => card.reviewScore > 0 },
+    { id: "compact", label: "需彙整", test: (card) => card.compactionDue },
+    { id: "advisory", label: "治理建議", test: (card) => card.compactionAdvisoryCount > 0 },
     { id: "ghost", label: "幽靈", test: (card) => card.ghostFilesCount > 0 },
     { id: "pending", label: "待同步", test: (card) => card.pendingChangesCount > 0 },
     {
@@ -59,7 +61,7 @@ const filtersByLens: Record<CabinetLens, LensFilter[]> = {
     { id: "dependencies", label: "有依賴", test: (card) => card.dependencies.length > 0 },
     { id: "dependents", label: "被依賴", test: (card) => card.dependents.length > 0 },
     { id: "slots", label: "父卡 / 子卡", test: (card) => Boolean(card.parent) || card.children.length > 0 },
-    { id: "files", label: "檔案數高", test: (card) => card.trackedFilesCount >= 5 },
+    { id: "files", label: "檔案數高", test: (card) => card.trackedFilesCount > 8 },
   ],
 };
 const activeFilters: Record<CabinetLens, Set<string>> = {
@@ -398,6 +400,8 @@ function maintenanceDetails(card: CabinetCard): string {
       ${metric("維護熱度", card.maintenanceScore)}
       ${metric("直接熱度", card.staleness)}
       ${metric("複審提醒", card.reviewScore)}
+      ${metric("壓縮狀態", card.compaction?.compactionStatus ?? "ready")}
+      ${metric("週期事件", card.compaction ? `${card.compaction.cycleEventCount}/${card.compaction.cycleEventLimit}` : "0/30")}
       ${metric("待同步", card.pendingChangesCount)}
       ${metric("幽靈檔", card.ghostFilesCount)}
     </div>
@@ -431,6 +435,7 @@ function structureDetails(card: CabinetCard): string {
     <div class="metric-grid">
       ${metric("結構強度", card.structureScore)}
       ${metric("追蹤檔案", card.trackedFilesCount)}
+      ${metric("拆分建議", card.trackedFilesCount > 8 ? "是" : "否")}
       ${metric("訊號輸入", card.dependencies.length)}
       ${metric("被依賴", card.dependents.length)}
     </div>
@@ -544,6 +549,8 @@ function cardClasses(card: CabinetCard): string {
   return [
     card.status,
     card.maintenanceScore > 0 ? "hot" : "",
+    card.compactionDue ? "critical" : "",
+    card.compactionAdvisoryCount > 0 ? "review" : "",
     card.reviewScore > 0 ? "review" : "",
     card.memoryScore > 3 ? "memory-rich" : "low-memory",
     card.structureScore > 0 ? "structured" : "",

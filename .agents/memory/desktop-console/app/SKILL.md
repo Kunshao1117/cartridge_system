@@ -3,8 +3,8 @@ name: desktop-console.app
 description: >
   專案記憶：Electron 桌面外殼、IPC、系統匣、通知與專案清單設定。Use when: 修改桌面主程序、 預載橋接、AppData
   專案設定、桌面通知或桌面打包設定時載入。
-last_updated: '2026-06-03T07:24:38+08:00'
-status: stable
+last_updated: '2026-06-04T06:35:24+08:00'
+status: active
 staleness: 0
 dependencies:
   - desktop-console.monitoring
@@ -17,7 +17,6 @@ metadata:
   tool_scope:
     - 'filesystem:read'
 ---
-
 # Desktop App Shell — 桌面外殼
 
 ## Tracked Files
@@ -50,6 +49,8 @@ metadata:
 - D10: 桌面設定與專案清單共用 `desktop-projects.json`，全域設定包含按 X 縮到系統匣、桌面通知與新手說明；設定保存於 Electron userData，不寫入被監控專案。
 - D11: 視窗 close 事件依 `window-behavior` 判斷是否縮到系統匣；只有系統匣退出或明確退出流程會真正停止監控。
 - D12: `desktop-notifier.ts` 不在 module load 階段直接載入 Electron Notification；改採 lazy loading 與可注入 notification API，避免 CI 單元測試依賴 Electron binary path。
+- D13: Desktop IPC 操作型 API 改回傳 `DesktopOperationResult` 封套，讓 renderer 可辨識 success / cancelled / blocked / error；查詢型 API 維持原樣。
+- D14: 主程序開啟專案與檔案時必須保留 path-guard 邊界，並將 `shell.openPath()` 的非空錯誤字串轉為 error 結果；對話框取消、未知專案與非法路徑不得安靜返回。
 
 ## Known Issues
 
@@ -59,6 +60,8 @@ metadata:
 
 - L01: 桌面打包必須和 VSIX/npm runtime 發布分流，否則 `package.json` 同時承載三條產品線時容易造成產物污染。
 - L02: 2026-06-03 GitHub Windows runner 執行單元測試時，`electron` 套件可能尚未具備 `path.txt`；測試通知邏輯應使用注入物件，不應載入真實 Electron binary。
+- L03: 操作者可見的桌面按鈕不可只依賴 Promise resolve；IPC 需要回傳可呈現的結果訊息，否則主程序成功、取消或被 path guard 阻擋都會被使用者看成「沒反應」。
+- L04: 2026-06-04 桌面 IPC 結果封套與開檔錯誤語意已隨操作回饋維修回歸驗證；`npm run desktop:build` 會產出 `dist/desktop/main.js`，避免 Electron 預覽找不到 main bundle。
 
 ## Relations
 

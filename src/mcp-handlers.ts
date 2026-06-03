@@ -15,6 +15,10 @@ import { validateProjectRoot } from "./path-guard.js";
 import { stalenessToLevel } from "./staleness.js";
 import { getTaiwanISO } from "./timestamp.js";
 import { parseTrackedFiles } from "./index-manager.js";
+import {
+  buildCompactionMetrics,
+  formatCompactionWarnings,
+} from "./memory-compaction.js";
 import type { CartridgeIndex } from "./types.js";
 import {
   createToolEnvelope,
@@ -299,10 +303,32 @@ export async function handleMemoryList(args: unknown): Promise<McpToolResult> {
           ghostFilesCount: entry.ghostFiles?.length ?? 0,
           dependencyCount: entry.dependencies?.length ?? 0,
           indirectStaleness: entry.indirectStaleness ?? 0,
+          compaction: entry.compaction ?? null,
+          cardKind: entry.compaction?.cardKind ?? null,
+          compactionCompliance: entry.compaction?.compliance ?? null,
+          sizeBytes: entry.compaction?.sizeBytes ?? null,
+          sizeLimitBytes: entry.compaction?.sizeLimitBytes ?? null,
+          lineCount: entry.compaction?.lineCount ?? null,
+          lineLimit: entry.compaction?.lineLimit ?? null,
+          chineseRatio: entry.compaction?.chineseRatio ?? null,
+          cycleEventCount: entry.compaction?.cycleEventCount ?? null,
+          cycleEventLimit: entry.compaction?.cycleEventLimit ?? null,
+          needsCompaction: entry.compaction?.needsCompaction ?? false,
+          legacyMemory: entry.compaction?.isLegacy ?? false,
+          compactionStatus: entry.compaction?.compactionStatus ?? null,
+          compactionRecommendation:
+            entry.compaction?.recommendedAction ?? "unknown",
+          compactionReasons: entry.compaction?.reasons ?? [],
+          archiveVolumes: entry.compaction?.archiveVolumes ?? [],
+          archiveMigrationWarnings:
+            entry.compaction?.archiveMigrationWarnings ?? [],
           splitSuggestion:
             trackedCount > 8
-              ? `此模組追蹤了 ${trackedCount} 個檔案，建議考慮拆分為子模組以提升維護性。`
+              ? `此模組追蹤了 ${trackedCount} 個檔案，這是拆分建議，不會單獨阻擋提交。`
               : null,
+          blockingSuggestion: entry.compaction?.needsCompaction
+            ? "此記憶卡已達壓縮門檻，請先彙整週期事件或拆分歸檔。"
+            : null,
         };
       });
 
@@ -840,6 +866,21 @@ export async function handleMemoryCommit(
         parent: cartridgeEntry?.parent ?? null,
       }).map(formatDependencySemanticWarning),
     );
+    const preCommitCompaction = buildCompactionMetrics(rawContent, frontmatter, {
+      cardPath: filePath,
+    });
+    if (preCommitCompaction.reasons.includes("cycleEventLimitExceeded")) {
+      return createHandlerErrorResult({
+        tool: "memory_commit",
+        readOnly: false,
+        projectRoot,
+        code: "memory_compaction_required",
+        message:
+          `Cycle Events 已超過 ${preCommitCompaction.cycleEventLimit} 筆，` +
+          "請先彙整記憶卡後再同步。",
+      });
+    }
+    warnings.push(...formatCompactionWarnings(moduleName, preCommitCompaction));
 
     // 4. 時間戳注入 + staleness 歸零 + 清除殘留警報區塊（修復 #4）
     let updatedContent = updateFrontmatterFields(rawContent, {
@@ -849,6 +890,9 @@ export async function handleMemoryCommit(
     const { data: commitFm, content: commitBody } = matter(updatedContent);
     commitFm.status = "stable";
     updatedContent = matter.stringify(stripWarningBlock(commitBody), commitFm);
+    const postCommitCompaction = buildCompactionMetrics(updatedContent, commitFm, {
+      cardPath: filePath,
+    });
     await fs.writeFile(filePath, updatedContent, "utf-8");
 
     // 5. 索引同步（graceful，失敗不影響主流程）
@@ -864,6 +908,7 @@ export async function handleMemoryCommit(
         index.cartridges[moduleName].staleness = 0;
         index.cartridges[moduleName].lastUpdated = isoLocal;
         index.cartridges[moduleName].ghostFiles = [];
+        index.cartridges[moduleName].compaction = postCommitCompaction;
 
         // 重新解析 trackedFiles
         const trackedFiles = parseTrackedFiles(body);

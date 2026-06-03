@@ -3,9 +3,9 @@ name: extension.governance-sidebar
 description: >
   專案記憶：v5 獨立 Activity Bar 治理側邊欄。Use when: 修改 Cartridge Activity Bar
   container、治理總覽、上下文治理 findings、待處理項目或 VS Code TreeView provider 時載入。
-last_updated: '2026-06-02T20:59:58+08:00'
+last_updated: '2026-06-04T06:35:24+08:00'
 staleness: 0
-status: stable
+status: active
 metadata:
   author: antigravity
   version: '1.0'
@@ -14,7 +14,6 @@ metadata:
   tool_scope:
     - 'filesystem:read'
 ---
-
 # Extension Governance Sidebar — 獨立治理側邊欄
 
 > 本子卡記錄 v5 將 Cartridge UI 從 Explorer 內嵌 view 升級為獨立 Activity Bar 側邊欄的設計、檔案歸屬與 v5.1 白話提示。
@@ -45,6 +44,7 @@ metadata:
 - D13: v5.3.4 插件更新檢查 — `governance-sidebar.test.ts` 固定 package manifest 已公開 `cartridge.checkForUpdates` 與 `cartridge.updateCheck.enabled`，避免命令面板入口或設定在後續側邊欄 manifest 調整中遺失。
 - D14: v5.3.5 插件更新檢查按鈕 — `governance-sidebar.test.ts` 固定 `cartridge.checkForUpdates` 具有 `$(cloud-download)` icon，且同時出現在 `cartridgeGovernanceOverview` 與 `cartridgeExplorer` 的 view title menu。
 - D15: v5.4.1 治理側邊欄把 indirect stale / parent-child advisory 呈現為 warning 等級「複審上游影響」項目；治理總覽可回 warning，但不把這類提示升級為記憶卡阻塞。
+- D16: v5.5 治理側邊欄與待處理項目顯示 schema v2 compaction 訊號；compaction due / invalid / archive volume due 進入 blocking action item，legacy、中文比例、舊式 archive 遷移與 split suggestion 進入 advisory action item。
 
 ## Known Issues
 

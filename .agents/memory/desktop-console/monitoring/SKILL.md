@@ -3,8 +3,8 @@ name: desktop-console.monitoring
 description: >
   專案記憶：桌面版純 Node 多專案監控 runtime。Use when: 處理桌面監控核心、Node 檔案監聽、 多專案快照、共享 watcher
   規則或監控測試時載入。
-last_updated: '2026-06-03T03:15:46+08:00'
-status: stable
+last_updated: '2026-06-04T06:35:24+08:00'
+status: active
 staleness: 0
 dependencies:
   - index-manager
@@ -17,7 +17,6 @@ metadata:
   tool_scope:
     - 'filesystem:read'
 ---
-
 # Desktop Monitoring — 桌面監控核心
 
 ## Tracked Files
@@ -41,6 +40,7 @@ metadata:
 - D06: dependency reason — `extension.watcher` 是既有 VSIX watcher 語意來源；若插件 watcher 的事件順序、記憶卡優先規則或 `.gitignore` 行為過期，共用事件 helper 與桌面 watcher 必須重新檢查。
 - D07: 桌面快照保留既有 summary counts，同時新增 pendingChangeFiles、ghostFilePaths、trackedFiles 與 guidance，讓 renderer 能顯示問題原因與處理導引，而不需要直接讀取索引或呼叫 MCP。
 - D08: 未歸屬檔案快照保留 suggestedOwner，並補上 detectedAt、lastEvent 與 guidance；桌面版只引導開檔與人工歸屬，不自動寫入記憶卡正文。
+- D09: 桌面快照會投影 `CartridgeEntry.compaction` 與 advisory count；compaction due / invalid 進入 blocking 導引，legacy schema、中文比例與 tracked files 超過 8 進入 review/advisory 導引，renderer 不重新解析記憶卡內容。
 
 ## Known Issues
 

@@ -3,8 +3,8 @@ name: workspace-brief
 description: >
   專案記憶：workspace_brief 高階治理摘要工具。Use when: 處理 AI 開工摘要、記憶卡健康彙整、readiness
   判斷與建議行動排序時載入。
-last_updated: '2026-06-02T21:03:06+08:00'
-status: stable
+last_updated: '2026-06-04T06:35:24+08:00'
+status: active
 staleness: 0
 dependencies:
   - core-types
@@ -21,7 +21,6 @@ metadata:
     - 'filesystem:read'
     - 'filesystem:write'
 ---
-
 # Workspace Brief — 高階治理摘要記憶
 
 > 本模組提供 `workspace_brief` MCP 工具的摘要彙整邏輯，作為 AI 進入專案時的高階開工入口。
@@ -58,6 +57,7 @@ metadata:
 - D22: v5.4 `workspace_brief` 新增 `projectContext` 摘要，讀取 `.agents/context/` 狀態並轉為非阻塞開工提醒；專案脈絡 warning 不會改變原始碼記憶的 stale 判斷，也不取代 `commit_preflight`。
 - D23: dependency reason — `mcp-tools.project-context` 持有專案脈絡掃描、驗證與狀態摘要語義；若 project_context readiness 或 findings 口徑改變，workspace_brief 的 `projectContext` 摘要與非阻塞 recommendedActions 必須重新檢查。
 - D24: v5.4.1 `workspace_brief` 摘要新增 additive `memoryWarnings`、`reviewItems` 與 `advisories`；舊的 `indirectStaleness` / `indirectStaleModules` 保留相容，但不再單獨導致 `blocked`。
+- D25: v5.5 `workspace_brief` 摘要新增 compactionDue、legacyCards、languageWarnings、splitSuggestions 與 granularityAdvisories；compaction due / invalid 會阻擋開工並建議先彙整，legacy schema、中文比例過高與 tracked files 超過 8 維持 advisory，不單獨阻擋。
 
 ## Known Issues
 
@@ -66,7 +66,7 @@ metadata:
 ## Module Lessons
 
 - L01: 高階 MCP 工具應避免在查詢型摘要中執行隱性掃描或外部命令，否則會讓 AI 開工入口變慢且難以預測。
-- L02: 超過 8 檔粒度上限時，應優先建立子卡承接新功能，而不是把父卡繼續擴大。
+- L02: 超過 8 個 tracked files 是 split suggestion / advisory；應優先建立子卡承接新功能，但只有同時出現硬限制超標、語義混雜或維護困難時才升級為阻擋。
 - L03: `Relations` 可提示 AI 讀父卡取得脈絡，但不應觸發 staleness propagation。
 - L04: workspace 摘要只做 index 層可見的輕量拓樸提示，不讀取所有 SKILL.md，避免開工入口變慢，也避免在缺少依賴理由內文時誤判。
 - L05: workspace_brief 可提示提交前下一步，但不應取代 commit_preflight；只要沒有讀取 git state，就只能給 needs_review 而非 ready-to-submit。

@@ -31,6 +31,14 @@ name: mcp-tools
 description: test
 last_updated: '2026-05-15T00:00:00+08:00'
 staleness: 0
+memory_schema_version: 2
+content_language: en
+human_language: zh-TW
+cycle_id: 2026-06-04-001
+cycle_event_count: 1
+size_limit_bytes: 16384
+archive_policy: volume
+compaction_status: ready
 metadata:
   author: test
   version: '1.0'
@@ -46,6 +54,26 @@ metadata:
 ## Key Decisions
 
 - D01: test.
+
+## Current Truth
+
+- The test card is current.
+
+## Active Constraints
+
+- Keep this card compact.
+
+## Cycle Events
+
+- 01: Test event.
+
+## Archive Index
+
+- None.
+
+## 中文摘要
+
+- 測試摘要。
 `;
     await writeFile(".agents/memory/mcp-tools/SKILL.md", skill);
     await writeFile(
@@ -84,6 +112,14 @@ name: _assets
 description: test
 last_updated: '2026-05-15T00:00:00+08:00'
 staleness: 0
+memory_schema_version: 2
+content_language: en
+human_language: zh-TW
+cycle_id: 2026-06-04-001
+cycle_event_count: 1
+size_limit_bytes: 16384
+archive_policy: volume
+compaction_status: ready
 metadata:
   author: test
   version: '1.0'
@@ -99,6 +135,26 @@ metadata:
 ## Key Decisions
 
 - D01: test.
+
+## Current Truth
+
+- The test card is current.
+
+## Active Constraints
+
+- Keep this card compact.
+
+## Cycle Events
+
+- 01: Test event.
+
+## Archive Index
+
+- None.
+
+## 中文摘要
+
+- 測試摘要。
 `;
     await writeFile(".agents/memory/_assets/SKILL.md", skill);
     await writeFile(
@@ -178,6 +234,265 @@ dependencies:
     );
   });
 
+  it("週期事件滿額時應回報必須彙整", async () => {
+    const events = Array.from(
+      { length: 30 },
+      (_, index) => `- ${String(index + 1).padStart(2, "0")}: Test event.`,
+    ).join("\n");
+    await writeFile(
+      ".agents/memory/full-cycle/SKILL.md",
+      `---
+name: full-cycle
+description: test
+last_updated: '2026-06-04T00:00:00+08:00'
+staleness: 0
+memory_schema_version: 2
+content_language: en
+human_language: zh-TW
+cycle_id: 2026-06-04-001
+cycle_event_count: 30
+size_limit_bytes: 16384
+archive_policy: volume
+compaction_status: ready
+metadata:
+  author: test
+  version: '1.0'
+  origin: test
+  memory_awareness: full
+  tool_scope: []
+---
+
+## Current Truth
+
+- The card has reached the cycle event limit.
+
+## Active Constraints
+
+- Compact before adding another event.
+
+## Cycle Events
+
+${events}
+
+## Archive Index
+
+- None.
+
+## 中文摘要
+
+- 週期已滿。
+
+## Tracked Files
+
+- src/full-cycle.ts
+`,
+    );
+    await writeFile(
+      ".cartridge/index.json",
+      JSON.stringify({
+        cartridges: {
+          "full-cycle": {
+            skillPath: ".agents/memory/full-cycle/SKILL.md",
+            staleness: 0,
+            trackedFiles: ["src/full-cycle.ts"],
+            ghostFiles: [],
+            dependencies: [],
+            indirectStaleness: 0,
+          },
+        },
+        fileMap: { "src/full-cycle.ts": ["full-cycle"] },
+        untrackedFiles: [],
+      }),
+    );
+
+    const result = await handleMemoryAudit({ projectRoot });
+    const envelope = parseEnvelope(result);
+    const codes = envelope.findings.map((finding: { code: string }) => finding.code);
+
+    expect(envelope.status).toBe("warning");
+    expect(envelope.summary.summary.compactionDue).toBe(1);
+    expect(envelope.summary.summary.cycleLimitReached).toBe(1);
+    expect(codes).toContain("MEMORY_CYCLE_LIMIT_REACHED");
+    expect(codes).toContain("MEMORY_COMPACTION_REQUIRED");
+    expect(envelope.recommendedActions).toContainEqual(
+      expect.objectContaining({ action: "compact_memory_cards" }),
+    );
+  });
+
+  it("平面 archive-001.md 歸檔卷超限時應提示開下一卷", async () => {
+    await writeFile(
+      ".agents/memory/archive-demo/SKILL.md",
+      `---
+name: archive-demo
+description: test
+last_updated: '2026-06-04T00:00:00+08:00'
+staleness: 0
+memory_schema_version: 2
+content_language: en
+human_language: zh-TW
+cycle_id: 2026-06-04-001
+cycle_event_count: 1
+size_limit_bytes: 16384
+archive_policy: volume
+compaction_status: ready
+metadata:
+  author: test
+  version: '1.0'
+  origin: test
+  memory_awareness: full
+  tool_scope: []
+---
+
+## Current Truth
+
+- The main card keeps the active state.
+
+## Active Constraints
+
+- Archive volumes use flat filenames.
+
+## Cycle Events
+
+- 01: Created an archive volume.
+
+## Archive Index
+
+- archive-001.md
+
+## 中文摘要
+
+- 歸檔卷測試。
+
+## Tracked Files
+
+- src/archive-demo.ts
+`,
+    );
+    await writeFile(
+      ".agents/memory/archive-demo/archive-001.md",
+      `# Archive 001\n\n${"Historical detail.\n".repeat(210)}`,
+    );
+    await writeFile(
+      ".cartridge/index.json",
+      JSON.stringify({
+        cartridges: {
+          "archive-demo": {
+            skillPath: ".agents/memory/archive-demo/SKILL.md",
+            staleness: 0,
+            trackedFiles: ["src/archive-demo.ts"],
+            ghostFiles: [],
+            dependencies: [],
+            indirectStaleness: 0,
+          },
+        },
+        fileMap: { "src/archive-demo.ts": ["archive-demo"] },
+        untrackedFiles: [],
+      }),
+    );
+
+    const result = await handleMemoryAudit({ projectRoot });
+    const envelope = parseEnvelope(result);
+    const codes = envelope.findings.map((finding: { code: string }) => finding.code);
+
+    expect(envelope.status).toBe("warning");
+    expect(envelope.summary.summary.archiveVolumeDue).toBe(1);
+    expect(codes).toContain("MEMORY_ARCHIVE_VOLUME_LIMIT");
+    expect(envelope.recommendedActions).toContainEqual(
+      expect.objectContaining({ action: "open_next_archive_volume" }),
+    );
+  });
+
+  it("舊式 archive/001/SKILL.md 歸檔路徑應提示遷移", async () => {
+    await writeFile(
+      ".agents/memory/archive-demo/SKILL.md",
+      `---
+name: archive-demo
+description: test
+last_updated: '2026-06-04T00:00:00+08:00'
+staleness: 0
+memory_schema_version: 2
+content_language: en
+human_language: zh-TW
+cycle_id: 2026-06-04-001
+cycle_event_count: 1
+size_limit_bytes: 16384
+archive_policy: volume
+compaction_status: ready
+metadata:
+  author: test
+  version: '1.0'
+  origin: test
+  memory_awareness: full
+  tool_scope: []
+---
+
+## Current Truth
+
+- The main card keeps the active state.
+
+## Active Constraints
+
+- Archive volumes should use flat filenames.
+
+## Cycle Events
+
+- 01: Detected a legacy archive path.
+
+## Archive Index
+
+- archive/001/SKILL.md
+
+## 中文摘要
+
+- 舊歸檔路徑測試。
+
+## Tracked Files
+
+- src/archive-demo.ts
+`,
+    );
+    await writeFile(
+      ".agents/memory/archive-demo/archive/001/SKILL.md",
+      `---
+name: archive-demo.archive.001
+description: legacy archive
+last_updated: '2026-06-04T00:00:00+08:00'
+staleness: 0
+---
+
+# Legacy archive
+`,
+    );
+    await writeFile(
+      ".cartridge/index.json",
+      JSON.stringify({
+        cartridges: {
+          "archive-demo": {
+            skillPath: ".agents/memory/archive-demo/SKILL.md",
+            staleness: 0,
+            trackedFiles: ["src/archive-demo.ts"],
+            ghostFiles: [],
+            dependencies: [],
+            indirectStaleness: 0,
+          },
+        },
+        fileMap: { "src/archive-demo.ts": ["archive-demo"] },
+        untrackedFiles: [],
+      }),
+    );
+
+    const result = await handleMemoryAudit({ projectRoot });
+    const envelope = parseEnvelope(result);
+    const codes = envelope.findings.map((finding: { code: string }) => finding.code);
+
+    expect(envelope.status).toBe("warning");
+    expect(envelope.summary.summary.archiveMigrationWarnings).toBe(1);
+    expect(codes).toContain("MEMORY_ARCHIVE_PATH_MIGRATION");
+    expect(envelope.recommendedActions).toContainEqual(
+      expect.objectContaining({ action: "migrate_archive_paths" }),
+    );
+  });
+
   it("缺索引時不視為工具錯誤，應回報相容模式", async () => {
     await writeFile(
       ".agents/memory/_system/SKILL.md",
@@ -186,6 +501,14 @@ name: _system
 description: test
 last_updated: '2026-05-15T00:00:00+08:00'
 staleness: 0
+memory_schema_version: 2
+content_language: en
+human_language: zh-TW
+cycle_id: 2026-06-04-001
+cycle_event_count: 0
+size_limit_bytes: 16384
+archive_policy: volume
+compaction_status: ready
 metadata:
   author: test
 ---
@@ -280,6 +603,14 @@ name: ${moduleName}
 description: test
 last_updated: '2026-05-15T00:00:00+08:00'
 staleness: 0
+memory_schema_version: 2
+content_language: en
+human_language: zh-TW
+cycle_id: 2026-06-04-001
+cycle_event_count: 1
+size_limit_bytes: 16384
+archive_policy: volume
+compaction_status: ready
 metadata:
   author: test
 ---
@@ -291,6 +622,26 @@ metadata:
 ## Key Decisions
 
 - D01: test.
+
+## Current Truth
+
+- The test card is current.
+
+## Active Constraints
+
+- Keep this card compact.
+
+## Cycle Events
+
+- None.
+
+## Archive Index
+
+- None.
+
+## 中文摘要
+
+- 測試摘要。
 `,
       );
     }

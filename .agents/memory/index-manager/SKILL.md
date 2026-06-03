@@ -3,8 +3,8 @@ name: index-manager
 description: >
   專案記憶：記憶索引管理器模組。管理卡匣索引、檔案反向映射、離線偵測、未歸屬檔案池、Cache-First 持久化。Use when:
   處理卡匣索引、檔案反向映射、持久化讀寫時載入。
-last_updated: '2026-05-17T21:52:22+08:00'
-status: stable
+last_updated: '2026-06-04T06:35:24+08:00'
+status: active
 staleness: 0
 dependencies:
   - core-types
@@ -16,7 +16,6 @@ metadata:
   tool_scope:
     - 'filesystem:write'
 ---
-
 # Cartridge Index Manager — 索引管理器記憶
 
 ## Tracked Files
@@ -65,6 +64,8 @@ metadata:
 - D35: `smart-owner.ts` 歸屬本卡，因它根據 `CartridgeIndex` 與 trackedFiles 提供未歸屬檔案推薦；extension 只消費推薦結果，不持有推薦演算法。
 - D36: `refilterUntrackedFiles()` 是未歸屬池整理的共用入口；它只移除已被最新 fileMap 追蹤或已被 GitignoreFilter 排除的舊項目，不新增新的 untracked entry。
 - D37: `refilterUntrackedFiles()` 若實際清掉項目會呼叫 `markDirty()`，確保 watcher / extension UI 與 `.cartridge/index.json` 可以在後續 flush 反映狀態。
+- D38: `scanRecursive()` 會從每張記憶卡原文、frontmatter 與路徑建立 schema v2 compaction metrics，並寫入 `CartridgeEntry.compaction`；卡片種類由路徑判定，主卡、`_map/SKILL.md` 根層索引與 `archive-001.md` 平面歸檔卷套用不同硬限制，後續 memory_list、memory_audit、workspace_brief、commit_preflight 與 UI 共用同一個索引訊號。
+- D39: 索引掃描主卡時會附帶同層 `archive-###.md` 歸檔卷摘要，並偵測舊式 `archive/**/SKILL.md` 路徑作為遷移提醒；不自動搬移或改寫歸檔內容。
 
 ## Key Decisions Addendum
 

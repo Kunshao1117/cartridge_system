@@ -1,14 +1,17 @@
 import type { CartridgeConfig, StalenessLevel } from "./types.js";
+import type { MemoryCompactionMetrics } from "./memory-compaction.js";
 
 const STALENESS_THRESHOLDS = { significant: 10, critical: 30 };
 
-export type MemoryWarningTier = "blocking" | "review" | "info";
+export type MemoryWarningTier = "blocking" | "review" | "advisory" | "info";
 
 export interface MemoryWarningEntry {
   staleness?: number;
   ghostFiles?: unknown[];
   indirectStaleness?: number;
   parent?: string | null;
+  trackedFiles?: unknown[];
+  compaction?: MemoryCompactionMetrics;
 }
 
 export interface MemoryWarningIndex {
@@ -24,7 +27,14 @@ export interface MemoryWarningItem {
     | "memory_untracked_files"
     | "memory_indirect_stale"
     | "memory_child_review"
-    | "memory_relation_hint";
+    | "memory_relation_hint"
+    | "memory_compaction_due"
+    | "memory_compaction_invalid"
+    | "memory_archive_volume_due"
+    | "memory_archive_migration"
+    | "memory_legacy_schema"
+    | "memory_language_ratio"
+    | "memory_granularity_advisory";
   target: string;
   reason: string;
   label: string;
@@ -35,6 +45,7 @@ export interface MemoryWarningItem {
 export interface MemoryWarningClassification {
   blocking: MemoryWarningItem[];
   review: MemoryWarningItem[];
+  advisory: MemoryWarningItem[];
   info: MemoryWarningItem[];
 }
 
@@ -60,6 +71,7 @@ export function classifyMemoryWarnings(
 ): MemoryWarningClassification {
   const blocking: MemoryWarningItem[] = [];
   const review: MemoryWarningItem[] = [];
+  const advisory: MemoryWarningItem[] = [];
   const info: MemoryWarningItem[] = [];
   const childReviewByParent = new Map<string, string[]>();
 
@@ -119,6 +131,98 @@ export function classifyMemoryWarnings(
         childReviewByParent.set(entry.parent, children);
       }
     }
+
+    const compaction = entry.compaction;
+    if (compaction?.needsCompaction) {
+      blocking.push({
+        tier: "blocking",
+        code:
+          compaction.compliance === "invalid"
+            ? "memory_compaction_invalid"
+            : "memory_compaction_due",
+        target: module,
+        reason:
+          `compactionStatus=${compaction.compactionStatus};` +
+          `cardKind=${compaction.cardKind};` +
+          `reasons=${compaction.reasons.join(",")};` +
+          `cycleEvents=${compaction.cycleEventCount}/${compaction.cycleEventLimit};` +
+          `sizeBytes=${compaction.sizeBytes}/${compaction.sizeLimitBytes};` +
+          `lineCount=${compaction.lineCount}/${compaction.lineLimit ?? "none"}`,
+        label: `先彙整記憶卡：${module}`,
+        score: Math.max(
+          compaction.cycleEventCount,
+          Math.ceil(compaction.sizeBytes / 1024),
+          compaction.lineCount,
+        ),
+        blocking: true,
+      });
+    }
+
+    for (const archive of compaction?.archiveVolumes ?? []) {
+      if (!archive.needsCompaction) continue;
+      blocking.push({
+        tier: "blocking",
+        code: "memory_archive_volume_due",
+        target: module,
+        reason:
+          `archive=${archive.filePath};` +
+          `reasons=${archive.reasons.join(",")};` +
+          `sizeBytes=${archive.sizeBytes}/${archive.sizeLimitBytes};` +
+          `lineCount=${archive.lineCount}/${archive.lineLimit}`,
+        label: `開新歸檔卷：${module}`,
+        score: Math.max(Math.ceil(archive.sizeBytes / 1024), archive.lineCount),
+        blocking: true,
+      });
+    }
+
+    if (compaction?.isLegacy) {
+      advisory.push({
+        tier: "advisory",
+        code: "memory_legacy_schema",
+        target: module,
+        reason: "memory_schema_version<2",
+        label: `懶升級舊記憶卡：${module}`,
+        score: 1,
+        blocking: false,
+      });
+    }
+
+    if (compaction?.reasons.includes("highChineseRatio")) {
+      advisory.push({
+        tier: "advisory",
+        code: "memory_language_ratio",
+        target: module,
+        reason: `chineseRatio=${compaction.chineseRatio}`,
+        label: `調整英文主體比例：${module}`,
+        score: Math.ceil(compaction.chineseRatio * 100),
+        blocking: false,
+      });
+    }
+
+    const trackedFilesCount = entry.trackedFiles?.length ?? 0;
+    if (trackedFilesCount > 8) {
+      advisory.push({
+        tier: "advisory",
+        code: "memory_granularity_advisory",
+        target: module,
+        reason: `trackedFiles=${trackedFilesCount}`,
+        label: `建議拆分記憶卡：${module}`,
+        score: trackedFilesCount,
+        blocking: false,
+      });
+    }
+
+    for (const warning of compaction?.archiveMigrationWarnings ?? []) {
+      advisory.push({
+        tier: "advisory",
+        code: "memory_archive_migration",
+        target: module,
+        reason: warning,
+        label: `遷移舊式歸檔路徑：${module}`,
+        score: 1,
+        blocking: false,
+      });
+    }
   }
 
   const untrackedFiles = index.untrackedFiles?.length ?? 0;
@@ -149,6 +253,7 @@ export function classifyMemoryWarnings(
   return {
     blocking: sortWarnings(blocking),
     review: sortWarnings(review),
+    advisory: sortWarnings(advisory),
     info: sortWarnings(info),
   };
 }

@@ -2,6 +2,8 @@
  * 記憶卡匣外掛系統 — 共用型別定義
  */
 
+import type { MemoryCompactionMetrics } from "./memory-compaction.js";
+
 /** 檔案異動事件類型 */
 export type FileEventType = "add" | "change" | "unlink";
 
@@ -32,6 +34,8 @@ export interface CartridgeEntry {
   dependencies: string[];
   /** 因上游依賴過期而傳播的間接過期指數 */
   indirectStaleness: number;
+  /** 記憶卡壓縮治理度量 */
+  compaction?: MemoryCompactionMetrics;
 }
 
 /** 待處理的異動紀錄 */

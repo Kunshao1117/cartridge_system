@@ -12,6 +12,11 @@ export const useDetailStyles = makeStyles({
     display: "grid",
     gridTemplateRows: "auto minmax(0, 1fr)",
   },
+  untrackedPanel: {
+    minHeight: 0,
+    display: "grid",
+    gridTemplateRows: "auto minmax(0, auto)",
+  },
   tableHeader: {
     padding: "10px 12px 8px",
     display: "grid",
@@ -22,6 +27,7 @@ export const useDetailStyles = makeStyles({
     minHeight: 0,
     overflowY: "auto",
     overflowX: "hidden",
+    overscrollBehavior: "auto",
     scrollbarGutter: "stable",
   },
   cartridgeGrid: {
@@ -99,6 +105,12 @@ export const useDetailStyles = makeStyles({
     whiteSpace: "nowrap",
   },
   untrackedList: {
+    minHeight: 0,
+    maxHeight: "260px",
+    overflowY: "auto",
+    overflowX: "hidden",
+    overscrollBehavior: "auto",
+    scrollbarGutter: "stable",
     display: "grid",
   },
   fileRow: {
@@ -149,6 +161,8 @@ export const useDetailStyles = makeStyles({
     minHeight: 0,
     overflowY: "auto",
     overflowX: "hidden",
+    overscrollBehavior: "auto",
+    scrollbarGutter: "stable",
     padding: "12px 16px 18px",
     display: "grid",
     alignContent: "start",

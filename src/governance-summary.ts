@@ -13,7 +13,10 @@ export interface GovernanceSummary {
     ghostFiles: number;
     untrackedFiles: number;
     pendingChanges: number;
+    blockingItems: number;
     reviewItems: number;
+    advisoryItems: number;
+    compactionDue: number;
   };
   context: {
     assets: number;
@@ -49,17 +52,19 @@ export function buildGovernanceSummary(args: {
       (sum, entry) => sum + (entry.pendingChanges?.length ?? 0),
       0,
     ),
+    blockingItems: memoryWarnings.blocking.length,
     reviewItems: memoryWarnings.review.length,
+    advisoryItems: memoryWarnings.advisory.length,
+    compactionDue: entries.filter((entry) => entry.compaction?.needsCompaction)
+      .length,
   };
 
   const status =
-    blockers.length > 0 || memory.critical > 0
+    blockers.length > 0 || memory.blockingItems > 0
       ? "blocked"
       : warnings.length > 0 ||
-          memory.stale > 0 ||
-          memory.ghostFiles > 0 ||
-          memory.untrackedFiles > 0 ||
-          memory.reviewItems > 0
+          memory.reviewItems > 0 ||
+          memory.advisoryItems > 0
         ? "warning"
         : "ready";
 

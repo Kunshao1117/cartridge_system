@@ -1,4 +1,4 @@
-import { Text } from "@fluentui/react-components";
+import { Spinner, Text } from "@fluentui/react-components";
 import type { ReactNode } from "react";
 import type {
   DesktopCartridgeSnapshot,
@@ -6,6 +6,14 @@ import type {
 } from "../../monitoring/project-snapshot";
 import { cx, toneClass, useDesktopStyles } from "./desktopStyles";
 import { getCartridgeStatus, getProjectStatus } from "./status";
+
+export type OperationStatusKind =
+  | "idle"
+  | "pending"
+  | "success"
+  | "cancelled"
+  | "blocked"
+  | "error";
 
 export function ScrollPane(props: {
   className?: string;
@@ -20,6 +28,38 @@ export function ScrollPane(props: {
       tabIndex={0}
     >
       {props.children}
+    </div>
+  );
+}
+
+export function OperationStatusBar(props: {
+  status: OperationStatusKind;
+  message: string;
+}) {
+  const styles = useDesktopStyles();
+  const assertive = props.status === "blocked" || props.status === "error";
+  return (
+    <div
+      className={cx(
+        styles.operationStatusBar,
+        operationStatusClass(styles, props.status),
+      )}
+      role="status"
+      aria-live={assertive ? "assertive" : "polite"}
+      aria-atomic="true"
+    >
+      <span
+        className={cx(
+          styles.operationStatusIndicator,
+          props.status === "pending" && styles.operationStatusIndicatorPending,
+        )}
+        aria-hidden="true"
+      >
+        {props.status === "pending" ? <Spinner size="tiny" /> : null}
+      </span>
+      <Text size={200} className={styles.operationStatusText}>
+        {props.message}
+      </Text>
     </div>
   );
 }
@@ -60,4 +100,17 @@ export function SmallMuted(props: { children: ReactNode }) {
       {props.children}
     </Text>
   );
+}
+
+function operationStatusClass(
+  styles: ReturnType<typeof useDesktopStyles>,
+  status: OperationStatusKind,
+): string {
+  if (status === "success") return styles.operationStatusSuccess;
+  if (status === "cancelled") return styles.operationStatusCancelled;
+  if (status === "blocked" || status === "error") {
+    return styles.operationStatusDanger;
+  }
+  if (status === "pending") return styles.operationStatusPending;
+  return styles.operationStatusIdle;
 }

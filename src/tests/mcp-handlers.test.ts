@@ -107,6 +107,63 @@ describe("handleMemoryList", () => {
     expect(result.isError).toBe(true);
     expect(result.content[0].text).toContain("Validation Error");
   });
+
+  it("索引清單應揭露壓縮治理度量", async () => {
+    vi.mocked(fs.readFile).mockResolvedValue(
+      JSON.stringify({
+        cartridges: {
+          "full-cycle": {
+            description: "test",
+            staleness: 0,
+            pendingChanges: [],
+            trackedFiles: ["src/full-cycle.ts"],
+            ghostFiles: [],
+            dependencies: [],
+            indirectStaleness: 0,
+            depth: 1,
+            parent: null,
+            compaction: {
+              schemaVersion: 2,
+              cardKind: "main",
+              limitKind: "main",
+              compliance: "due",
+              isLegacy: false,
+              contentLanguage: "en",
+              humanLanguage: "zh-TW",
+              sizeBytes: 8000,
+              lineCount: 80,
+              chineseCharCount: 0,
+              bodyCharCount: 1000,
+              chineseRatio: 0,
+              cycleId: "2026-06-04-001",
+              cycleEventCount: 30,
+              cycleEventLimit: 30,
+              sizeLimitBytes: 16384,
+              lineLimit: 120,
+              archivePolicy: "volume",
+              compactionStatus: "due",
+              needsCompaction: true,
+              recommendedAction: "compact",
+              reasons: ["cycleEventLimitReached", "cycleEventLimit"],
+            },
+          },
+        },
+        untrackedFiles: [],
+      }) as unknown as Awaited<ReturnType<typeof fs.readFile>>,
+    );
+
+    const result = await handleMemoryList({ projectRoot: PROJECT_ROOT });
+    const envelope = parseEnvelope(result);
+    const card = envelope.summary.cartridges[0];
+
+    expect(result.isError).toBeUndefined();
+    expect(card.module).toBe("full-cycle");
+    expect(card.needsCompaction).toBe(true);
+    expect(card.cycleEventCount).toBe(30);
+    expect(card.compactionRecommendation).toBe("compact");
+    expect(card.splitSuggestion).toBeNull();
+    expect(card.blockingSuggestion).toContain("壓縮門檻");
+  });
 });
 
 // ---------------------------------------------------------------------------
@@ -672,6 +729,192 @@ describe("handleMemoryCommit", () => {
 
     expect(report.warnings).toContain("frontmatter 缺少 description 欄位");
     expect(report.warnings).toContain("body 缺少 ## Tracked Files 區段");
+  });
+
+  it("壓縮到期記憶卡提交時應回傳先彙整警告", async () => {
+    const events = Array.from(
+      { length: 30 },
+      (_, index) => `- ${String(index + 1).padStart(2, "0")}: Test event.`,
+    ).join("\n");
+    const existing = `---
+name: full-cycle
+description: test
+last_updated: "old"
+staleness: 5
+memory_schema_version: 2
+content_language: en
+human_language: zh-TW
+cycle_id: 2026-06-04-001
+cycle_event_count: 30
+size_limit_bytes: 16384
+archive_policy: volume
+compaction_status: ready
+metadata:
+  author: test
+  version: '1.0'
+  origin: test
+  memory_awareness: full
+  tool_scope: []
+---
+
+## Current Truth
+
+- The card has reached the cycle event limit.
+
+## Active Constraints
+
+- Compact before adding another event.
+
+## Cycle Events
+
+${events}
+
+## Archive Index
+
+- None.
+
+## 中文摘要
+
+- 週期已滿。
+
+## Tracked Files
+
+- src/full-cycle.ts
+`;
+    const indexData = {
+      cartridges: {
+        "full-cycle": {
+          skillPath: ".agents/memory/full-cycle/SKILL.md",
+          staleness: 5,
+          pendingChanges: [],
+          trackedFiles: ["src/full-cycle.ts"],
+          lastUpdated: "old",
+          ghostFiles: [],
+          dependencies: [],
+          indirectStaleness: 0,
+        },
+      },
+      fileMap: { "src/full-cycle.ts": ["full-cycle"] },
+      untrackedFiles: [],
+    };
+    vi.mocked(fs.readFile).mockImplementation(async (filePath) => {
+      const fp = filePath as string;
+      if (fp.includes("index.json")) {
+        return JSON.stringify(indexData) as unknown as Awaited<
+          ReturnType<typeof fs.readFile>
+        >;
+      }
+      if (fp.includes("full-cycle") && fp.endsWith("SKILL.md")) {
+        return existing as unknown as Awaited<ReturnType<typeof fs.readFile>>;
+      }
+      throw new Error("unexpected path");
+    });
+    vi.mocked(fs.writeFile).mockResolvedValue(undefined);
+
+    const result = await handleMemoryCommit({
+      moduleName: "full-cycle",
+      projectRoot: PROJECT_ROOT,
+    });
+    const report = parseEnvelope(result).summary;
+
+    expect(report.status).toBe("success");
+    expect(
+      report.warnings.some((warning: string) =>
+        warning.includes("MEMORY_COMPACTION_DUE"),
+      ),
+    ).toBe(true);
+  });
+
+  it("週期事件超過三十筆時 memory_commit 應阻擋且不寫入", async () => {
+    const events = Array.from(
+      { length: 31 },
+      (_, index) => `- ${String(index + 1).padStart(2, "0")}: Test event.`,
+    ).join("\n");
+    const existing = `---
+name: overflow-cycle
+description: test
+last_updated: "old"
+staleness: 5
+memory_schema_version: 2
+content_language: en
+human_language: zh-TW
+cycle_id: 2026-06-04-001
+cycle_event_count: 31
+size_limit_bytes: 16384
+archive_policy: volume
+compaction_status: ready
+metadata:
+  author: test
+  version: '1.0'
+  origin: test
+  memory_awareness: full
+  tool_scope: []
+---
+
+## Current Truth
+
+- The card exceeded the cycle event limit.
+
+## Active Constraints
+
+- Compact before adding another event.
+
+## Cycle Events
+
+${events}
+
+## Archive Index
+
+- None.
+
+## 中文摘要
+
+- 週期已超標。
+
+## Tracked Files
+
+- src/overflow-cycle.ts
+`;
+    const indexData = {
+      cartridges: {
+        "overflow-cycle": {
+          skillPath: ".agents/memory/overflow-cycle/SKILL.md",
+          staleness: 5,
+          pendingChanges: [],
+          trackedFiles: ["src/overflow-cycle.ts"],
+          lastUpdated: "old",
+          ghostFiles: [],
+          dependencies: [],
+          indirectStaleness: 0,
+        },
+      },
+      fileMap: { "src/overflow-cycle.ts": ["overflow-cycle"] },
+      untrackedFiles: [],
+    };
+    vi.mocked(fs.readFile).mockImplementation(async (filePath) => {
+      const fp = filePath as string;
+      if (fp.includes("index.json")) {
+        return JSON.stringify(indexData) as unknown as Awaited<
+          ReturnType<typeof fs.readFile>
+        >;
+      }
+      if (fp.includes("overflow-cycle") && fp.endsWith("SKILL.md")) {
+        return existing as unknown as Awaited<ReturnType<typeof fs.readFile>>;
+      }
+      throw new Error("unexpected path");
+    });
+    vi.mocked(fs.writeFile).mockResolvedValue(undefined);
+
+    const result = await handleMemoryCommit({
+      moduleName: "overflow-cycle",
+      projectRoot: PROJECT_ROOT,
+    });
+    const envelope = parseEnvelope(result);
+
+    expect(result.isError).toBe(true);
+    expect(envelope.findings[0].code).toBe("memory_compaction_required");
+    expect(envelope.findings[0].message).toContain("Cycle Events 已超過 30 筆");
+    expect(fs.writeFile).not.toHaveBeenCalled();
   });
 
   it("索引檔不存在時同步仍應成功", async () => {

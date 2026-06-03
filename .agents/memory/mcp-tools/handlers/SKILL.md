@@ -3,8 +3,8 @@ name: mcp-tools.handlers
 description: >
   專案記憶：底層 memory_* MCP handlers。Use when: 處理 mcp-handlers.ts、 底層
   memory_list/read/status/commit/deps 行為或 handler 測試時載入。
-last_updated: '2026-05-18T16:37:50+08:00'
-status: stable
+last_updated: '2026-06-04T06:35:24+08:00'
+status: active
 staleness: 0
 dependencies:
   - index-manager
@@ -19,7 +19,6 @@ metadata:
     - 'filesystem:read'
     - 'filesystem:write'
 ---
-
 # MCP Handlers — 底層工具邏輯記憶
 
 > 本模組承接底層 `memory_*` 工具的商業邏輯、路徑驗證與時間戳工具，避免父卡 `mcp-tools` 同時承擔總覽與實作檔案持有者角色。
@@ -48,6 +47,7 @@ metadata:
 - D14: `memory_list`、`memory_read`、`memory_status` 與 `memory_commit` 已收斂為 `mcp-response.ts` envelope；舊文字、原始狀態與歸卡報告放入 `legacy`，新版 AI 優先讀 `summary/findings/recommendedActions`。
 - D15: `memory_commit` 的回歸測試必須同時覆蓋 trackedFiles、fileMap、untrackedFiles、ghostFiles、pendingChanges 與 staleness，避免歸卡同步只修一半導致 workspace_brief 或側邊欄殘留舊提醒。
 - D16: `moduleNameSchema` 是底層 memory_* handlers 的共同輸入防線；允許英數、底線、連字號與點號分隔，拒絕 `/`、`\`、`..` 等路徑片段，避免 moduleName 被當成相對路徑穿越到其他 `.agents` 區域。
+- D17: `memory_list` 會揭露每張卡的 size、line count、Chinese ratio、cycle event count、legacy schema、compaction status、recommended action、平面歸檔卷與拆卡建議；`memory_commit` 對 30 筆 Cycle Events 只警告，31 筆以上直接回 `memory_compaction_required` 且不寫入，歸卡後只同步最新 metrics，不自動替 AI 改寫或壓縮內容。
 
 ## Known Issues
 

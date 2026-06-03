@@ -15,6 +15,7 @@ function createSnapshot(status: DesktopProjectSnapshot["status"]): DesktopProjec
       cartridges: 0,
       blocking: status === "blocked" ? 1 : 0,
       review: 0,
+      advisory: 0,
       info: 0,
       stale: 0,
       ghostFiles: 0,

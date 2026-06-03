@@ -3,8 +3,8 @@ name: commit-preflight
 description: >
   專案記憶：commit_preflight 提交前治理檢查工具。Use when: 處理 git dirty state、記憶卡健康阻塞、
   提交前建議動作與收尾治理決策時載入。
-last_updated: '2026-06-02T20:59:58+08:00'
-status: stable
+last_updated: '2026-06-04T06:35:24+08:00'
+status: active
 staleness: 0
 dependencies:
   - core-types
@@ -19,7 +19,6 @@ metadata:
     - 'filesystem:read'
     - 'filesystem:write'
 ---
-
 # Commit Preflight — 提交前治理檢查記憶
 
 > 本模組提供 `commit_preflight` MCP 工具的提交前決策邏輯，作為 `workspace_brief` 之後的收尾治理入口。
@@ -48,6 +47,7 @@ metadata:
 - D14: `commit_preflight` 新增 compatibility gate；缺索引或舊索引欄位會以 `memory_compatibility` blocker 阻擋封存，並建議先跑 `memory_audit`，避免在記憶判讀不完整時提交。
 - D15: `commit_preflight` 實際依賴 `mcp-tools.memory-audit` 持有的 `memory-compatibility.ts`；若 compatibility warning 規則過期，提交前 compatibility blocker 也必須重新檢查。
 - D16: v5.4.1 `commit_preflight` memory gate 新增 additive `memoryWarnings`、`reviewItems` 與 `advisories`；`memory_indirect_stale` 不再是 blocker，但仍保留原始 indirect 欄位供舊解析器讀取。
+- D17: v5.5 `commit_preflight` 會把 compaction due / invalid 與 archive volume due 視為 blocker，並在摘要中揭露 compaction modules、legacy cards、language warnings、splitSuggestions 與 granularityAdvisories；提交前必須先彙整滿額或過大的主卡，但 tracked files 超過 8 且大小/行數健康時只作 advisory，不會取代 git dirty 或記憶健康 blocker。
 
 ## Known Issues
 
@@ -66,6 +66,7 @@ metadata:
 - L09: commit_preflight 的 blocked 不等於工具錯誤；封存前需分辨 dirty files、memory blockers、dependency semantics warnings 三種原因。
 - L10: 提交前工具可以因 compatibility mode 阻擋封存，但不應自行執行完整掃描或自動修復；深度診斷交給 `memory_audit`。
 - L11: 提交前封存不可把上游影響或父子卡閱讀提示等同直接失真；warning readiness 可要求複審，但 blockingReasons 不應包含 indirectStaleness。
+- L12: `commit_preflight` 在記憶健康但 git dirty 時，只應回報 dirtyFiles blocker；split suggestion 必須留在 advisory，避免把可維護性建議誤判為提交阻擋。
 
 ## Relations
 

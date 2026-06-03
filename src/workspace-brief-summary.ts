@@ -13,6 +13,7 @@ import type {
   ProjectContextFinding,
   ProjectContextSummary,
 } from "./project-context-types.js";
+import type { MemoryCompactionMetrics } from "./memory-compaction.js";
 
 const STALENESS_SIGNIFICANT = 10;
 
@@ -24,6 +25,7 @@ export interface BriefCartridgeEntry {
   indirectStaleness?: number;
   dependencies?: string[];
   parent?: string | null;
+  compaction?: MemoryCompactionMetrics;
 }
 
 export interface BriefIndex {
@@ -60,6 +62,7 @@ type MemoryReadiness = {
   status: "ready" | "warning" | "blocked";
   reasons: string[];
   reviewReasons: string[];
+  advisoryReasons: string[];
 };
 
 export interface ContextBrief {
@@ -125,6 +128,49 @@ function buildMemorySummary(index: BriefIndex) {
     (sum, [, entry]) => sum + (entry.dependencies?.length ?? 0),
     0,
   );
+  const compactionDue = cartridges
+    .filter(([, entry]) => entry.compaction?.needsCompaction)
+    .map(([module, entry]) => ({
+      module,
+      status: entry.compaction?.compactionStatus,
+      reasons: entry.compaction?.reasons ?? [],
+      cycleEventCount: entry.compaction?.cycleEventCount ?? 0,
+      sizeBytes: entry.compaction?.sizeBytes ?? 0,
+      lineCount: entry.compaction?.lineCount ?? 0,
+      recommendedAction: entry.compaction?.recommendedAction,
+    }));
+  const legacyCards = cartridges
+    .filter(([, entry]) => entry.compaction?.isLegacy)
+    .map(([module, entry]) => ({
+      module,
+      recommendedAction: entry.compaction?.recommendedAction,
+    }));
+  const languageWarnings = cartridges
+    .filter(([, entry]) => entry.compaction?.reasons.includes("highChineseRatio"))
+    .map(([module, entry]) => ({
+      module,
+      chineseRatio: entry.compaction?.chineseRatio ?? 0,
+    }));
+  const splitSuggestions = cartridges
+    .filter(([, entry]) => (entry.trackedFiles?.length ?? 0) > 8)
+    .map(([module, entry]) => ({
+      module,
+      trackedFilesCount: entry.trackedFiles?.length ?? 0,
+      blocking: false,
+    }));
+  const oversizedContent = cartridges
+    .filter(
+      ([, entry]) =>
+        entry.compaction?.reasons.includes("mainCardOversize") ||
+        entry.compaction?.reasons.includes("mainCardLineLimit") ||
+        entry.compaction?.reasons.includes("rootIndexOversize"),
+    )
+    .map(([module, entry]) => ({
+      module,
+      sizeBytes: entry.compaction?.sizeBytes ?? 0,
+      lineCount: entry.compaction?.lineCount ?? 0,
+      recommendedAction: entry.compaction?.recommendedAction,
+    }));
   return {
     total: cartridges.length,
     stale: staleModules.length,
@@ -134,12 +180,15 @@ function buildMemorySummary(index: BriefIndex) {
     untrackedFiles: index.untrackedFiles?.length ?? 0,
     indirectStale: indirectStaleModules.length,
     indirectStaleModules,
-    oversized: cartridges
-      .filter(([, entry]) => (entry.trackedFiles?.length ?? 0) > 8)
-      .map(([module, entry]) => ({
-        module,
-        trackedFilesCount: entry.trackedFiles?.length ?? 0,
-      })),
+    oversized: oversizedContent,
+    splitSuggestions,
+    granularityAdvisories: splitSuggestions.length,
+    compactionDue: compactionDue.length,
+    compactionModules: compactionDue,
+    legacyCards: legacyCards.length,
+    legacyCardModules: legacyCards,
+    languageWarnings: languageWarnings.length,
+    languageWarningModules: languageWarnings,
     dependencies: {
       totalEdges: dependencyEdges,
     },
@@ -153,11 +202,19 @@ function buildReadiness(classification: MemoryWarningClassification): MemoryRead
   const reviewReasons = classification.review.map(
     (item) => `${item.target}: ${item.reason}`,
   );
+  const advisoryReasons = classification.advisory.map(
+    (item) => `${item.target}: ${item.reason}`,
+  );
   return {
     status:
-      reasons.length > 0 ? "blocked" : reviewReasons.length > 0 ? "warning" : "ready",
+      reasons.length > 0
+        ? "blocked"
+        : reviewReasons.length > 0 || advisoryReasons.length > 0
+          ? "warning"
+          : "ready",
     reasons,
     reviewReasons,
+    advisoryReasons,
   };
 }
 
@@ -180,7 +237,10 @@ function buildStartupReadiness(args: {
     return {
       status: "needs_review",
       label: "可以開工，但建議複審記憶卡提醒",
-      reasons: args.memoryReadiness.reviewReasons,
+      reasons: [
+        ...args.memoryReadiness.reviewReasons,
+        ...args.memoryReadiness.advisoryReasons,
+      ],
       nextTool: "memory_deps",
       nextAction: "review_memory_advisories",
     };
@@ -267,6 +327,9 @@ function buildRecommendedActions(index: BriefIndex): RecommendedAction[] {
   for (const item of classification.review) {
     actions.push(toRecommendedAction(item));
   }
+  for (const item of classification.advisory) {
+    actions.push(toRecommendedAction(item));
+  }
   return actions.sort((a, b) => a.priority.localeCompare(b.priority));
 }
 
@@ -301,6 +364,68 @@ function toRecommendedAction(item: MemoryWarningItem): RecommendedAction {
       reason: item.reason,
       label: item.label,
       nextTool: "memory_graph",
+      blocking: false,
+    };
+  }
+  if (
+    item.code === "memory_compaction_due" ||
+    item.code === "memory_compaction_invalid" ||
+    item.code === "memory_archive_volume_due"
+  ) {
+    return {
+      priority: "P1",
+      action:
+        item.code === "memory_archive_volume_due"
+          ? "open_next_archive_volume"
+          : "compact_memory_card",
+      target: item.target,
+      reason: item.reason,
+      label: item.label,
+      nextTool: "memory_audit",
+      blocking: true,
+    };
+  }
+  if (item.code === "memory_legacy_schema") {
+    return {
+      priority: "P2",
+      action: "lazy_upgrade_memory_card",
+      target: item.target,
+      reason: item.reason,
+      label: item.label,
+      nextTool: "memory_read",
+      blocking: false,
+    };
+  }
+  if (item.code === "memory_language_ratio") {
+    return {
+      priority: "P2",
+      action: "reduce_memory_card_chinese_body",
+      target: item.target,
+      reason: item.reason,
+      label: item.label,
+      nextTool: "memory_read",
+      blocking: false,
+    };
+  }
+  if (item.code === "memory_granularity_advisory") {
+    return {
+      priority: "P2",
+      action: "review_memory_card_split_suggestion",
+      target: item.target,
+      reason: item.reason,
+      label: item.label,
+      nextTool: "memory_list",
+      blocking: false,
+    };
+  }
+  if (item.code === "memory_archive_migration") {
+    return {
+      priority: "P2",
+      action: "migrate_archive_path",
+      target: item.target,
+      reason: item.reason,
+      label: item.label,
+      nextTool: "memory_audit",
       blocking: false,
     };
   }
@@ -398,7 +523,11 @@ export function buildWorkspaceBrief(
     readiness,
     memoryWarnings,
     reviewItems: memoryWarnings.review,
-    advisories: [...memoryWarnings.review, ...memoryWarnings.info],
+    advisories: [
+      ...memoryWarnings.review,
+      ...memoryWarnings.advisory,
+      ...memoryWarnings.info,
+    ],
     startupReadiness,
     submitReadiness: buildSubmitReadiness(readiness),
     recommendedActions: [

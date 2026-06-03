@@ -27,7 +27,9 @@ describe("DesktopProjectStore", () => {
       { root: "D:/demo", enabled: false },
     ]);
 
-    expect(await store.read()).toEqual([{ root: "D:\\demo", enabled: true }]);
+    expect(await store.read()).toEqual([
+      { root: path.resolve("D:/demo"), enabled: true },
+    ]);
   });
 
   it("returns default settings for old project-only store files", async () => {

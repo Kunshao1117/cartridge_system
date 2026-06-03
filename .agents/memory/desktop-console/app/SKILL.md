@@ -3,7 +3,7 @@ name: desktop-console.app
 description: >
   專案記憶：Electron 桌面外殼、IPC、系統匣、通知與專案清單設定。Use when: 修改桌面主程序、 預載橋接、AppData
   專案設定、桌面通知或桌面打包設定時載入。
-last_updated: '2026-06-04T06:35:24+08:00'
+last_updated: '2026-06-04T06:50:55+08:00'
 status: active
 staleness: 0
 dependencies:
@@ -62,6 +62,7 @@ metadata:
 - L02: 2026-06-03 GitHub Windows runner 執行單元測試時，`electron` 套件可能尚未具備 `path.txt`；測試通知邏輯應使用注入物件，不應載入真實 Electron binary。
 - L03: 操作者可見的桌面按鈕不可只依賴 Promise resolve；IPC 需要回傳可呈現的結果訊息，否則主程序成功、取消或被 path guard 阻擋都會被使用者看成「沒反應」。
 - L04: 2026-06-04 桌面 IPC 結果封套與開檔錯誤語意已隨操作回饋維修回歸驗證；`npm run desktop:build` 會產出 `dist/desktop/main.js`，避免 Electron 預覽找不到 main bundle。
+- L05: 2026-06-04 `desktop-store.test.ts` 不能把 Windows 樣本路徑硬寫為固定反斜線期望；Linux runner 會把 `D:/demo` 視為相對路徑，測試應用 `path.resolve()` 取得平台實際正規化結果。
 
 ## Relations
 

@@ -3,8 +3,8 @@ name: _assets
 scopePath: null
 description: |
   專案記憶：靜態檔案與一般文檔收納。 Use when: 處理不需要業務邏輯追蹤的靜態圖檔、授權文件或更新日誌等。
-last_updated: '2026-06-04T06:35:24+08:00'
-status: active
+last_updated: '2026-06-04T06:59:51+08:00'
+status: stable
 staleness: 0
 metadata:
   author: antigravity
@@ -14,6 +14,7 @@ metadata:
   tool_scope:
     - 'filesystem:read'
 ---
+
 # Assets — 靜態收容
 
 ## Tracked Files

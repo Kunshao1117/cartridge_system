@@ -3,8 +3,8 @@ name: tool-registry
 description: >
   專案記憶：MCP 工具名冊與統一回傳契約。Use when: 處理工具風險分級、MCP tools 清單生成、治理 envelope
   或高階工具回傳格式時載入。
-last_updated: '2026-06-04T06:35:24+08:00'
-status: active
+last_updated: '2026-06-04T06:59:51+08:00'
+status: stable
 staleness: 0
 dependencies:
   - core-types
@@ -17,6 +17,7 @@ metadata:
     - 'filesystem:read'
     - 'filesystem:write'
 ---
+
 # Tool Registry — MCP 工具名冊與回傳契約記憶
 
 > 本模組承接 MCP 工具治理中介層，讓工具定義與高階治理回傳格式有單一來源。

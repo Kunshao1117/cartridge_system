@@ -3,8 +3,8 @@ name: mcp-tools.server
 description: >
   專案記憶：MCP SDK server 入口與工具公開清單。Use when: 處理 mcp-server.ts、
   ListToolsRequestSchema、CallToolRequestSchema 或 stdio server 啟動時載入。
-last_updated: '2026-06-04T06:35:24+08:00'
-status: active
+last_updated: '2026-06-04T06:59:51+08:00'
+status: stable
 staleness: 0
 dependencies:
   - mcp-tools.dispatcher
@@ -18,6 +18,7 @@ metadata:
     - 'filesystem:read'
     - 'filesystem:write'
 ---
+
 # MCP Server — SDK 入口記憶
 
 > 本模組承接 MCP SDK server 入口，父卡 `mcp-tools` 只保留工具介面總覽與跨子卡決策。

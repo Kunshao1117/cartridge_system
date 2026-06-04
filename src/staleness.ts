@@ -1,5 +1,6 @@
 import type { CartridgeConfig, StalenessLevel } from "./types.js";
 import type { MemoryCompactionMetrics } from "./memory-compaction.js";
+import { filterVisibleUntrackedFiles } from "./index-manager.js";
 
 const STALENESS_THRESHOLDS = { significant: 10, critical: 30 };
 
@@ -225,7 +226,7 @@ export function classifyMemoryWarnings(
     }
   }
 
-  const untrackedFiles = index.untrackedFiles?.length ?? 0;
+  const untrackedFiles = filterVisibleUntrackedFiles(index.untrackedFiles).length;
   if (untrackedFiles > 0) {
     blocking.push({
       tier: "blocking",

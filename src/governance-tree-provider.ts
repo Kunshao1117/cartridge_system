@@ -41,7 +41,7 @@ export class GovernanceTreeProvider
     const inventory = await scanContextRegistry(this.projectRoot);
     const findings = auditContextInventory(inventory);
     const summary = buildGovernanceSummary({
-      index: this.indexManager.getIndex(),
+      index: this.indexManager.getVisibleIndex(),
       inventory,
       contextFindings: findings,
     });

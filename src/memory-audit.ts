@@ -17,7 +17,11 @@ import {
   type CartridgeToolStatus,
   type McpToolResult,
 } from "./mcp-response.js";
-import { parseTrackedFiles, shouldWarnEmptyTrackedFiles } from "./index-manager.js";
+import {
+  filterVisibleUntrackedFiles,
+  parseTrackedFiles,
+  shouldWarnEmptyTrackedFiles,
+} from "./index-manager.js";
 import {
   buildArchiveVolumeMetrics,
   buildCompactionMetrics,
@@ -178,6 +182,11 @@ async function readIndex(projectRoot: string): Promise<{
   try {
     const raw = await fs.readFile(indexPath, "utf-8");
     const parsed = JSON.parse(raw) as AuditIndex;
+    if (Array.isArray(parsed.untrackedFiles)) {
+      parsed.untrackedFiles = filterVisibleUntrackedFiles(
+        parsed.untrackedFiles,
+      );
+    }
     const findings: MemoryAuditFinding[] = [];
     if (!parsed.cartridges || typeof parsed.cartridges !== "object") {
       findings.push({

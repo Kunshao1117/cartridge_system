@@ -343,6 +343,10 @@ describe("handleMemoryStatus", () => {
           ],
         },
       },
+      untrackedFiles: [
+        { filePath: ".agents/memory/mem-_system/archive-001.md" },
+        { filePath: ".agents/memory/mem-_system" },
+      ],
     };
     vi.mocked(fs.readFile).mockResolvedValue(
       JSON.stringify(indexData) as unknown as Awaited<
@@ -448,7 +452,7 @@ describe("handleMemoryList — 增強回傳", () => {
     expect(list[1].module).toBe("mem-analyzer");
     expect(list[1].level).toBe("significant");
     expect(list[1].pendingChangesCount).toBe(1);
-    // 驗證未歸屬檔案欄位存在
+    // 驗證記憶系統內部產物不會進入未歸屬檔案欄位
     expect(data.untrackedFiles).toEqual([]);
   });
 
@@ -627,6 +631,8 @@ describe("handleMemoryCommit", () => {
       fileMap: { "src/foo.ts": ["mem-test"] },
       untrackedFiles: [
         { filePath: "src/bar.ts" },
+        { filePath: ".agents/memory/mem-test/archive-001.md" },
+        { filePath: ".agents/memory/mem-test" },
         { filePath: "src/other.ts" },
       ],
     };

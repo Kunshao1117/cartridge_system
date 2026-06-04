@@ -61,6 +61,43 @@ describe("handleCommitPreflight", () => {
     expect(preflight.summary.dependencySemantics.warnings).toBe(0);
   });
 
+  it("記憶歸檔卷殘留於索引時不應成為 memory_untracked_files blocker", async () => {
+    vi.mocked(fs.readFile).mockResolvedValue(
+      JSON.stringify({
+        cartridges: {
+          "mcp-tools": {
+            staleness: 0,
+            ghostFiles: [],
+            indirectStaleness: 0,
+            dependencies: [],
+          },
+        },
+        fileMap: {},
+        untrackedFiles: [
+          { filePath: ".agents/memory/mcp-tools/archive-001.md" },
+          { filePath: ".agents/memory/mcp-tools" },
+        ],
+      }) as unknown as Awaited<ReturnType<typeof fs.readFile>>,
+    );
+    mockGitStatus("?? .agents/memory/mcp-tools/archive-001.md\n");
+
+    const result = await handleCommitPreflight({ projectRoot: PROJECT_ROOT });
+    const envelope = JSON.parse(result.content[0].text);
+    const preflight = envelope.summary;
+
+    expect(envelope.status).toBe("blocked");
+    expect(preflight.summary.memory.untrackedFiles).toBe(0);
+    expect(preflight.blockers).toEqual([
+      expect.objectContaining({ type: "git_dirty" }),
+    ]);
+    expect(
+      preflight.blockers.some(
+        (blocker: { type: string }) =>
+          blocker.type === "memory_untracked_files",
+      ),
+    ).toBe(false);
+  });
+
   it("記憶卡健康問題與 git dirty state 應回傳 blocked", async () => {
     vi.mocked(fs.readFile).mockResolvedValue(
       JSON.stringify({

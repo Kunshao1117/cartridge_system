@@ -72,6 +72,36 @@ describe("handleProjectFileEvent", () => {
       expect.objectContaining({ filePath: "src/new-file.ts" }),
     ]);
   });
+
+  it("ignores memory archive files as managed memory artifacts", async () => {
+    const root = await createProjectFixture();
+    const config = createConfig(root);
+    const gitignoreFilter = new GitignoreFilter(root);
+    const indexManager = new CartridgeIndexManager(config);
+    const writer = new MemoryWriter(config);
+    const analyzer = new StalenessAnalyzer(config, indexManager, writer);
+    await indexManager.scan();
+
+    const archivePath = path.join(
+      root,
+      ".agents",
+      "memory",
+      "core",
+      "archive-001.md",
+    );
+    await fs.writeFile(archivePath, "# Archive\n");
+    await handleProjectFileEvent({
+      config,
+      indexManager,
+      analyzer,
+      gitignoreFilter,
+      writer,
+      absFilePath: archivePath,
+      eventType: "add",
+    });
+
+    expect(indexManager.getUntrackedFiles()).toEqual([]);
+  });
 });
 
 async function createProjectFixture(): Promise<string> {

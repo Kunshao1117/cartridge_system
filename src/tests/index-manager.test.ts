@@ -5,12 +5,14 @@
 
 import { describe, it, expect, beforeEach } from "vitest";
 import {
+  createVisibleCartridgeIndex,
   parseTrackedFiles,
   shouldWarnEmptyTrackedFiles,
 } from "../index-manager.js";
 import { CartridgeIndexManager } from "../index-manager.js";
 import { createConfig } from "../config.js";
 import type { GitignoreFilter } from "../gitignore-filter.js";
+import type { CartridgeIndex } from "../types.js";
 
 // ---------------------------------------------------------------------------
 // parseTrackedFiles — 路徑淨化邏輯
@@ -421,6 +423,81 @@ describe("CartridgeIndexManager — refilterUntrackedFiles 自動清理", () => 
 
     expect(manager.getUntrackedFiles().map((entry) => entry.filePath)).toEqual([
       "src/new.ts",
+    ]);
+  });
+
+  it("應移除記憶系統內部歸檔卷與目錄", () => {
+    const manager = new CartridgeIndexManager(createConfig("d:/test-project"));
+    manager["index"] = {
+      version: 1,
+      lastScanned: "",
+      cartridges: {},
+      fileMap: {},
+      untrackedFiles: [
+        { filePath: ".agents/memory/core/archive-001.md", suggestedOwner: null, detectedAt: "now", lastEvent: "add" },
+        { filePath: ".agents/memory/core", suggestedOwner: null, detectedAt: "now", lastEvent: "add" },
+        { filePath: "src/orphan.ts", suggestedOwner: null, detectedAt: "now", lastEvent: "add" },
+      ],
+    };
+
+    manager.refilterUntrackedFiles(makeFilter());
+
+    expect(manager.getUntrackedFiles().map((entry) => entry.filePath)).toEqual([
+      "src/orphan.ts",
+    ]);
+  });
+
+  it("可見索引視圖應排除記憶內部未歸屬殘留且保留產品檔案", () => {
+    const index: CartridgeIndex = {
+      version: 1,
+      lastScanned: "",
+      cartridges: {},
+      fileMap: {},
+      untrackedFiles: [
+        {
+          filePath: ".agents/memory/core/archive-001.md",
+          suggestedOwner: null,
+          detectedAt: "now",
+          lastEvent: "add",
+        },
+        {
+          filePath: ".agents/skills/mem-core/archive-001.md",
+          suggestedOwner: null,
+          detectedAt: "now",
+          lastEvent: "add",
+        },
+        {
+          filePath: "src/orphan.ts",
+          suggestedOwner: null,
+          detectedAt: "now",
+          lastEvent: "add",
+        },
+      ],
+    };
+
+    const visible = createVisibleCartridgeIndex(index);
+
+    expect(visible.untrackedFiles.map((entry) => entry.filePath)).toEqual([
+      "src/orphan.ts",
+    ]);
+    expect(index.untrackedFiles).toHaveLength(3);
+  });
+
+  it("掃描未歸屬檔案時應忽略記憶系統內部產物", () => {
+    const manager = new CartridgeIndexManager(createConfig("d:/test-project"));
+
+    manager.detectUntrackedFiles(
+      [
+        ".agents/memory/core/archive-001.md",
+        ".agents/memory/core",
+        ".agents/skills/mem-example/archive-001.md",
+        "src/orphan.ts",
+      ],
+      makeFilter(),
+    );
+
+    expect(manager.getUntrackedFiles().map((entry) => entry.filePath)).toEqual([
+      "src/orphan.ts",
     ]);
   });
 });

@@ -5,7 +5,7 @@ context_type: index
 scope: project
 status: approved
 confidence: high
-last_reviewed: 2026-05-29
+last_reviewed: 2026-06-04
 approval: framework-default
 sources: []
 ---
@@ -15,6 +15,7 @@ sources: []
 ## Approved Context
 
 - `_map`: Project context card registry.
+- `project-dna`: Approved product, governance, memory, and release DNA.
 
 ## Candidate Context
 
@@ -35,6 +36,7 @@ sources: []
 ## Relations
 
 - `.agents/context/`: project context root.
+- `project-dna`: Project DNA context card.
 
 ## Promotion Notes
 

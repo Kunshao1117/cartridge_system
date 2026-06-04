@@ -2,8 +2,8 @@
 
 > **現實感知 AI 記憶防禦引擎** — 自動偵測記憶卡過期、幽靈檔案、跨模組依賴傳播，確保 AI 不讀取失效的上下文。
 
-[![version](https://img.shields.io/badge/version-5.4.2-blue)](./CHANGELOG.md)
-[![tests](https://img.shields.io/badge/tests-279%20passed-brightgreen)](#-執行測試)
+[![version](https://img.shields.io/badge/version-5.4.3-blue)](./CHANGELOG.md)
+[![tests](https://img.shields.io/badge/tests-285%20passed-brightgreen)](#-執行測試)
 [![license](https://img.shields.io/badge/license-MIT-green)](#)
 
 ---
@@ -73,7 +73,7 @@ Cartridge System 是一個為 [Antigravity 框架](https://github.com/Kunshao111
 3. 在 VS Code / Antigravity 使用 **Install from VSIX** 安裝，或使用 CLI：
 
 ```bash
-antigravity --install-extension cartridge-system-5.4.2.vsix --force
+antigravity --install-extension cartridge-system-5.4.3.vsix --force
 ```
 
 ### 方法二：本機打包安裝
@@ -85,7 +85,7 @@ npm run build
 npm run package
 
 # 使用 Antigravity IDE CLI 安裝（注意：不可用 code 指令）
-antigravity --install-extension cartridge-system-5.4.2.vsix --force
+antigravity --install-extension cartridge-system-5.4.3.vsix --force
 ```
 
 ### 方法三：開發模式
@@ -195,15 +195,15 @@ npm run package
 3. 推送版本 tag：
 
 ```bash
-git tag v5.4.2
-git push origin v5.4.2
+git tag v5.4.3
+git push origin v5.4.3
 ```
 
 GitHub Actions 會自動執行測試、打包 `cartridge-system-*.vsix`、建立或更新 Release，並把 VSIX 掛到 Release 附件；此流程不會發布 npm MCP runtime。
 
 ### 手動補發
 
-如果需要補發目前版本，進入 GitHub 的 **Actions → Release VSIX → Run workflow**，輸入版本號，例如 `5.4.2` 或 `v5.4.2`。Workflow 會確認輸入版本與 `package.json` 一致，然後重新打包並覆蓋 Release 裡的 VSIX 附件。
+如果需要補發目前版本，進入 GitHub 的 **Actions → Release VSIX → Run workflow**，輸入版本號，例如 `5.4.3` 或 `v5.4.3`。Workflow 會確認輸入版本與 `package.json` 一致，然後重新打包並覆蓋 Release 裡的 VSIX 附件。
 
 ---
 
@@ -223,13 +223,13 @@ npm run desktop:dist
 推送桌面版 tag：
 
 ```bash
-git tag desktop-v5.4.2
-git push origin desktop-v5.4.2
+git tag desktop-v5.4.3
+git push origin desktop-v5.4.3
 ```
 
-GitHub Actions 會在 Windows runner 上重新打包桌面安裝檔，建立 `Cartridge Desktop Console desktop-v5.4.2` Release，並把 `Cartridge Desktop Console Setup 5.4.2.exe` 掛到附件。桌面版 Release 不會標記為 GitHub Latest，避免 VSIX 更新檢查誤讀桌面版本；此流程也不會將 `release/desktop` 產物提交進 Git。
+GitHub Actions 會在 Windows runner 上重新打包桌面安裝檔，建立 `Cartridge Desktop Console desktop-v5.4.3` Release，並把 `Cartridge Desktop Console Setup 5.4.3.exe` 掛到附件。桌面版 Release 不會標記為 GitHub Latest，避免 VSIX 更新檢查誤讀桌面版本；此流程也不會將 `release/desktop` 產物提交進 Git。
 
-若需要手動補發，進入 GitHub 的 **Actions → Release Desktop Console → Run workflow**，輸入版本號，例如 `5.4.2`、`v5.4.2` 或 `desktop-v5.4.2`。Workflow 會確認輸入版本與 `package.json` 一致，然後重新打包並覆蓋桌面版 Release 裡的安裝檔附件。
+若需要手動補發，進入 GitHub 的 **Actions → Release Desktop Console → Run workflow**，輸入版本號，例如 `5.4.3`、`v5.4.3` 或 `desktop-v5.4.3`。Workflow 會確認輸入版本與 `package.json` 一致，然後重新打包並覆蓋桌面版 Release 裡的安裝檔附件。
 
 ---
 
@@ -252,8 +252,8 @@ npm publish --dry-run
 若使用 GitHub Actions Trusted Publishing，請推送 npm 專用 tag，不要使用 VSIX 的 `vX.Y.Z` tag：
 
 ```bash
-git tag npm-v5.4.2
-git push origin npm-v5.4.2
+git tag npm-v5.4.3
+git push origin npm-v5.4.3
 ```
 
 `Publish npm` workflow 會確認 tag/input 版本與 `package.json` 一致；若 npm registry 已有同版本，會成功跳過發布，避免同版本不可覆蓋造成失敗。
@@ -449,13 +449,13 @@ npm test
 npm run test:watch
 ```
 
-測試涵蓋 36 個測試檔案（**279 個案例**）：
+測試涵蓋 37 個測試檔案（**285 個案例**）：
 
 | 測試模組 | 案例數 | 涵蓋範圍 |
 |----------|--------|----------|
-| 索引管理器 | 22 | 掃描、addPendingChange 去重、getChildren、resolveModulePath、空追蹤卡誤報防護、未歸屬池 refilter 自動清理 |
-| MCP 工具介面 | 82 | 正常流程、Gateway-first workspace 注入、workspace/projectRoot 衝突拒絕、CLI `--workspace` 解析、路徑穿越防禦、moduleName 路徑片段拒絕、handler 層 `confirm:true` 驗證、時間戳驗證、過期狀態診斷、十七工具 envelope 契約、memory_commit 後設同步、31 筆 Cycle Events 阻擋、workspace_brief 專案健康摘要、AI 開工狀態、專案脈絡非阻塞摘要、提交 readiness、commit_preflight 提交前治理檢查、壓縮到期阻擋、拆卡 advisory 不阻擋、警示分層 reviewItems/advisories 與 dependency semantics 摘要、**標題錯字偵測 (HEADING_TYPO)**、**路徑格式驗證 (PATH_ABSOLUTE / PATH_TRAVERSAL)**、**dependencies 語義警告**、**未歸屬池清理**、**fileMap 同步**、**間接過期重算**、**警告區塊自動清除** |
-| 監聽引擎 | 3 | `SKILL.md` 變更後重新 scan、refilter untracked、flush index 並觸發側邊欄刷新；`.agents/memory` 被 `.gitignore` 覆蓋時仍優先處理記憶卡變更；Windows 路徑分隔符不會阻斷 pending/ghost 清理 |
+| 索引管理器 | 25 | 掃描、addPendingChange 去重、getChildren、resolveModulePath、空追蹤卡誤報防護、未歸屬池 refilter 自動清理、記憶內部歸檔卷排除 |
+| MCP 工具介面 | 83 | 正常流程、Gateway-first workspace 注入、workspace/projectRoot 衝突拒絕、CLI `--workspace` 解析、路徑穿越防禦、moduleName 路徑片段拒絕、handler 層 `confirm:true` 驗證、時間戳驗證、過期狀態診斷、十七工具 envelope 契約、memory_commit 後設同步、31 筆 Cycle Events 阻擋、workspace_brief 專案健康摘要、AI 開工狀態、專案脈絡非阻塞摘要、提交 readiness、commit_preflight 提交前治理檢查、壓縮到期阻擋、拆卡 advisory 不阻擋、警示分層 reviewItems/advisories 與 dependency semantics 摘要、**標題錯字偵測 (HEADING_TYPO)**、**路徑格式驗證 (PATH_ABSOLUTE / PATH_TRAVERSAL)**、**dependencies 語義警告**、**未歸屬池清理**、**fileMap 同步**、**間接過期重算**、**警告區塊自動清除**、**記憶歸檔卷不成為提交 blocker** |
+| 監聽引擎 | 4 | `SKILL.md` 變更後重新 scan、refilter untracked、flush index 並觸發側邊欄刷新；`.agents/memory` 被 `.gitignore` 覆蓋時仍優先處理記憶卡變更；Windows 路徑分隔符不會阻斷 pending/ghost 清理；記憶歸檔卷事件不進入產品未歸屬池 |
 | 規則檔檢查 | 4 | 多代理指令掃描、規則來源摘要、提交授權衝突 blocking、context_diff 訊號比對與語言提醒 |
 | 治理側邊欄 | 8 | Activity Bar view container、四個 Cartridge TreeView、卡匣機櫃入口、公開 commands、更新檢查設定、governance summary、非阻塞複審提醒與白話 action items 轉換 |
 | 卡匣機櫃工作台 | 9 | 卡匣工作台模型、三模式統計、metadata note 連線、V2 metadata 相容解析、Webview HTML/CSP、圖譜 viewport 保存、layout reason 判斷與百分比縮放 helper |
@@ -465,7 +465,7 @@ npm run test:watch
 | 路徑安全驗證 | 10 | 絕對/相對路徑、穿越攻擊拒絕、工作區身分比較 |
 | 時間戳格式 | 3 | ISO 8601 格式、台灣時區後綴 |
 | 離線變動偵測 | 10 | 啟動校驗、目錄跳過、去重、幽靈標記 |
-| 桌面監控台 | 7 | 操作狀態列、選取回饋、原生滾動容器、未歸屬列表不截斷、分區滾輪 overflow 判斷、滾動位置推進、邊界 clamp、line/page delta 正規化 |
+| 桌面監控台 | 7 | 操作狀態列、選取回饋、原生滾動容器、未歸屬列表不截斷、分區滾輪 overflow 判斷、滾動位置推進、邊界 clamp、line/page delta 正規化、記憶歸檔卷不進入桌面未歸屬快照 |
 | 警報寫入器 | 9 | 冪等植入、條件式清除、狀態回復 |
 | import 掃描器 | 5 | ES/動態/CJS 語法擷取、去重、node_modules 過濾 |
 | 依賴傳播引擎 | 8 | 反向圖建構、BFS 傳播深度、平方衰減權重、循環偵測 |
@@ -479,6 +479,7 @@ npm run test:watch
 | MCP 工具分派 | 13 | registry-driven routing、Gateway workspace 注入、workspace/projectRoot 衝突錯誤、unknown tool envelope、memory_commit 明確確認防線、memory_graph 路由、v5 context governance 工具路由與 project_context 路由 |
 | MCP Server CLI | 5 | `--workspace`、`--workspace=...`、`--help`、`--version` 與未知參數錯誤 |
 | MCP 回傳契約 | 2 | envelope 包裝、錯誤格式、台灣時區 metadata 與 legacy 相容欄位 |
+| 狀態列 | 1 | 記憶歸檔卷不會被顯示為產品未歸屬檔案，真正產品新檔仍保留提示 |
 
 ---
 
@@ -538,7 +539,7 @@ cartridge_system/
 │   ├── path-guard.ts         # 路徑安全驗證（雙層防禦）
 │   ├── timestamp.ts          # 時間戳生成（Intl API）
 │   ├── types.ts              # 共用型別定義（含 ghostFiles、dependencies）
-│   └── tests/                # vitest 單元測試（36 檔 279 案例）
+│   └── tests/                # vitest 單元測試（37 檔 285 案例）
 ├── scripts/
 │   └── package-vsix.mjs      # VSIX 打包 wrapper（使用 package.json files 白名單）
 ├── .agents/
@@ -568,7 +569,7 @@ cartridge_system/
 > 💡 **治理備註**：`.agents/` 目錄在 Git 中採取「白名單模式」，追蹤 `memory/` 原始碼記憶、`context/` 專案脈絡與 `project_skills/` 專案衍生技能；其餘框架部署產物預設不納入版本控制以保持儲存庫輕量化。
 
 ├── CHANGELOG.md              # 更新紀錄（含插件更新檢查 Unreleased 紀錄）
-└── package.json              # v5.4.2
+└── package.json              # v5.4.3
 ```
 
 ### 技術堆疊

@@ -5,6 +5,7 @@
 
 import * as vscode from "vscode";
 import type { CartridgeIndex } from "./types";
+import { createVisibleCartridgeIndex } from "./index-manager";
 
 /**
  * 狀態列燈號元件
@@ -40,7 +41,8 @@ export class CartridgeStatusBar {
       return;
     }
 
-    const cartridges = Object.values(index.cartridges);
+    const visibleIndex = createVisibleCartridgeIndex(index);
+    const cartridges = Object.values(visibleIndex.cartridges);
     const totalScore = cartridges.reduce((sum, c) => sum + c.staleness, 0);
     const { icon, label, codicon, background } = getScoreTier(totalScore);
 
@@ -48,7 +50,7 @@ export class CartridgeStatusBar {
     let text = `$(${codicon}) 記憶卡匣 ${icon} ${label}`;
 
     // 未歸屬檔案提示
-    const untrackedCount = index.untrackedFiles?.length ?? 0;
+    const untrackedCount = visibleIndex.untrackedFiles?.length ?? 0;
     if (untrackedCount > 0) {
       text += ` | 👻 ${untrackedCount} 未歸屬`;
     }
@@ -59,7 +61,11 @@ export class CartridgeStatusBar {
       : undefined;
 
     // 動態提示文字
-    this.item.tooltip = this.buildTooltip(index, totalScore, untrackedCount);
+    this.item.tooltip = this.buildTooltip(
+      visibleIndex,
+      totalScore,
+      untrackedCount,
+    );
     this.item.show();
   }
 

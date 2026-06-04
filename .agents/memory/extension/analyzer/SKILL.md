@@ -2,9 +2,19 @@
 name: analyzer
 description: |
   專案記憶：過期分析器模組。 Use when: 處理過期指數計算、衰退演算法、異動事件處理時載入。
-last_updated: '2026-06-02T21:28:15+08:00'
+last_updated: '2026-06-04T07:15:16+08:00'
 status: stable
 staleness: 0
+memory_schema_version: 2
+content_language: en
+human_language: zh-TW
+cycle_id: 2026-06-04-001
+cycle_event_count: 1
+cycle_event_limit: 30
+size_limit_bytes: 16384
+line_limit: 120
+archive_policy: volume
+compaction_status: ready
 metadata:
   author: antigravity
   version: '2.0'
@@ -13,37 +23,45 @@ metadata:
   tool_scope:
     - 'filesystem:read'
 ---
+# extension / analyzer — Module Memory
 
-# Staleness Analyzer — 過期分析器記憶
+## Current Truth
+
+- This card is the schema v2 memory owner for extension.analyzer.
+- Its implementation boundary is the tracked file list below.
+- Legacy decisions, lessons, and repair notes were preserved in archive-001.md.
+- No staleness propagation dependency is recorded in frontmatter.
+- Directory nesting is navigation; parent-child placement is not a dependency by itself.
+- Current behavior must still be verified against source before edits.
+
+## Active Constraints
+
+- Keep the main card under 16 KB and 120 lines; move history into archive volumes.
+- Keep the technical body in English; use Traditional Chinese only in the description and Chinese summary.
+- Add at most one Cycle Events item per update and compact before event 31.
+- Do not restore legacy Key Decisions or Module Lessons into the main card body.
+- Keep Tracked Files focused on files this card can actually explain.
+
+## Cycle Events
+
+- 01: Migrated the legacy card into schema v2 and preserved old content in archive volumes.
+
+## Archive Index
+
+- archive-001.md — Legacy card content before schema v2 migration on 2026-06-04.
+
+## 中文摘要
+
+- extension.analyzer 已升級為 schema v2 主卡。
+- 舊版決策與課題已完整保存到 archive-001.md。
+- 主卡只保留目前有效真相、限制、週期事件與追蹤檔案。
+- 目前沒有硬性拆分阻擋。
+- 後續修改此卡時應先讀最新原始碼。
 
 ## Tracked Files
 
 - src/analyzer.ts
 - src/tests/analyzer.test.ts
-
-## Key Decisions
-
-- D01: 過期指數採四級閾值制（0/1-9/10-29/30+）
-- D02: 檔案修改 +10 分、刪除 +20 分、新增 +5 分
-- D03: 同一檔案重複修改不重複加分
-- D04: 每 24 小時未更新的記憶卡 +1 時間衰退分
-- D05: `getStalenessLevel()` 已移至 core-types 的 `staleness.ts`，analyzer 只負責計分與事件處理，避免 writer 為警報等級反向依賴 analyzer。
-- D06: v2.0 解除 I/O 耦合，將原有的 `persist()` 呼叫全部改為 `markDirty()`，由全域 Cache-First 負責後續保存
-- D07: processFileEvent() 中不需再 spy mock fs，只需驗證 writer 與 markDirty 被正確呼叫
-- D08: v4.0 測試 fixture 規範 — 所有 `CartridgeEntry` 測試 fixture 必須包含 `ghostFiles: []`、`dependencies: []`、`indirectStaleness: 0` 三個必要欄位，否則會觸發 TypeScript 型別錯誤。
-- D09: `StalenessAnalyzer` 改用本地 `WarningWriter` 結構介面，不再 import `MemoryWriter` 型別；測試也改以本地 stub 型別避免測試檔造成工程依賴循環。
-- D10: Vitest 4 測試替身型別 — `TestMemoryWriter` 必須暴露與 `WarningWriter` 相同的 async 函式簽章；不要用 `ReturnType<typeof vi.fn>` 作為 writer 方法型別，否則 TypeScript 會把 mock instance 型別視為不符合 analyzer 建構子契約。
-
-## Known Issues
-
-- 無
-
-## Module Lessons
-
-- D01: StalenessAnalyzer 測試可直接 stub MemoryWriter 介面（vi.fn()），不需要 mock fs，測試語義最清晰
-- L02: (2026-05-06) v4.0 新增 ghostFiles/dependencies/indirectStaleness 欄位後，所有測試檔的 CartridgeEntry fixture 必須同步更新，這是跨測試檔的隱性耦合點。
-- L03: type-only import 仍會被輕量 import 掃描器視為工程關係；若只是測試 stub 或結構型別，應優先用本地介面避免 Memory Graph 噪音。
-- L04: (2026-06-02) Vitest 4 的 mock 型別較嚴格；測試若要把 mock 傳給生產介面，應把變數型別寫成生產介面需要的函式簽章，mock 實作用 `vi.fn(async () => ...)` 補齊 Promise 回傳。
 
 ## Relations
 

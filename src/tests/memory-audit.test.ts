@@ -90,7 +90,10 @@ metadata:
           },
         },
         fileMap: { "src/mcp-server.ts": ["mcp-tools"] },
-        untrackedFiles: [],
+        untrackedFiles: [
+          { filePath: ".agents/memory/mcp-tools/archive-001.md" },
+          { filePath: ".agents/memory/mcp-tools" },
+        ],
       }),
     );
 
@@ -103,6 +106,7 @@ metadata:
     expect(envelope.metadata.readOnly).toBe(true);
     expect(envelope.summary.compatibility.mode).toBe("modern");
     expect(envelope.summary.summary.cards).toBe(1);
+    expect(envelope.summary.summary.untrackedFiles).toBe(0);
     expect(envelope.findings).toEqual([]);
   });
 

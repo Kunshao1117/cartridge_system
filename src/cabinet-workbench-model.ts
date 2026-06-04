@@ -1,6 +1,7 @@
 import type { CartridgeIndex } from "./types.js";
 import { emptyMetadata, loadCabinetMemoryMetadata, type CabinetMemoryMetadata } from "./cabinet-memory-metadata.js";
 import { buildCabinetLines, buildLensStats, maintenanceScore, memoryScore, structureScore } from "./cabinet-workbench-derive.js";
+import { createVisibleCartridgeIndex } from "./index-manager.js";
 import type { MemoryCompactionMetrics } from "./memory-compaction.js";
 import { getTaiwanISO } from "./timestamp.js";
 export type CabinetLens = "maintenance" | "memory" | "structure";
@@ -93,9 +94,10 @@ export function buildCabinetWorkbenchModel(
   index: CartridgeIndex,
   metadataByCard: Record<string, CabinetMemoryMetadata> = {},
 ): CabinetWorkbenchModel {
-  const dependentsByCard = buildDependents(index);
-  const childrenByCard = buildChildren(index);
-  const cards = Object.entries(index.cartridges).map(([id, entry]) => {
+  const visibleIndex = createVisibleCartridgeIndex(index);
+  const dependentsByCard = buildDependents(visibleIndex);
+  const childrenByCard = buildChildren(visibleIndex);
+  const cards = Object.entries(visibleIndex.cartridges).map(([id, entry]) => {
     const metadata = metadataByCard[id] ?? emptyMetadata();
     const trackedFilesCount = entry.trackedFiles.length;
     const pendingChangesCount = entry.pendingChanges.length;
@@ -141,7 +143,7 @@ export function buildCabinetWorkbenchModel(
       metadata,
     };
   });
-  const lines = buildCabinetLines(index, cards);
+  const lines = buildCabinetLines(visibleIndex, cards);
   return {
     generatedAt: getTaiwanISO(),
     summary: {
@@ -149,16 +151,16 @@ export function buildCabinetWorkbenchModel(
       staleCards: cards.filter((card) => card.staleness > 0).length,
       ghostFiles: cards.reduce((sum, card) => sum + card.ghostFilesCount, 0),
       pendingChanges: cards.reduce((sum, card) => sum + card.pendingChangesCount, 0),
-      untrackedFiles: index.untrackedFiles.length,
+      untrackedFiles: visibleIndex.untrackedFiles.length,
       signalLines: lines.filter((line) => line.type === "signal").length,
       heatLines: lines.filter((line) => line.type === "heat").length,
       noteLines: lines.filter((line) => line.type === "note").length,
-      lenses: buildLensStats(cards, lines, index.untrackedFiles.length),
+      lenses: buildLensStats(cards, lines, visibleIndex.untrackedFiles.length),
     },
     cards,
-    slots: buildSlots(index),
+    slots: buildSlots(visibleIndex),
     lines,
-    untrackedFiles: index.untrackedFiles.map((entry) => ({
+    untrackedFiles: visibleIndex.untrackedFiles.map((entry) => ({
       filePath: entry.filePath,
       suggestedOwner: entry.suggestedOwner,
     })),

@@ -37,7 +37,7 @@ export class ActionItemsProvider implements vscode.TreeDataProvider<ActionNode> 
     const inventory = await scanContextRegistry(this.projectRoot);
     const findings = auditContextInventory(inventory);
     const items = buildGovernanceActionItems({
-      index: this.indexManager.getIndex(),
+      index: this.indexManager.getVisibleIndex(),
       inventory,
       contextFindings: findings,
     });

@@ -3,9 +3,19 @@ name: desktop-console
 description: >
   專案記憶：Cartridge Desktop Console 桌面監控台父層總覽。Use when: 處理桌面版產品線、多專案監控台、 Electron
   外殼、桌面監控 runtime 或桌面發布邊界時載入。
-last_updated: '2026-06-02T23:16:55+08:00'
+last_updated: '2026-06-04T07:17:22+08:00'
 status: stable
 staleness: 0
+memory_schema_version: 2
+content_language: en
+human_language: zh-TW
+cycle_id: 2026-06-04-001
+cycle_event_count: 1
+cycle_event_limit: 30
+size_limit_bytes: 16384
+line_limit: 120
+archive_policy: volume
+compaction_status: ready
 metadata:
   author: antigravity
   version: '1.0'
@@ -14,29 +24,44 @@ metadata:
   tool_scope:
     - 'filesystem:read'
 ---
+# desktop console — Module Memory
 
-# Desktop Console — 桌面監控台父卡
+## Current Truth
 
-> 本父卡記錄桌面產品線的總體邊界。桌面版是 VSIX 插件與 npm MCP runtime 之外的第三條產品線：它重用 Cartridge 記憶卡監控規則，但不新增 MCP 工具能力。
+- This card is the schema v2 memory owner for desktop-console.
+- This card is a navigation or parent overview card and does not directly own implementation files.
+- Legacy decisions, lessons, and repair notes were preserved in archive-001.md.
+- No staleness propagation dependency is recorded in frontmatter.
+- This is a root-level memory card unless Relations says otherwise.
+- Current behavior must still be verified against source before edits.
+
+## Active Constraints
+
+- Keep the main card under 16 KB and 120 lines; move history into archive volumes.
+- Keep the technical body in English; use Traditional Chinese only in the description and Chinese summary.
+- Add at most one Cycle Events item per update and compact before event 31.
+- Do not restore legacy Key Decisions or Module Lessons into the main card body.
+- Keep Tracked Files focused on files this card can actually explain.
+
+## Cycle Events
+
+- 01: Migrated the legacy card into schema v2 and preserved old content in archive volumes.
+
+## Archive Index
+
+- archive-001.md — Legacy card content before schema v2 migration on 2026-06-04.
+
+## 中文摘要
+
+- desktop-console 已升級為 schema v2 主卡。
+- 舊版決策與課題已完整保存到 archive-001.md。
+- 主卡只保留目前有效真相、限制、週期事件與追蹤檔案。
+- 目前沒有硬性拆分阻擋。
+- 後續修改此卡時應先讀最新原始碼。
 
 ## Tracked Files
 
 - （父層總覽，不直接追蹤實作檔案）
-
-## Key Decisions
-
-- D01: v1 桌面版採 Electron + React + Fluent UI，優先保證 TypeScript / Node 核心重用、Windows 工具型 UI 穩定性與可維護性。
-- D02: 桌面版不改 `package.json` 的 VSIX `main`、MCP `bin` 或 npm `files` 白名單；桌面 bundle 走獨立 `dist/desktop`，桌面發行產物走 `release/desktop`。
-- D03: 桌面版採「完全同插件」監控寫入語意，可更新 `.cartridge/index.json` 與記憶卡警報區塊；記憶卡內容修復仍由使用者開檔處理。
-- D04: 桌面版專案清單保存於使用者 AppData，不寫入被監控專案，避免跨專案設定污染。
-
-## Known Issues
-
-- 桌面版 v1 只以 Windows 為主要支援平台；跨平台行為需在後續版本另行驗證。
-
-## Module Lessons
-
-- L01: VSIX、npm MCP runtime 與 Desktop Console 必須維持發布入口分流，避免同一 tag 或同一打包流程同時改動多條產品線。
 
 ## Relations
 

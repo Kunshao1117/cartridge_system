@@ -3,12 +3,22 @@ name: mcp-tools.project-context
 description: >
   專案記憶：專案脈絡層 MCP 工具。Use when: 處理 project_context_list/read/validate/status、
   .agents/context/ CONTEXT.md 解析、專案脈絡狀態摘要或相關測試時載入。
-last_updated: '2026-05-29T18:15:24+08:00'
+last_updated: '2026-06-04T07:18:53+08:00'
 status: stable
 staleness: 0
 dependencies:
   - core-types
   - mcp-tools.tool-registry
+memory_schema_version: 2
+content_language: en
+human_language: zh-TW
+cycle_id: 2026-06-04-001
+cycle_event_count: 1
+cycle_event_limit: 30
+size_limit_bytes: 16384
+line_limit: 120
+archive_policy: volume
+compaction_status: ready
 metadata:
   author: antigravity
   version: '1.0'
@@ -18,10 +28,45 @@ metadata:
     - 'filesystem:read'
     - 'terminal:test'
 ---
+# mcp tools / project context — Module Memory
 
-# Project Context Tools — 專案脈絡層 MCP 工具記憶
+## Current Truth
 
-> 本子卡追蹤 `.agents/context/` 專案脈絡層的第一階段只讀 MCP 支援。此層級與 `.agents/memory/` 原始碼記憶平行，不參與 stale 計算，也不透過 `memory_commit` 核准或同步脈絡內容。
+- This card is the schema v2 memory owner for mcp-tools.project-context.
+- Its implementation boundary is the tracked file list below.
+- Legacy decisions, lessons, and repair notes were preserved in archive-001.md.
+- Frontmatter dependencies are retained as staleness propagation dependencies and must not be used for navigation-only links.
+- Directory nesting is navigation; parent-child placement is not a dependency by itself.
+- Current behavior must still be verified against source before edits.
+
+## Active Constraints
+
+- Keep the main card under 16 KB and 120 lines; move history into archive volumes.
+- Keep the technical body in English; use Traditional Chinese only in the description and Chinese summary.
+- Add at most one Cycle Events item per update and compact before event 31.
+- Do not restore legacy Key Decisions or Module Lessons into the main card body.
+- Keep Tracked Files focused on files this card can actually explain.
+
+## Known Issues
+
+- None active. Dependency rationale: core-types, mcp-tools.tool-registry are upstream dependencies; upstream staleness must trigger review for this card.
+
+
+## Cycle Events
+
+- 01: Migrated the legacy card into schema v2 and preserved old content in archive volumes.
+
+## Archive Index
+
+- archive-001.md — Legacy card content before schema v2 migration on 2026-06-04.
+
+## 中文摘要
+
+- mcp-tools.project-context 已升級為 schema v2 主卡。
+- 舊版決策與課題已完整保存到 archive-001.md。
+- 主卡只保留目前有效真相、限制、週期事件與追蹤檔案。
+- 目前沒有硬性拆分阻擋。
+- 後續修改此卡時應先讀最新原始碼。
 
 ## Tracked Files
 
@@ -31,30 +76,6 @@ metadata:
 - src/project-context-tool-shared.ts
 - src/project-context-tools.ts
 - src/tests/project-context.test.ts
-
-## Key Decisions
-
-- D01: 第一階段只提供 read-only MCP 工具：`project_context_list`、`project_context_read`、`project_context_validate`、`project_context_status`；不新增 UI、自動寫入、候選寫入或核准工具。
-- D02: 專案脈絡根目錄固定為 `.agents/context/`，脈絡卡檔名固定為 `CONTEXT.md`，避免被當成可執行 `SKILL.md`。
-- D03: `project-context-types.ts` 持有狀態模型、必填 frontmatter、固定章節與 30 天 candidate 複審門檻；candidate 過久只回 warning，不自動升降級。
-- D04: `project-context-registry.ts` 只掃描 `.agents/context/**/CONTEXT.md`，並提供安全 target 讀取；target 不接受絕對路徑或 `..` 路徑穿越。
-- D05: YAML frontmatter 的 `last_reviewed` 可能被 `gray-matter` 解析成 Date，解析器會正規化為 `YYYY-MM-DD` 字串，確保 candidate stale 檢查穩定。
-- D06: `project-context-validation.ts` 檢查 frontmatter 必填欄位、固定章節、approved approval、conflict 說明、candidate 過久與 `.agents/memory/**/CONTEXT.md` 誤放。
-- D07: `project_context_status` 統計 approved、candidate、conflict、review、deprecated，並用 usage 區分可採用、只能提醒、必須詢問使用者與已淘汰脈絡。
-- D08: 所有 project_context 工具使用 `mcp-response.ts` 統一 envelope；錯誤、findings 與 recommendedActions 必須維持 AI / Gateway 可解析格式。
-- D09: 本模組不呼叫 `memory_commit`、不讀寫 `.agents/memory/` 記憶卡內容，也不把 project context 當作原始碼 tracked files 替代品。
-- D10: dependency reason — `core-types` 持有 `path-guard.ts` 的 projectRoot 語意驗證；若路徑安全語義改變，project_context handlers 的輸入防線必須重新檢查。
-- D11: dependency reason — `mcp-tools.tool-registry` 持有 MCP response envelope 與工具公開契約；若 envelope 或工具名冊語義改變，project_context schema、findings 與 recommendedActions 必須重新檢查。
-
-## Known Issues
-
-- 第一階段沒有 `project_context_write_candidate` 或 `project_context_approve`；若未來新增寫入能力，必須加明確 confirm 與 `GO CONTEXT` / `GO DNA` 核准防線。
-
-## Module Lessons
-
-- L01: 專案偏好與原始碼記憶要用平行工具層處理；把 candidate 當成 approved 或讓 context 參與 stale 都會破壞治理邊界。
-- L02: YAML 日期解析是脈絡卡格式的實務風險；驗證邏輯不能假設 frontmatter 日期一定是字串。
-- L03: 狀態摘要應給使用規則，而不是只回統計數字；AI 需要知道 approved 可作預設、candidate 只能提醒、conflict 必須詢問使用者。
 
 ## Relations
 

@@ -94,7 +94,7 @@ export class CartridgeProjectMonitor {
   getSnapshot(): DesktopProjectSnapshot {
     return buildDesktopProjectSnapshot({
       projectRoot: this.projectRoot,
-      index: this.indexManager.getIndex(),
+      index: this.indexManager.getVisibleIndex(),
       enabled: this.enabled,
       error: this.error,
     });

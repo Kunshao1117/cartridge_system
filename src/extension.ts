@@ -58,7 +58,7 @@ export async function activate(
       indexManager.refilterUntrackedFiles(gitignoreFilter);
       await indexManager.flushIfDirty();
       await indexManager.persist();
-      statusBar?.update(indexManager.getIndex());
+      statusBar?.update(indexManager.getVisibleIndex());
       governanceViews?.refresh();
       const count = Object.keys(newIndex.cartridges).length;
       vscode.window.showInformationMessage(`記憶卡匣：已掃描 ${count} 個卡匣`);
@@ -86,7 +86,7 @@ export async function activate(
 
       indexManager.markDirty();
       await indexManager.flushIfDirty();
-      statusBar?.update(indexManager.getIndex());
+      statusBar?.update(indexManager.getVisibleIndex());
       governanceViews?.refresh();
       const count = indexManager.getUntrackedFiles().length;
       vscode.window.showInformationMessage(
@@ -98,7 +98,7 @@ export async function activate(
   // 命令：查看健康報告
   context.subscriptions.push(
     vscode.commands.registerCommand("cartridge.status", () => {
-      const idx = indexManager?.getIndex();
+      const idx = indexManager?.getVisibleIndex();
       if (!idx) {
         vscode.window.showWarningMessage("記憶卡匣：尚未初始化");
         return;
@@ -333,7 +333,7 @@ export async function activate(
     }
 
     // v2.0: 立即顯示基礎燈號（不等待幽靈掃描）
-    statusBar.update(index);
+    statusBar.update(indexManager.getVisibleIndex());
 
     // v5.0: 獨立 Activity Bar 治理側邊欄
     governanceViews = registerGovernanceViews({
@@ -350,7 +350,7 @@ export async function activate(
 
     // v2.0: 記憶體變動通知 hook（連動 UI 三兄弟）
     indexManager.onChanged = () => {
-      statusBar?.update(indexManager?.getIndex());
+      statusBar?.update(indexManager?.getVisibleIndex());
       governanceViews?.refresh();
       codeLensProvider?.refresh();
     };
@@ -374,6 +374,8 @@ export async function activate(
         );
         indexManager?.detectUntrackedFiles(allFiles, gitignoreFilter!);
         indexManager?.markDirty();
+        statusBar?.update(indexManager?.getVisibleIndex());
+        governanceViews?.refresh();
       } catch (err) {
         console.error("[記憶卡匣] 背景幽靈掃描失敗：", err);
       }
@@ -385,8 +387,8 @@ export async function activate(
     context.subscriptions.push(
       vscode.workspace.onDidChangeWorkspaceFolders(async () => {
         if (!indexManager) return;
-        const newIndex = await indexManager.scan();
-        statusBar?.update(newIndex);
+        await indexManager.scan();
+        statusBar?.update(indexManager.getVisibleIndex());
       }),
     );
   } catch (error: unknown) {

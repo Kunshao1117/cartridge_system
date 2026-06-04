@@ -62,7 +62,7 @@ export class CabinetWorkbenchPanel {
   private async postModel(): Promise<void> {
     if (!this.panel) return;
     const model = await buildCabinetWorkbenchModelForProject(
-      this.args.indexManager.getIndex(),
+      this.args.indexManager.getVisibleIndex(),
       this.args.projectRoot,
     );
     await this.panel.webview.postMessage({ type: "model", model });

@@ -14,7 +14,11 @@ import {
 import { validateProjectRoot } from "./path-guard.js";
 import { stalenessToLevel } from "./staleness.js";
 import { getTaiwanISO } from "./timestamp.js";
-import { parseTrackedFiles } from "./index-manager.js";
+import {
+  createVisibleCartridgeIndex,
+  filterVisibleUntrackedFiles,
+  parseTrackedFiles,
+} from "./index-manager.js";
 import {
   buildCompactionMetrics,
   formatCompactionWarnings,
@@ -284,9 +288,12 @@ export async function handleMemoryList(args: unknown): Promise<McpToolResult> {
     );
     try {
       const indexRaw = await fs.readFile(indexPath, "utf-8");
-      const index = JSON.parse(indexRaw);
+      const index = createVisibleCartridgeIndex(
+        JSON.parse(indexRaw) as CartridgeIndex,
+      );
       const cartridges = index.cartridges ?? {};
       const modules = Object.keys(cartridges);
+      const untrackedFiles = index.untrackedFiles ?? [];
 
       const enriched = modules.map((mod) => {
         const entry = cartridges[mod];
@@ -334,7 +341,7 @@ export async function handleMemoryList(args: unknown): Promise<McpToolResult> {
 
       const legacy = {
         cartridges: enriched,
-        untrackedFiles: index.untrackedFiles ?? [],
+        untrackedFiles,
       };
       return toMcpTextResult(
         createToolEnvelope({
@@ -345,7 +352,7 @@ export async function handleMemoryList(args: unknown): Promise<McpToolResult> {
           summary: {
             cartridgeCount: enriched.length,
             cartridges: enriched,
-            untrackedFiles: index.untrackedFiles ?? [],
+            untrackedFiles,
           },
           legacy,
         }),
@@ -933,9 +940,9 @@ export async function handleMemoryCommit(
           }
         }
 
-        index.untrackedFiles = (index.untrackedFiles ?? []).filter(
-          (entry) => !trackedFiles.includes(entry.filePath),
-        );
+        index.untrackedFiles = filterVisibleUntrackedFiles(
+          index.untrackedFiles ?? [],
+        ).filter((entry) => !trackedFiles.includes(entry.filePath));
 
         for (const cartridge of Object.values(index.cartridges)) {
           cartridge.indirectStaleness = 0;

@@ -45,7 +45,7 @@ export class CartridgeTreeProvider implements vscode.TreeDataProvider<CartridgeT
   }
 
   getChildren(el?: CartridgeTreeItem): CartridgeTreeItem[] {
-    const index = this.indexManager.getIndex();
+    const index = this.indexManager.getVisibleIndex();
     if (!el) return this.getRootItems(index);
     if (el.itemType === "cartridge")
       return this.getCartridgeChildren(el, index);

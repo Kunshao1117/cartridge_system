@@ -29,6 +29,45 @@ const INDEX_FILENAME = ".cartridge/index.json";
 const MAX_SCAN_DEPTH = 4;
 
 /**
+ * 記憶系統內部產物由 memory_audit 管理，不進入未歸屬產品檔案池。
+ */
+export function isManagedMemoryArtifactPath(relativePath: string): boolean {
+  const normalized = relativePath.replace(/\\/g, "/");
+  return (
+    normalized.startsWith(".agents/memory/") ||
+    normalized.startsWith(".agents/skills/mem-")
+  );
+}
+
+/**
+ * 產品未歸屬檔案只包含原始碼與專案檔；記憶內部治理產物不應顯示給操作者歸屬。
+ */
+export function filterVisibleUntrackedFiles<T>(
+  untrackedFiles: readonly T[] | undefined,
+): T[] {
+  return (untrackedFiles ?? []).filter((entry) => {
+    const filePath =
+      typeof entry === "object" &&
+      entry !== null &&
+      "filePath" in entry &&
+      typeof (entry as { filePath?: unknown }).filePath === "string"
+        ? (entry as { filePath: string }).filePath
+        : "";
+    return !filePath || !isManagedMemoryArtifactPath(filePath);
+  });
+}
+
+/**
+ * 回傳給 UI / MCP / 桌面面板的索引視圖，排除記憶系統內部未歸屬殘留。
+ */
+export function createVisibleCartridgeIndex(index: CartridgeIndex): CartridgeIndex {
+  return {
+    ...index,
+    untrackedFiles: filterVisibleUntrackedFiles(index.untrackedFiles),
+  };
+}
+
+/**
  * 從記憶卡匣 SKILL.md 解析追蹤檔案清單
  */
 export function parseTrackedFiles(content: string): string[] {
@@ -154,7 +193,9 @@ export class CartridgeIndexManager {
     }
 
     // 保留既有的未歸屬檔案池
-    const existingUntracked = this.index.untrackedFiles ?? [];
+    const existingUntracked = filterVisibleUntrackedFiles(
+      this.index.untrackedFiles,
+    );
     this.index = {
       version: 1,
       lastScanned: getTaiwanISO(),
@@ -337,6 +378,13 @@ export class CartridgeIndexManager {
    */
   getIndex(): CartridgeIndex {
     return this.index;
+  }
+
+  /**
+   * 取得供產品介面與工具摘要使用的乾淨索引視圖
+   */
+  getVisibleIndex(): CartridgeIndex {
+    return createVisibleCartridgeIndex(this.index);
   }
 
   /**
@@ -553,6 +601,8 @@ export class CartridgeIndexManager {
    * 新增未歸屬檔案紀錄
    */
   addUntrackedFile(filePath: string, eventType: FileEventType): void {
+    if (isManagedMemoryArtifactPath(filePath)) return;
+
     if (!this.index.untrackedFiles) {
       this.index.untrackedFiles = [];
     }
@@ -584,7 +634,7 @@ export class CartridgeIndexManager {
    * 取得未歸屬檔案清單
    */
   getUntrackedFiles(): UntrackedFileEntry[] {
-    return this.index.untrackedFiles ?? [];
+    return filterVisibleUntrackedFiles(this.index.untrackedFiles);
   }
 
   /**
@@ -606,6 +656,8 @@ export class CartridgeIndexManager {
     const allTracked = new Set(this.getAllTrackedFiles());
 
     for (const file of allFiles) {
+      // 排除記憶系統內部產物
+      if (isManagedMemoryArtifactPath(file)) continue;
       // .gitignore 二次過濾
       if (gitignoreFilter.isIgnored(file)) continue;
       // 排除系統安全網目錄
@@ -641,6 +693,9 @@ export class CartridgeIndexManager {
       if (allTracked.has(entry.filePath)) return false;
       return true;
     });
+    this.index.untrackedFiles = filterVisibleUntrackedFiles(
+      this.index.untrackedFiles,
+    );
     if (this.index.untrackedFiles.length !== beforeCount) {
       this.markDirty();
     }
@@ -651,6 +706,9 @@ export class CartridgeIndexManager {
    */
   async persist(): Promise<void> {
     const indexPath = path.resolve(this.config.projectRoot, INDEX_FILENAME);
+    this.index.untrackedFiles = filterVisibleUntrackedFiles(
+      this.index.untrackedFiles,
+    );
     // 確保 .cartridge/ 目錄存在
     const dir = path.dirname(indexPath);
     if (!fs.existsSync(dir)) {
@@ -670,6 +728,9 @@ export class CartridgeIndexManager {
     try {
       const raw = fs.readFileSync(indexPath, "utf-8");
       this.index = JSON.parse(raw) as CartridgeIndex;
+      this.index.untrackedFiles = filterVisibleUntrackedFiles(
+        this.index.untrackedFiles,
+      );
       return true;
     } catch {
       return false;

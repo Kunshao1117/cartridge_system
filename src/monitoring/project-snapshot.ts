@@ -1,4 +1,5 @@
 import path from "node:path";
+import { createVisibleCartridgeIndex } from "../index-manager.js";
 import { classifyMemoryWarnings } from "../staleness.js";
 import type { MemoryCompactionMetrics } from "../memory-compaction.js";
 import type {
@@ -79,8 +80,9 @@ export function buildDesktopProjectSnapshot(args: {
   enabled: boolean;
   error?: string | null;
 }): DesktopProjectSnapshot {
-  const warnings = classifyMemoryWarnings(args.index);
-  const cartridges = Object.entries(args.index.cartridges)
+  const index = createVisibleCartridgeIndex(args.index);
+  const warnings = classifyMemoryWarnings(index);
+  const cartridges = Object.entries(index.cartridges)
     .map(([id, entry]) => toCartridgeSnapshot(id, entry))
     .sort((a, b) => b.staleness - a.staleness || a.id.localeCompare(b.id));
   const ghostFiles = cartridges.reduce((sum, item) => sum + item.ghostFiles, 0);
@@ -101,7 +103,7 @@ export function buildDesktopProjectSnapshot(args: {
     root: path.resolve(args.projectRoot),
     status,
     enabled: args.enabled,
-    lastScanned: args.index.lastScanned,
+    lastScanned: index.lastScanned,
     error: args.error ?? null,
     counts: {
       cartridges: cartridges.length,
@@ -111,11 +113,11 @@ export function buildDesktopProjectSnapshot(args: {
       info: warnings.info.length,
       stale: cartridges.filter((item) => item.staleness > 0).length,
       ghostFiles,
-      untrackedFiles: args.index.untrackedFiles?.length ?? 0,
+      untrackedFiles: index.untrackedFiles?.length ?? 0,
       pendingChanges,
     },
     cartridges,
-    untrackedFiles: (args.index.untrackedFiles ?? []).map(toUntrackedFileSnapshot),
+    untrackedFiles: (index.untrackedFiles ?? []).map(toUntrackedFileSnapshot),
   };
 }
 

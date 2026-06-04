@@ -28,6 +28,8 @@ function fixtureIndex(): CartridgeIndex {
     fileMap: {},
     untrackedFiles: [
       { filePath: "src/new-panel.ts", suggestedOwner: "extension", detectedAt: "now", lastEvent: "add" },
+      { filePath: ".agents/memory/extension/archive-001.md", suggestedOwner: null, detectedAt: "now", lastEvent: "add" },
+      { filePath: ".agents/memory/extension", suggestedOwner: null, detectedAt: "now", lastEvent: "add" },
     ],
   };
 }
@@ -204,7 +206,11 @@ describe("governance sidebar models", () => {
     expect(items[3].targetPath).toBe("AGENTS.md");
     expect(items[0].label).toBe("更新記憶卡：extension");
     expect(items[1].affectedPath).toBe("src/old-panel.ts");
+    expect(items[2].affectedPath).toBe("src/new-panel.ts");
     expect(items[2].recommendedAction).toContain("歸到合適的記憶卡");
+    expect(items.map((item) => item.affectedPath)).not.toContain(
+      ".agents/memory/extension/archive-001.md",
+    );
     expect(items[3].reason).toBeDefined();
   });
 

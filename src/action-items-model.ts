@@ -1,4 +1,5 @@
 import type { ContextAuditFinding, ContextInventory } from "./context-types.js";
+import { createVisibleCartridgeIndex } from "./index-manager.js";
 import { classifyMemoryWarnings } from "./staleness.js";
 import type { CartridgeIndex } from "./types.js";
 
@@ -29,10 +30,11 @@ export function buildGovernanceActionItems(args: {
   contextFindings: ContextAuditFinding[];
 }): GovernanceActionItem[] {
   const items: GovernanceActionItem[] = [];
+  const index = createVisibleCartridgeIndex(args.index);
   const assetById = new Map(args.inventory.assets.map((asset) => [asset.id, asset]));
-  const memoryWarnings = classifyMemoryWarnings(args.index);
+  const memoryWarnings = classifyMemoryWarnings(index);
 
-  for (const [id, entry] of Object.entries(args.index.cartridges)) {
+  for (const [id, entry] of Object.entries(index.cartridges)) {
     if (entry.staleness > 0) {
       items.push({
         kind: "stale",
@@ -60,7 +62,7 @@ export function buildGovernanceActionItems(args: {
     }
   }
 
-  for (const entry of args.index.untrackedFiles ?? []) {
+  for (const entry of index.untrackedFiles ?? []) {
     items.push({
       kind: "untracked",
       label: `歸屬檔案：${entry.filePath}`,
@@ -83,7 +85,7 @@ export function buildGovernanceActionItems(args: {
     ) {
       continue;
     }
-    const target = args.index.cartridges[item.target];
+    const target = index.cartridges[item.target];
     items.push({
       kind: "compaction",
       label: item.label,
@@ -101,7 +103,7 @@ export function buildGovernanceActionItems(args: {
   }
 
   for (const item of memoryWarnings.review) {
-    const target = args.index.cartridges[item.target];
+    const target = index.cartridges[item.target];
     items.push({
       kind: "review",
       label: item.label,
@@ -123,7 +125,7 @@ export function buildGovernanceActionItems(args: {
   }
 
   for (const item of memoryWarnings.advisory) {
-    const target = args.index.cartridges[item.target];
+    const target = index.cartridges[item.target];
     items.push({
       kind: "advisory",
       label: item.label,

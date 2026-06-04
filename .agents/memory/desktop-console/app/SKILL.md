@@ -3,12 +3,22 @@ name: desktop-console.app
 description: >
   專案記憶：Electron 桌面外殼、IPC、系統匣、通知與專案清單設定。Use when: 修改桌面主程序、 預載橋接、AppData
   專案設定、桌面通知或桌面打包設定時載入。
-last_updated: '2026-06-04T06:50:55+08:00'
-status: active
+last_updated: '2026-06-04T07:14:50+08:00'
+status: stable
 staleness: 0
 dependencies:
   - desktop-console.monitoring
   - _system
+memory_schema_version: 2
+content_language: en
+human_language: zh-TW
+cycle_id: 2026-06-04-001
+cycle_event_count: 1
+cycle_event_limit: 30
+size_limit_bytes: 16384
+line_limit: 120
+archive_policy: volume
+compaction_status: ready
 metadata:
   author: antigravity
   version: '1.0'
@@ -17,7 +27,45 @@ metadata:
   tool_scope:
     - 'filesystem:read'
 ---
-# Desktop App Shell — 桌面外殼
+# desktop console / app — Module Memory
+
+## Current Truth
+
+- This card is the schema v2 memory owner for desktop-console.app.
+- Its implementation boundary is the tracked file list below.
+- Legacy decisions, lessons, and repair notes were preserved in archive-001.md.
+- Frontmatter dependencies are retained as staleness propagation dependencies and must not be used for navigation-only links.
+- Directory nesting is navigation; parent-child placement is not a dependency by itself.
+- Current behavior must still be verified against source before edits.
+
+## Active Constraints
+
+- Keep the main card under 16 KB and 120 lines; move history into archive volumes.
+- Keep the technical body in English; use Traditional Chinese only in the description and Chinese summary.
+- Add at most one Cycle Events item per update and compact before event 31.
+- Do not restore legacy Key Decisions or Module Lessons into the main card body.
+- The tracked file count is a split advisory only; split when hard limits, mixed ownership, or maintenance difficulty appear.
+
+## Known Issues
+
+- None active. Dependency rationale: desktop-console.monitoring, _system are upstream dependencies; upstream staleness must trigger review for this card.
+
+
+## Cycle Events
+
+- 01: Migrated the legacy card into schema v2 and preserved old content in archive volumes.
+
+## Archive Index
+
+- archive-001.md — Legacy card content before schema v2 migration on 2026-06-04.
+
+## 中文摘要
+
+- desktop-console.app 已升級為 schema v2 主卡。
+- 舊版決策與課題已完整保存到 archive-001.md。
+- 主卡只保留目前有效真相、限制、週期事件與追蹤檔案。
+- 追蹤檔案數偏高屬拆分建議，不單獨阻擋提交。
+- 後續修改此卡時應先讀最新原始碼。
 
 ## Tracked Files
 
@@ -34,35 +82,6 @@ metadata:
 - src/tests/desktop-notifier.test.ts
 - tsup.desktop.config.ts
 - electron-builder.desktop.yml
-
-## Key Decisions
-
-- D01: Electron 主程序負責視窗、系統匣、通知、IPC 與專案監控器生命週期；renderer 不直接接觸 Node 檔案系統。
-- D02: 預載橋接只暴露白名單操作：列出/加入/移除/暫停/恢復/掃描專案、開啟專案資料夾與開啟檔案。
-- D03: 桌面專案清單寫入 Electron userData 目錄的 `desktop-projects.json`，並保存 enabled 狀態；不寫入被監控專案。
-- D04: Electron app 的 main 透過 electron-builder `extraMetadata` 指向 `dist/desktop/main.js`，不修改 VSIX extension manifest 的 `main`。
-- D05: dependency reason — `desktop-console.monitoring` 提供主程序啟動、停止、重掃與快照來源；若監控 runtime 的狀態契約或生命週期過期，Electron IPC 與通知行為必須重新檢查。
-- D06: dependency reason — `_system` 持有 Electron、Vite、React、Fluent UI 與 electron-builder 版本及建構腳本；若桌面技術棧或輸出位置過期，桌面主程序與打包設定必須重新檢查。
-- D07: Windows installer 使用 `desktop-assets/cartridge-desktop.ico`，圖示由既有 `assets/logo.png` 轉製，避免使用 Electron 預設 app icon，且不混入 npm runtime 的 `assets/**` 白名單。
-- D08: IPC 開啟專案與開啟檔案操作必須通過 `path-guard`：root 需存在於目前監控快照，relative file path 不可為絕對路徑或跳出 project root；renderer 同時啟用 contextIsolation、nodeIntegration false 與 sandbox。
-- D09: Windows 桌面版移除 Electron 預設 Application Menu，避免首次啟動只看到英文 File/Edit/View/Window 選單而誤判應用沒有內容。
-- D10: 桌面設定與專案清單共用 `desktop-projects.json`，全域設定包含按 X 縮到系統匣、桌面通知與新手說明；設定保存於 Electron userData，不寫入被監控專案。
-- D11: 視窗 close 事件依 `window-behavior` 判斷是否縮到系統匣；只有系統匣退出或明確退出流程會真正停止監控。
-- D12: `desktop-notifier.ts` 不在 module load 階段直接載入 Electron Notification；改採 lazy loading 與可注入 notification API，避免 CI 單元測試依賴 Electron binary path。
-- D13: Desktop IPC 操作型 API 改回傳 `DesktopOperationResult` 封套，讓 renderer 可辨識 success / cancelled / blocked / error；查詢型 API 維持原樣。
-- D14: 主程序開啟專案與檔案時必須保留 path-guard 邊界，並將 `shell.openPath()` 的非空錯誤字串轉為 error 結果；對話框取消、未知專案與非法路徑不得安靜返回。
-
-## Known Issues
-
-- 無
-
-## Module Lessons
-
-- L01: 桌面打包必須和 VSIX/npm runtime 發布分流，否則 `package.json` 同時承載三條產品線時容易造成產物污染。
-- L02: 2026-06-03 GitHub Windows runner 執行單元測試時，`electron` 套件可能尚未具備 `path.txt`；測試通知邏輯應使用注入物件，不應載入真實 Electron binary。
-- L03: 操作者可見的桌面按鈕不可只依賴 Promise resolve；IPC 需要回傳可呈現的結果訊息，否則主程序成功、取消或被 path guard 阻擋都會被使用者看成「沒反應」。
-- L04: 2026-06-04 桌面 IPC 結果封套與開檔錯誤語意已隨操作回饋維修回歸驗證；`npm run desktop:build` 會產出 `dist/desktop/main.js`，避免 Electron 預覽找不到 main bundle。
-- L05: 2026-06-04 `desktop-store.test.ts` 不能把 Windows 樣本路徑硬寫為固定反斜線期望；Linux runner 會把 `D:/demo` 視為相對路徑，測試應用 `path.resolve()` 取得平台實際正規化結果。
 
 ## Relations
 

@@ -22,6 +22,7 @@ import {
   type BriefIndex,
   type ProjectContextBrief,
 } from "./workspace-brief-summary.js";
+import { filterVisibleUntrackedFiles } from "./index-manager.js";
 
 const projectRootField = z
   .string()
@@ -113,7 +114,9 @@ async function readCartridgeIndex(projectRoot: string): Promise<{
       path.join(projectRoot, ".cartridge", "index.json"),
       "utf-8",
     );
-    return { index: JSON.parse(raw) as BriefIndex, indexAvailable: true };
+    const index = JSON.parse(raw) as BriefIndex;
+    index.untrackedFiles = filterVisibleUntrackedFiles(index.untrackedFiles);
+    return { index, indexAvailable: true };
   } catch {
     return {
       index: { cartridges: {}, untrackedFiles: [] },

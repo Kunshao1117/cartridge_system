@@ -3,12 +3,22 @@ name: mcp-tools.server
 description: >
   專案記憶：MCP SDK server 入口與工具公開清單。Use when: 處理 mcp-server.ts、
   ListToolsRequestSchema、CallToolRequestSchema 或 stdio server 啟動時載入。
-last_updated: '2026-06-04T06:59:51+08:00'
-status: stable
-staleness: 0
+last_updated: '2026-06-04T07:18:17+08:00'
+status: stale
+staleness: 10
 dependencies:
   - mcp-tools.dispatcher
   - mcp-tools.tool-registry
+memory_schema_version: 2
+content_language: en
+human_language: zh-TW
+cycle_id: 2026-06-04-001
+cycle_event_count: 1
+cycle_event_limit: 30
+size_limit_bytes: 16384
+line_limit: 120
+archive_policy: volume
+compaction_status: ready
 metadata:
   author: antigravity
   version: '1.0'
@@ -18,39 +28,60 @@ metadata:
     - 'filesystem:read'
     - 'filesystem:write'
 ---
+<!-- CARTRIDGE_SYSTEM_WARNING_START -->
 
-# MCP Server — SDK 入口記憶
+> [!CAUTION]
+> 🟠 **系統強制攔截**：此記憶已過期失真！
+> 追蹤檔案異動：`src/tests/mcp-server.test.ts`（2026-06-04T08:15:40+08:00）
+> AI 嚴禁基於此記憶施工，必須優先閱讀最新原始碼並更新此記憶卡。
+> staleness: 10 | threshold: 🟠 顯著過期
 
-> 本模組承接 MCP SDK server 入口，父卡 `mcp-tools` 只保留工具介面總覽與跨子卡決策。
+<!-- CARTRIDGE_SYSTEM_WARNING_END -->
+
+# mcp tools / server — Module Memory
+
+## Current Truth
+
+- This card is the schema v2 memory owner for mcp-tools.server.
+- Its implementation boundary is the tracked file list below.
+- Legacy decisions, lessons, and repair notes were preserved in archive-001.md.
+- Frontmatter dependencies are retained as staleness propagation dependencies and must not be used for navigation-only links.
+- Directory nesting is navigation; parent-child placement is not a dependency by itself.
+- Current behavior must still be verified against source before edits.
+
+## Active Constraints
+
+- Keep the main card under 16 KB and 120 lines; move history into archive volumes.
+- Keep the technical body in English; use Traditional Chinese only in the description and Chinese summary.
+- Add at most one Cycle Events item per update and compact before event 31.
+- Do not restore legacy Key Decisions or Module Lessons into the main card body.
+- Keep Tracked Files focused on files this card can actually explain.
+
+## Known Issues
+
+- None active. Dependency rationale: mcp-tools.dispatcher, mcp-tools.tool-registry are upstream dependencies; upstream staleness must trigger review for this card.
+
+
+## Cycle Events
+
+- 01: Migrated the legacy card into schema v2 and preserved old content in archive volumes.
+
+## Archive Index
+
+- archive-001.md — Legacy card content before schema v2 migration on 2026-06-04.
+
+## 中文摘要
+
+- mcp-tools.server 已升級為 schema v2 主卡。
+- 舊版決策與課題已完整保存到 archive-001.md。
+- 主卡只保留目前有效真相、限制、週期事件與追蹤檔案。
+- 目前沒有硬性拆分阻擋。
+- 後續修改此卡時應先讀最新原始碼。
 
 ## Tracked Files
 
 - src/mcp-server.ts
 - src/tests/mcp-server.test.ts
-
-## Key Decisions
-
-- D01: `mcp-server.ts` 只負責 MCP SDK `Server` 建立、`ListToolsRequestSchema` 公開工具清單、`CallToolRequestSchema` 接收請求與 stdio transport 啟動。
-- D02: 工具公開清單由 `CARTRIDGE_TOOLS` 生成，避免 server 入口手寫工具 metadata。
-- D03: 工具呼叫路由交由 `dispatchToolCall()`，server 不再維護 if/else handler routing。
-- D04: 本卡的 `dependencies` 只保留實際 import 的 `mcp-tools.dispatcher` 與 `mcp-tools.tool-registry`；父卡關係寫在 Relations。
-- D05: v5.4 MCP server metadata 版本同步為 5.4.2；版本升級時仍需同時檢查 package.json 與此硬編碼 SDK metadata。
-- D06: v5.1 tools/list description 由 `tool.description` 加上 `安全性：tool.safetySummary` 組成，讓外部 AI 只看公開工具清單也能理解工具安全邊界。
-- D07: v5.2 `mcp-server.ts` 新增 `--workspace`、`--help`、`--version` CLI 入口；MCP 模式不使用 `process.cwd()` fallback，避免 Gateway 或 npm runtime 從錯誤目錄啟動時掃錯專案。
-- D08: v5.2 server 只把 `defaultProjectRoot` 交給 dispatcher；實際 projectRoot 注入、衝突防線與舊客戶端相容由 `mcp-tools.dispatcher` 承接，server 仍保持薄層。
-- D09: v5.3.3 tools/list 由 registry 自動公開十三個工具，包含 `memory_graph`；server 薄層不需要新增手寫路由。
-- D10: v5.4.2 發布目標包含 npm runtime，因此 `MCP_SERVER_VERSION` 與 package version 同步為 5.4.2，避免 `cartridge-system --version` 顯示舊版。
-
-## Known Issues
-
-- `mcp-server.ts` 的 SDK metadata 版本不會自動讀取 package.json，版本升級時仍需同步檢查。
-- 無
-
-## Module Lessons
-
-- L01: MCP server 入口應維持薄層，讓工具治理與 routing 分別由 registry 與 dispatcher 承接。
-- L02: npm bin 入口必須避免在 MCP stdio 模式向 stdout 輸出 banner；help/version 可以用 stdout，server runtime 診斷只走 stderr。
-- L03: tools/list 工具數變動時，server 記憶卡只需確認 registry-driven list tools 仍成立，不應回到 server 手寫工具清單。
 
 ## Relations
 

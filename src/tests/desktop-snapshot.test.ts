@@ -38,6 +38,9 @@ describe("buildDesktopProjectSnapshot", () => {
       lastEvent: "add",
       guidance: "先判斷這個新檔案屬於哪張記憶卡，再開啟對應記憶卡加入 Tracked Files。",
     });
+    expect(snapshot.untrackedFiles.map((entry) => entry.filePath)).toEqual([
+      "src/new.ts",
+    ]);
   });
 
   it("marks disabled projects as paused", () => {
@@ -59,6 +62,12 @@ function createIndex(): CartridgeIndex {
     untrackedFiles: [
       {
         filePath: "src/new.ts",
+        suggestedOwner: null,
+        detectedAt: "2026-06-02T12:00:00+08:00",
+        lastEvent: "add",
+      },
+      {
+        filePath: ".agents/memory/core/archive-001.md",
         suggestedOwner: null,
         detectedAt: "2026-06-02T12:00:00+08:00",
         lastEvent: "add",

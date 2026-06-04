@@ -19,6 +19,7 @@ import {
   type DependencySemanticSummary,
   type PreflightIndex,
 } from "./commit-preflight-summary.js";
+import { filterVisibleUntrackedFiles } from "./index-manager.js";
 
 const projectRootField = z
   .string()
@@ -80,7 +81,9 @@ async function readCartridgeIndex(projectRoot: string): Promise<{
       path.join(projectRoot, ".cartridge", "index.json"),
       "utf-8",
     );
-    return { index: JSON.parse(raw) as PreflightIndex, indexAvailable: true };
+    const index = JSON.parse(raw) as PreflightIndex;
+    index.untrackedFiles = filterVisibleUntrackedFiles(index.untrackedFiles);
+    return { index, indexAvailable: true };
   } catch {
     return {
       index: { cartridges: {}, fileMap: {}, untrackedFiles: [] },

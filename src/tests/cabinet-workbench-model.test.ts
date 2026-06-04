@@ -39,7 +39,10 @@ function fixtureIndex(): CartridgeIndex {
       },
     },
     fileMap: {},
-    untrackedFiles: [{ filePath: "src/new.ts", suggestedOwner: "core", detectedAt: "now", lastEvent: "add" }],
+    untrackedFiles: [
+      { filePath: "src/new.ts", suggestedOwner: "core", detectedAt: "now", lastEvent: "add" },
+      { filePath: ".agents/memory/core/archive-001.md", suggestedOwner: null, detectedAt: "now", lastEvent: "add" },
+    ],
   };
 }
 
@@ -64,6 +67,7 @@ describe("cabinet workbench model", () => {
     expect(model.summary.staleCards).toBe(1);
     expect(model.summary.ghostFiles).toBe(1);
     expect(model.summary.untrackedFiles).toBe(1);
+    expect(model.untrackedFiles.map((entry) => entry.filePath)).toEqual(["src/new.ts"]);
     expect(model.cards.find((card) => card.id === "core")?.title).toBe("核心卡匣");
     expect(model.cards.find((card) => card.id === "core")?.children).toEqual(["core.child"]);
     expect(model.cards.find((card) => card.id === "core")?.pendingChanges).toEqual(["src/core.ts"]);

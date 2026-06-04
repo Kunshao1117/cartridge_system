@@ -3,13 +3,23 @@ name: context-governance
 description: >
   專案記憶：v5 規則檔檢查工具。Use when: 處理 context_inventory、context_audit、
   context_diff、context_plan、AI 規則來源掃描或跨代理規則衝突偵測時載入。
-last_updated: '2026-05-17T23:39:29+08:00'
+last_updated: '2026-06-04T07:19:11+08:00'
 status: stable
 staleness: 0
 dependencies:
   - core-types
   - index-manager
   - mcp-tools.tool-registry
+memory_schema_version: 2
+content_language: en
+human_language: zh-TW
+cycle_id: 2026-06-04-001
+cycle_event_count: 1
+cycle_event_limit: 30
+size_limit_bytes: 16384
+line_limit: 120
+archive_policy: volume
+compaction_status: ready
 metadata:
   author: antigravity
   version: '1.0'
@@ -19,9 +29,45 @@ metadata:
     - 'filesystem:read'
     - 'filesystem:write'
 ---
-# Context Governance — v5 規則檔檢查記憶
+# mcp tools / context governance — Module Memory
 
-> 本模組承接 v5 只讀規則檔檢查能力，將 Codex、Claude、Copilot、Antigravity 與記憶卡規則來源轉成可讀清冊、衝突提醒與整理建議。
+## Current Truth
+
+- This card is the schema v2 memory owner for mcp-tools.context-governance.
+- Its implementation boundary is the tracked file list below.
+- Legacy decisions, lessons, and repair notes were preserved in archive-001.md.
+- Frontmatter dependencies are retained as staleness propagation dependencies and must not be used for navigation-only links.
+- Directory nesting is navigation; parent-child placement is not a dependency by itself.
+- Current behavior must still be verified against source before edits.
+
+## Active Constraints
+
+- Keep the main card under 16 KB and 120 lines; move history into archive volumes.
+- Keep the technical body in English; use Traditional Chinese only in the description and Chinese summary.
+- Add at most one Cycle Events item per update and compact before event 31.
+- Do not restore legacy Key Decisions or Module Lessons into the main card body.
+- Keep Tracked Files focused on files this card can actually explain.
+
+## Known Issues
+
+- None active. Dependency rationale: core-types, index-manager, mcp-tools.tool-registry are upstream dependencies; upstream staleness must trigger review for this card.
+
+
+## Cycle Events
+
+- 01: Migrated the legacy card into schema v2 and preserved old content in archive volumes.
+
+## Archive Index
+
+- archive-001.md — Legacy card content before schema v2 migration on 2026-06-04.
+
+## 中文摘要
+
+- mcp-tools.context-governance 已升級為 schema v2 主卡。
+- 舊版決策與課題已完整保存到 archive-001.md。
+- 主卡只保留目前有效真相、限制、週期事件與追蹤檔案。
+- 目前沒有硬性拆分阻擋。
+- 後續修改此卡時應先讀最新原始碼。
 
 ## Tracked Files
 
@@ -31,32 +77,6 @@ metadata:
 - src/context-audit.ts
 - src/context-tools.ts
 - src/tests/context-governance.test.ts
-
-## Key Decisions
-
-- D01: v5.0 第一階段只做 read-only context governance，不新增任何自動改寫、修復或提交工具，避免擴大 MCP 寫入面。
-- D02: `context-types.ts` 定義規則來源資料：owner、scope、priority、supportedAgents、trackedFiles、dependencies、staleness、risk、signals，以及 v5.1 finding 的 explanation、paths、blocking、recommendedTool、recommendedAction。
-- D03: `context-contract.ts` 持有靜態上下文資產定義、治理訊號解析、SKILL.md contract 建構與 inventory totals 彙整，讓 `context-registry.ts` 維持掃描流程職責。
-- D04: `context-registry.ts` 掃描 Codex `AGENTS.md`、Claude `CLAUDE.md` / `.claude/skills` / `.claude/agents`、GitHub Copilot instructions、Antigravity `.agents/skills` 與 Cartridge `.agents/memory`。
-- D05: 記憶卡 context asset 會重用 `parseTrackedFiles()` 解析 `## Tracked Files`，因此 `index-manager` 過期時本模組也需重新檢查 tracked file contract。
-- D06: `context-audit.ts` 將提交授權與寫入政策衝突列為 blocking；語言規則差異只列 warning，重複規則只列 informational，避免把合法 scope 差異誤判成阻塞。
-- D07: `context-tools.ts` 提供 `context_inventory`、`context_audit`、`context_diff`、`context_plan` 四個 MCP handler，全部 readOnly=true 並使用統一 envelope。
-- D08: `mcp-tools.tool-registry` 是本模組的工具公開契約上游；新增、改名或調整 context 工具 schema 時必須同步 registry 與 dispatcher。
-- D09: `core-types` 是本模組的實際 dependency：`context-tools.ts` 使用路徑驗證與 MCP response envelope，`context-contract.ts` 透過既有記憶卡解析 contract 維持 tracked file 相容；若 core 型別或 envelope 改變，本模組必須重新檢查。
-- D10: v5.1 `context_audit` finding 需回白話 `message`、詳細 `explanation`、可開啟的 `paths`、是否阻塞的 `blocking` 與建議工具，讓側邊欄與 AI 開工清單可直接呈現。
-- D11: `context_plan` 的建議文字改為白話只讀整理建議，明確說明不自動改 `AGENTS.md`、`CLAUDE.md` 或記憶卡。
-
-## Known Issues
-
-- v5.0 不讀取 GitHub Copilot path-specific instructions 或 VS Code custom agents；目前僅支援計畫中指定的核心位置。
-- v5.1 仍不做自動修復；若 audit 出現 blocking conflict，只回報 findings 與 plan，後續寫入工具需另以 confirm-gated 設計。
-
-## Module Lessons
-
-- L01: 規則檔檢查比記憶卡治理更容易產生誤報；只有提交授權與寫入政策這類高風險衝突應阻擋，其餘差異先以 warning/info 呈現。
-- L02: 規則來源掃描應允許目標目錄不存在並回傳缺失資產，而不是把跨代理支援不足視為工具錯誤。
-- L03: v5 context tools 要保持快速與副作用為零，避免 `workspace_brief` 這類開工入口變成隱性重掃或修復流程。
-- L04: finding 的第一層文字要給人看，機器需要的 code 與 asset id 保留在欄位中即可。
 
 ## Relations
 

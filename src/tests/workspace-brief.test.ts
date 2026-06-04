@@ -135,7 +135,10 @@ describe("handleWorkspaceBrief", () => {
             },
           },
           fileMap: {},
-          untrackedFiles: [],
+          untrackedFiles: [
+            { filePath: ".agents/memory/mcp-tools/archive-001.md" },
+            { filePath: ".agents/memory/mcp-tools" },
+          ],
         }) as unknown as Awaited<ReturnType<typeof fs.readFile>>;
       }
       throw new Error("unexpected path");
@@ -147,6 +150,7 @@ describe("handleWorkspaceBrief", () => {
 
     expect(envelope.status).toBe("ready");
     expect(brief.readiness.status).toBe("ready");
+    expect(brief.memory.untrackedFiles).toBe(0);
     expect(brief.startupReadiness.label).toBe("可以開工");
     expect(brief.readiness.reasons).toEqual([]);
     expect(brief.submitReadiness.status).toBe("needs_review");

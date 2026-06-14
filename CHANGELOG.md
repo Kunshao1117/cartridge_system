@@ -2,6 +2,27 @@
 
 ## [Unreleased]
 
+## [5.5.2] — 2026-06-15
+
+### fix
+
+- 建構供應鏈安全補版 — 將建構引擎透過 package overrides 固定到 `esbuild` 0.28.1，修復完整 `npm audit` 回報的高風險 dev toolchain 漏洞。
+- GitNexus 圖譜修復 — 暫時移除 GitNexus MCP 讀取端後，改用新版 GitNexus CLI 重新建立 `.gitnexus` 索引，解除 LadybugDB storage version 41 / 40 不相容阻塞。
+
+### chore
+
+- 發布同步 — package、lockfile、MCP server 版本、版本測試與 README 安裝範例同步至 5.5.2。
+
+## [desktop-v5.5.2] — 2026-06-15
+
+### fix
+
+- 桌面版安全補版 — 桌面監控台沿用 5.5.2 建構供應鏈修復，打包時使用安全版建構引擎並維持桌面安裝檔獨立發布。
+
+### chore
+
+- 桌面發布同步 — 桌面版 tag、安裝檔版本與 README 發布範例同步至 desktop-v5.5.2。
+
 ## [5.5.1] — 2026-06-15
 
 ### fix

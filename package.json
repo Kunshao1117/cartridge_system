@@ -1,7 +1,7 @@
 {
   "name": "cartridge-system",
   "displayName": "記憶卡匣監控系統",
-  "version": "5.5.1",
+  "version": "5.5.2",
   "description": "記憶卡匣動態熱處理外掛 — 主動式檔案監聽與記憶過期防禦系統",
   "publisher": "cartridge-system",
   "author": "cartridge-system",
@@ -198,5 +198,8 @@
     "ignore": "^7.0.5",
     "react": "^19.2.7",
     "react-dom": "^19.2.7"
+  },
+  "overrides": {
+    "esbuild": "0.28.1"
   }
 }

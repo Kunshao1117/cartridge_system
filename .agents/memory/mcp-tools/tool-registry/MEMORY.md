@@ -3,14 +3,14 @@ name: tool-registry
 description: >
   專案記憶：MCP 工具名冊與統一回傳契約。Use when: 處理工具風險分級、MCP tools 清單生成、治理 envelope
   或高階工具回傳格式時載入。
-last_updated: '2026-06-15T00:55:00+08:00'
+last_updated: '2026-06-15T01:57:03+08:00'
 status: stable
 staleness: 0
 memory_schema_version: 2
 content_language: en
 human_language: zh-TW
 cycle_id: 2026-06-04-001
-cycle_event_count: 4
+cycle_event_count: 6
 cycle_event_limit: 30
 size_limit_bytes: 16384
 line_limit: 120
@@ -27,7 +27,7 @@ metadata:
 memory_quality_version: 1
 memory_kind: implementation
 verification_status: verified
-last_verified: '2026-06-15T00:55:00+08:00'
+last_verified: '2026-06-15T01:55:53+08:00'
 valid_scope:
   - src/tool-registry.ts
   - src/mcp-response.ts
@@ -46,7 +46,7 @@ scopePath: null
 - Directory nesting is navigation; parent-child placement is not a dependency by itself.
 - Current behavior must still be verified against source before edits.
 - The registry currently exposes 17 MCP tools across memory, context, and project context groups.
-- The package manifest contract is pinned to version 5.5.1 with MCP bin entries limited to built dist files.
+- The package manifest contract is pinned to version 5.5.2 with MCP bin entries limited to built dist files.
 - Project context tools remain read-only and separate from memory commit workflows.
 
 ## Active Constraints
@@ -64,6 +64,7 @@ scopePath: null
 - 03: Standardized active memory main file to MEMORY.md with quality metadata and evidence sections.
 - 04: Standardized memory ownership and YAML valid_scope for the 5.5.1 governance repair.
 - 05: Synced package manifest version assertions to 5.5.1 after the security patch release.
+- 06: Synced package manifest version assertions to 5.5.2 after the build security patch.
 
 ## Archive Index
 
@@ -92,7 +93,7 @@ scopePath: null
 - 主卡只保留目前有效真相、限制、週期事件與追蹤檔案。
 - 目前沒有硬性拆分阻擋。
 - MCP 工具名冊目前公開 17 個工具，並維持 project context 工具只讀。
-- npm manifest 版本、MCP bin 與打包範圍已對齊 5.5.1 發布契約。
+- npm manifest 版本、MCP bin 與打包範圍已對齊 5.5.2 發布契約。
 - 後續修改此卡時應先讀最新原始碼。
 
 ## Tracked Files

@@ -2,14 +2,14 @@
 name: _system
 description: |
   專案記憶：系統技術堆疊與部署設定。 Use when: 確認技術選型、環境設定、部署組態時載入。
-last_updated: '2026-06-15T00:57:00+08:00'
+last_updated: '2026-06-15T01:56:54+08:00'
 status: stable
 staleness: 0
 memory_schema_version: 2
 content_language: en
 human_language: zh-TW
 cycle_id: 2026-06-04-001
-cycle_event_count: 5
+cycle_event_count: 6
 cycle_event_limit: 30
 size_limit_bytes: 16384
 line_limit: 120
@@ -25,7 +25,7 @@ metadata:
 memory_quality_version: 1
 memory_kind: system
 verification_status: verified
-last_verified: '2026-06-15T00:57:00+08:00'
+last_verified: '2026-06-15T01:55:53+08:00'
 valid_scope:
   - package.json
   - package-lock.json
@@ -36,13 +36,15 @@ valid_scope:
   - vitest.config.ts
 scopePath: null
 ---
+
 # _system — Module Memory
 
 ## Current Truth
 
 - This card owns package version, lockfile security posture, TypeScript, bundling, lint, and test configuration.
-- Package and MCP runtime version are synchronized to 5.5.1 for the Hono security and memory governance repair release.
+- Package and MCP runtime version are synchronized to 5.5.2 for the build toolchain security repair release.
 - Hono is resolved through the MCP SDK dependency tree at a non-vulnerable 4.12.21+ version.
+- The package manifest overrides esbuild to 0.28.1 so the full dependency audit remains clean.
 - GitHub release workflows and desktop installer metadata are owned by release-packaging.
 
 ## Active Constraints
@@ -60,6 +62,7 @@ scopePath: null
 - 03: Standardized active memory main file to MEMORY.md with quality metadata and evidence sections.
 - 04: Standardized memory ownership and YAML valid_scope for the 5.5.1 governance repair.
 - 05: Updated package and lockfile to 5.5.1 and verified Hono 4.12.25 for the security repair.
+- 06: Updated package and lockfile to 5.5.2 with esbuild 0.28.1 override.
 
 ## Archive Index
 
@@ -87,7 +90,7 @@ scopePath: null
 
 ## 中文摘要
 
-- 系統卡已同步 5.5.1。
+- 系統卡已同步 5.5.2。
 - 發布工作流與桌面安裝設定改由 release-packaging 卡承接，避免系統卡過大。
 
 ## Tracked Files

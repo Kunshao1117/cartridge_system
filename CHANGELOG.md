@@ -2,6 +2,20 @@
 
 ## [Unreleased]
 
+## [5.5.1] — 2026-06-15
+
+### fix
+
+- 安全補版 — package 與 lockfile 升級到 5.5.1，Hono 透過 MCP SDK 解析到 4.12.25，`npm audit --omit=dev` 無生產依賴漏洞。
+- 記憶治理 — active 記憶卡全部使用 `MEMORY.md`，有效範圍統一為 YAML 清單，Evidence Base 改為可審計條目，並修正 extension.analyzer 半截路徑。
+- 依賴循環 — 抽出 `visible-index` 與 `project-file-list` helper，移除 staleness、memory_reindex、桌面監控與 index-manager 之間的反向引用。
+- 記憶粒度 — 拆出 core foundation / runtime / visible-index / main-file / compaction 與 desktop renderer bridge / panels / runtime / styles 子卡，記憶審計已無 dependency cycle 與 granularity advisory。
+
+### chore
+
+- 發布同步 — MCP server 版本、版本測試、README 安裝範例與三線 tag 文件同步至 5.5.1。
+- 測試覆蓋 — 新增 visible-index 與 project-file-list 回歸，全量測試更新為 40 個測試檔案、311 個案例。
+
 ## [5.5.0] — 2026-06-14
 
 ### feat

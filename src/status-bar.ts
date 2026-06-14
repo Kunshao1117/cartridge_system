@@ -5,7 +5,7 @@
 
 import * as vscode from "vscode";
 import type { CartridgeIndex } from "./types";
-import { createVisibleCartridgeIndex } from "./index-manager";
+import { createVisibleCartridgeIndex } from "./visible-index";
 
 /**
  * 狀態列燈號元件

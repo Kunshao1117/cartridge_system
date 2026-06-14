@@ -1,5 +1,5 @@
 import type { ContextAuditFinding, ContextInventory } from "./context-types.js";
-import { createVisibleCartridgeIndex } from "./index-manager.js";
+import { createVisibleCartridgeIndex } from "./visible-index.js";
 import { classifyMemoryWarnings } from "./staleness.js";
 import type { CartridgeEntry, CartridgeIndex } from "./types.js";
 

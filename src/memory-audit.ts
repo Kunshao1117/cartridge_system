@@ -18,10 +18,10 @@ import {
   type McpToolResult,
 } from "./mcp-response.js";
 import {
-  filterVisibleUntrackedFiles,
   parseTrackedFiles,
   shouldWarnEmptyTrackedFiles,
 } from "./index-manager.js";
+import { filterVisibleUntrackedFiles } from "./visible-index.js";
 import {
   buildArchiveVolumeMetrics,
   buildCompactionMetrics,

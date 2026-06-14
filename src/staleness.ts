@@ -6,7 +6,7 @@ import type {
   MemoryMainFileType,
   MemoryQualityReport,
 } from "./memory-main-file.js";
-import { filterVisibleUntrackedFiles } from "./index-manager.js";
+import { filterVisibleUntrackedFiles } from "./visible-index.js";
 
 const STALENESS_THRESHOLDS = { significant: 10, critical: 30 };
 

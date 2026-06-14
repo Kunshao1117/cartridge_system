@@ -1,7 +1,7 @@
 import path from "node:path";
 import type { CartridgeConfig, FileEventType } from "../types.js";
 import type { CartridgeIndexManager } from "../index-manager.js";
-import { isManagedMemoryArtifactPath } from "../index-manager.js";
+import { isManagedMemoryArtifactPath } from "../visible-index.js";
 import type { StalenessAnalyzer } from "../analyzer.js";
 import type { GitignoreFilter } from "../gitignore-filter.js";
 import type { MemoryWriter } from "../writer.js";

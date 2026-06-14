@@ -1,16 +1,14 @@
 import { createConfig } from "./config.js";
 import { GitignoreFilter } from "./gitignore-filter.js";
-import {
-  CartridgeIndexManager,
-  createVisibleCartridgeIndex,
-} from "./index-manager.js";
+import { CartridgeIndexManager } from "./index-manager.js";
+import { createVisibleCartridgeIndex } from "./visible-index.js";
 import { validateProjectRoot } from "./path-guard.js";
 import type { CartridgeConfig, CartridgeIndex } from "./types.js";
 import type {
   MemoryContentQualityStatus,
   MemoryMainFileType,
 } from "./memory-main-file.js";
-import { listProjectFiles } from "./monitoring/file-list.js";
+import { listProjectFiles } from "./project-file-list.js";
 
 export interface MemoryIndexSummary {
   cartridgeCount: number;

@@ -1,7 +1,7 @@
 import type { ContextInventory } from "./context-types.js";
 import { classifyMemoryWarnings } from "./staleness.js";
 import type { CartridgeIndex } from "./types.js";
-import { createVisibleCartridgeIndex } from "./index-manager.js";
+import { createVisibleCartridgeIndex } from "./visible-index.js";
 
 export type GovernanceStatus = "ready" | "warning" | "blocked";
 

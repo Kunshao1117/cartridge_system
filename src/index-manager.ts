@@ -29,50 +29,22 @@ import {
 } from "./memory-main-file.js";
 import { getTaiwanISO } from "./timestamp.js";
 import { suggestOwner } from "./smart-owner.js";
+import {
+  createVisibleCartridgeIndex,
+  filterVisibleUntrackedFiles,
+  isManagedMemoryArtifactPath,
+} from "./visible-index.js";
+
+export {
+  createVisibleCartridgeIndex,
+  filterVisibleUntrackedFiles,
+  isManagedMemoryArtifactPath,
+} from "./visible-index.js";
 
 const INDEX_FILENAME = ".cartridge/index.json";
 
 /** 巢狀目錄最大掃描深度 */
 const MAX_SCAN_DEPTH = 4;
-
-/**
- * 記憶系統內部產物由 memory_audit 管理，不進入未歸屬產品檔案池。
- */
-export function isManagedMemoryArtifactPath(relativePath: string): boolean {
-  const normalized = relativePath.replace(/\\/g, "/");
-  return (
-    normalized.startsWith(".agents/memory/") ||
-    normalized.startsWith(".agents/skills/mem-")
-  );
-}
-
-/**
- * 產品未歸屬檔案只包含原始碼與專案檔；記憶內部治理產物不應顯示給操作者歸屬。
- */
-export function filterVisibleUntrackedFiles<T>(
-  untrackedFiles: readonly T[] | undefined,
-): T[] {
-  return (untrackedFiles ?? []).filter((entry) => {
-    const filePath =
-      typeof entry === "object" &&
-      entry !== null &&
-      "filePath" in entry &&
-      typeof (entry as { filePath?: unknown }).filePath === "string"
-        ? (entry as { filePath: string }).filePath
-        : "";
-    return !filePath || !isManagedMemoryArtifactPath(filePath);
-  });
-}
-
-/**
- * 回傳給 UI / MCP / 桌面面板的索引視圖，排除記憶系統內部未歸屬殘留。
- */
-export function createVisibleCartridgeIndex(index: CartridgeIndex): CartridgeIndex {
-  return {
-    ...index,
-    untrackedFiles: filterVisibleUntrackedFiles(index.untrackedFiles),
-  };
-}
 
 /**
  * 從記憶卡匣主檔解析追蹤檔案清單

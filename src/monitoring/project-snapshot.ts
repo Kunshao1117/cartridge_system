@@ -1,5 +1,5 @@
 import path from "node:path";
-import { createVisibleCartridgeIndex } from "../index-manager.js";
+import { createVisibleCartridgeIndex } from "../visible-index.js";
 import { classifyMemoryWarnings } from "../staleness.js";
 import type { MemoryCompactionMetrics } from "../memory-compaction.js";
 import type {

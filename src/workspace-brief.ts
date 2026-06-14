@@ -22,7 +22,7 @@ import {
   type BriefIndex,
   type ProjectContextBrief,
 } from "./workspace-brief-summary.js";
-import { filterVisibleUntrackedFiles } from "./index-manager.js";
+import { filterVisibleUntrackedFiles } from "./visible-index.js";
 
 const projectRootField = z
   .string()

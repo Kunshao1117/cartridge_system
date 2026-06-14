@@ -1,7 +1,7 @@
 import type { CartridgeIndex } from "./types.js";
 import { emptyMetadata, loadCabinetMemoryMetadata, type CabinetMemoryMetadata } from "./cabinet-memory-metadata.js";
 import { buildCabinetLines, buildLensStats, maintenanceScore, memoryScore, structureScore } from "./cabinet-workbench-derive.js";
-import { createVisibleCartridgeIndex } from "./index-manager.js";
+import { createVisibleCartridgeIndex } from "./visible-index.js";
 import type { MemoryCompactionMetrics } from "./memory-compaction.js";
 import { getTaiwanISO } from "./timestamp.js";
 export type CabinetLens = "maintenance" | "memory" | "structure";

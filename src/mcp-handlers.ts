@@ -15,10 +15,12 @@ import { validateProjectRoot } from "./path-guard.js";
 import { stalenessToLevel } from "./staleness.js";
 import { getTaiwanISO } from "./timestamp.js";
 import {
-  createVisibleCartridgeIndex,
-  filterVisibleUntrackedFiles,
   parseTrackedFiles,
 } from "./index-manager.js";
+import {
+  createVisibleCartridgeIndex,
+  filterVisibleUntrackedFiles,
+} from "./visible-index.js";
 import {
   buildCompactionMetrics,
   formatCompactionWarnings,

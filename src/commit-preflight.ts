@@ -19,7 +19,7 @@ import {
   type DependencySemanticSummary,
   type PreflightIndex,
 } from "./commit-preflight-summary.js";
-import { filterVisibleUntrackedFiles } from "./index-manager.js";
+import { filterVisibleUntrackedFiles } from "./visible-index.js";
 
 const projectRootField = z
   .string()

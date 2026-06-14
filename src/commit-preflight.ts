@@ -126,7 +126,8 @@ function getDirtyMemoryModules(
     for (const [moduleName, cartridge] of Object.entries(
       index.cartridges ?? {},
     )) {
-      if (cartridge.skillPath === entry.path) {
+      const mainPath = cartridge.mainFile?.activePath ?? cartridge.skillPath;
+      if (mainPath === entry.path || cartridge.skillPath === entry.path) {
         modules.add(moduleName);
       }
     }
@@ -146,9 +147,13 @@ async function buildDependencySemanticSummary(
   for (const moduleName of modules) {
     const entry = index.cartridges?.[moduleName];
     if (!entry?.skillPath) continue;
+    if (entry.mainFile?.type === "conflict" || entry.mainFile?.type === "missing") {
+      continue;
+    }
+    const mainPath = entry.mainFile?.activePath ?? entry.skillPath;
 
     try {
-      const raw = await fs.readFile(path.join(projectRoot, entry.skillPath), "utf-8");
+      const raw = await fs.readFile(path.join(projectRoot, mainPath), "utf-8");
       const { content: body, data } = matter(raw);
       const dependencies = Array.isArray(data.dependencies)
         ? data.dependencies.filter(

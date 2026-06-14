@@ -24,6 +24,72 @@ function parseEnvelope(result: Awaited<ReturnType<typeof handleMemoryAudit>>) {
   return JSON.parse(result.content[0].text);
 }
 
+function qualityMemoryCard(moduleName: string, evidenceLine: string): string {
+  return `---
+name: ${moduleName}
+description: test
+last_updated: '2026-05-15T00:00:00+08:00'
+staleness: 0
+memory_schema_version: 2
+memory_quality_version: 1
+memory_kind: implementation
+verification_status: verified
+last_verified: '2026-06-14T00:00:00+08:00'
+valid_scope:
+  - src/${moduleName}.ts
+content_language: en
+human_language: zh-TW
+cycle_id: 2026-06-04-001
+cycle_event_count: 1
+size_limit_bytes: 16384
+archive_policy: volume
+compaction_status: ready
+metadata:
+  author: test
+  version: '1.0'
+  origin: test
+  memory_awareness: full
+  tool_scope: []
+---
+
+## Current Truth
+
+- The test card is current.
+
+## Active Constraints
+
+- Keep this card compact.
+
+## Cycle Events
+
+- 01: Test event.
+
+## Archive Index
+
+- None.
+
+## Evidence Base
+
+${evidenceLine}
+
+## Read Contract
+
+- Read before editing tracked files.
+
+## Conflicts and Supersession
+
+- None.
+
+## 中文摘要
+
+- 測試摘要。
+
+## Tracked Files
+
+- src/${moduleName}.ts
+`;
+}
+
 describe("memory_audit — 專案記憶卡完整健檢", () => {
   it("現代格式專案應回傳 ready", async () => {
     const skill = `---
@@ -32,6 +98,12 @@ description: test
 last_updated: '2026-05-15T00:00:00+08:00'
 staleness: 0
 memory_schema_version: 2
+memory_quality_version: 1
+memory_kind: implementation
+verification_status: verified
+last_verified: '2026-06-14T00:00:00+08:00'
+valid_scope:
+  - src/mcp-server.ts
 content_language: en
 human_language: zh-TW
 cycle_id: 2026-06-04-001
@@ -71,17 +143,43 @@ metadata:
 
 - None.
 
+## Evidence Base
+
+- src/mcp-server.ts
+
+## Read Contract
+
+- Read before editing tracked files.
+
+## Conflicts and Supersession
+
+- None.
+
 ## 中文摘要
 
 - 測試摘要。
 `;
-    await writeFile(".agents/memory/mcp-tools/SKILL.md", skill);
+    await writeFile(".agents/memory/mcp-tools/MEMORY.md", skill);
     await writeFile(
       ".cartridge/index.json",
       JSON.stringify({
         cartridges: {
           "mcp-tools": {
-            skillPath: ".agents/memory/mcp-tools/SKILL.md",
+            skillPath: ".agents/memory/mcp-tools/MEMORY.md",
+            mainFile: {
+              type: "MEMORY.md",
+              activePath: ".agents/memory/mcp-tools/MEMORY.md",
+              activeFileName: "MEMORY.md",
+              candidates: { memory: ".agents/memory/mcp-tools/MEMORY.md" },
+              candidatePaths: [".agents/memory/mcp-tools/MEMORY.md"],
+              legacyCompatibility: false,
+              migrationRequired: false,
+              conflict: false,
+            },
+            mainFileType: "MEMORY.md",
+            contentQualityStatus: "complete",
+            migrationRequired: false,
+            legacyCompatibility: false,
             staleness: 0,
             trackedFiles: ["src/mcp-server.ts"],
             ghostFiles: [],
@@ -187,7 +285,11 @@ metadata:
     expect(envelope.status).toBe("warning");
     expect(envelope.summary.summary.pendingWithZeroStaleness).toBe(1);
     expect(codes).toContain("INDEX_PENDING_WITH_ZERO_STALENESS");
-    expect(envelope.recommendedActions[0].action).toBe("resync_memory_index");
+    expect(
+      envelope.recommendedActions.some(
+        (action: { action: string }) => action.action === "resync_memory_index",
+      ),
+    ).toBe(true);
   });
 
   it("舊格式專案應回傳 compatibility warning", async () => {
@@ -601,13 +703,19 @@ metadata:
   it("舊索引 dependencies 循環只作診斷，不應成為主要 cycle", async () => {
     for (const moduleName of ["a", "b"]) {
       await writeFile(
-        `.agents/memory/${moduleName}/SKILL.md`,
+        `.agents/memory/${moduleName}/MEMORY.md`,
         `---
 name: ${moduleName}
 description: test
 last_updated: '2026-05-15T00:00:00+08:00'
 staleness: 0
 memory_schema_version: 2
+memory_quality_version: 1
+memory_kind: implementation
+verification_status: verified
+last_verified: '2026-06-14T00:00:00+08:00'
+valid_scope:
+  - src/${moduleName}.ts
 content_language: en
 human_language: zh-TW
 cycle_id: 2026-06-04-001
@@ -643,6 +751,18 @@ metadata:
 
 - None.
 
+## Evidence Base
+
+- src/${moduleName}.ts
+
+## Read Contract
+
+- Read before editing.
+
+## Conflicts and Supersession
+
+- None.
+
 ## 中文摘要
 
 - 測試摘要。
@@ -654,7 +774,21 @@ metadata:
       JSON.stringify({
         cartridges: {
           a: {
-            skillPath: ".agents/memory/a/SKILL.md",
+            skillPath: ".agents/memory/a/MEMORY.md",
+            mainFile: {
+              type: "MEMORY.md",
+              activePath: ".agents/memory/a/MEMORY.md",
+              activeFileName: "MEMORY.md",
+              candidates: { memory: ".agents/memory/a/MEMORY.md" },
+              candidatePaths: [".agents/memory/a/MEMORY.md"],
+              legacyCompatibility: false,
+              migrationRequired: false,
+              conflict: false,
+            },
+            mainFileType: "MEMORY.md",
+            contentQualityStatus: "complete",
+            migrationRequired: false,
+            legacyCompatibility: false,
             staleness: 0,
             trackedFiles: ["src/a.ts"],
             ghostFiles: [],
@@ -662,7 +796,21 @@ metadata:
             indirectStaleness: 0,
           },
           b: {
-            skillPath: ".agents/memory/b/SKILL.md",
+            skillPath: ".agents/memory/b/MEMORY.md",
+            mainFile: {
+              type: "MEMORY.md",
+              activePath: ".agents/memory/b/MEMORY.md",
+              activeFileName: "MEMORY.md",
+              candidates: { memory: ".agents/memory/b/MEMORY.md" },
+              candidatePaths: [".agents/memory/b/MEMORY.md"],
+              legacyCompatibility: false,
+              migrationRequired: false,
+              conflict: false,
+            },
+            mainFileType: "MEMORY.md",
+            contentQualityStatus: "complete",
+            migrationRequired: false,
+            legacyCompatibility: false,
             staleness: 0,
             trackedFiles: ["src/b.ts"],
             ghostFiles: [],
@@ -682,5 +830,53 @@ metadata:
     expect(envelope.summary.summary.cycles).toBe(0);
     expect(envelope.summary.summary.persistedIndexCycles).toBe(1);
     expect(envelope.summary.persistedIndexCycles).toEqual([["a", "b"]]);
+  });
+
+  it("verified card with placeholder Evidence Base should stay pending review", async () => {
+    await writeFile(
+      ".agents/memory/no-evidence/MEMORY.md",
+      qualityMemoryCard("no-evidence", "- None."),
+    );
+    await writeFile(
+      ".cartridge/index.json",
+      JSON.stringify({
+        cartridges: {},
+        fileMap: {},
+        untrackedFiles: [],
+      }),
+    );
+
+    const result = await handleMemoryAudit({ projectRoot });
+    const envelope = parseEnvelope(result);
+    const codes = envelope.findings.map((finding: { code: string }) => finding.code);
+
+    expect(envelope.status).toBe("warning");
+    expect(envelope.summary.summary.evidenceWarnings).toBe(1);
+    expect(envelope.summary.summary.pendingQualityReview).toBe(1);
+    expect(codes).toContain("MEMORY_QUALITY_EVIDENCE_MISSING");
+  });
+
+  it("parent directory with child memory card but no main file should be audited as missing", async () => {
+    await writeFile(
+      ".agents/memory/domain/child/MEMORY.md",
+      qualityMemoryCard("child", "- src/child.ts"),
+    );
+    await writeFile(
+      ".cartridge/index.json",
+      JSON.stringify({
+        cartridges: {},
+        fileMap: {},
+        untrackedFiles: [],
+      }),
+    );
+
+    const result = await handleMemoryAudit({ projectRoot });
+    const envelope = parseEnvelope(result);
+    const codes = envelope.findings.map((finding: { code: string }) => finding.code);
+
+    expect(envelope.status).toBe("warning");
+    expect(envelope.summary.summary.cards).toBe(2);
+    expect(envelope.summary.summary.missingMainFiles).toBe(1);
+    expect(codes).toContain("MEMORY_MAIN_FILE_MISSING");
   });
 });

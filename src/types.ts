@@ -3,6 +3,12 @@
  */
 
 import type { MemoryCompactionMetrics } from "./memory-compaction.js";
+import type {
+  MemoryMainFileInfo,
+  MemoryQualityReport,
+  MemoryMainFileType,
+  MemoryContentQualityStatus,
+} from "./memory-main-file.js";
 
 /** 檔案異動事件類型 */
 export type FileEventType = "add" | "change" | "unlink";
@@ -14,6 +20,18 @@ export type StalenessLevel = "healthy" | "mild" | "significant" | "critical";
 export interface CartridgeEntry {
   /** 記憶技能檔案路徑（相對於專案根目錄） */
   skillPath: string;
+  /** 作用中記憶主檔資訊（MEMORY.md / legacy SKILL.md / conflict / missing） */
+  mainFile?: MemoryMainFileInfo;
+  /** 作用中主檔型態，相容型扁平欄位 */
+  mainFileType?: MemoryMainFileType;
+  /** 內容品質判定 */
+  contentQuality?: MemoryQualityReport;
+  /** 內容品質狀態，相容型扁平欄位 */
+  contentQualityStatus?: MemoryContentQualityStatus;
+  /** 是否需要遷移或品質補齊 */
+  migrationRequired?: boolean;
+  /** 是否仍處於 legacy SKILL.md 相容模式 */
+  legacyCompatibility?: boolean;
   /** 記憶卡描述（含繁體中文關鍵字，用於語意搜尋） */
   description: string;
   /** 追蹤的檔案清單（相對路徑） */

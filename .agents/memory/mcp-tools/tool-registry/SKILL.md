@@ -3,16 +3,16 @@ name: tool-registry
 description: >
   專案記憶：MCP 工具名冊與統一回傳契約。Use when: 處理工具風險分級、MCP tools 清單生成、治理 envelope
   或高階工具回傳格式時載入。
-last_updated: '2026-06-04T07:18:23+08:00'
+last_updated: '2026-06-04T08:57:56+08:00'
 status: stale
-staleness: 10
+staleness: 20
 dependencies:
   - core-types
 memory_schema_version: 2
 content_language: en
 human_language: zh-TW
 cycle_id: 2026-06-04-001
-cycle_event_count: 1
+cycle_event_count: 2
 cycle_event_limit: 30
 size_limit_bytes: 16384
 line_limit: 120
@@ -31,11 +31,12 @@ metadata:
 
 > [!CAUTION]
 > 🟠 **系統強制攔截**：此記憶已過期失真！
-> 追蹤檔案異動：`src/tests/tool-registry.test.ts`（2026-06-04T08:15:47+08:00）
+> 追蹤檔案異動：`src/tool-registry.ts`、`src/tests/tool-registry.test.ts`（2026-06-14T23:07:24+08:00）
 > AI 嚴禁基於此記憶施工，必須優先閱讀最新原始碼並更新此記憶卡。
-> staleness: 10 | threshold: 🟠 顯著過期
+> staleness: 20 | threshold: 🟠 顯著過期
 
 <!-- CARTRIDGE_SYSTEM_WARNING_END -->
+
 # mcp tools / tool registry — Module Memory
 
 ## Current Truth
@@ -46,6 +47,9 @@ metadata:
 - Frontmatter dependencies are retained as staleness propagation dependencies and must not be used for navigation-only links.
 - Directory nesting is navigation; parent-child placement is not a dependency by itself.
 - Current behavior must still be verified against source before edits.
+- The registry currently exposes 17 MCP tools across memory, context, and project context groups.
+- The package manifest contract remains pinned to version 5.4.3 with MCP bin entries limited to built dist files.
+- Project context tools remain read-only and separate from memory commit workflows.
 
 ## Active Constraints
 
@@ -63,6 +67,7 @@ metadata:
 ## Cycle Events
 
 - 01: Migrated the legacy card into schema v2 and preserved old content in archive volumes.
+- 02: Synced the 5.4.3 registry contract and package manifest coverage after release.
 
 ## Archive Index
 
@@ -74,6 +79,8 @@ metadata:
 - 舊版決策與課題已完整保存到 archive-001.md。
 - 主卡只保留目前有效真相、限制、週期事件與追蹤檔案。
 - 目前沒有硬性拆分阻擋。
+- MCP 工具名冊目前公開 17 個工具，並維持 project context 工具只讀。
+- npm manifest 版本、MCP bin 與打包範圍已對齊 5.4.3 發布契約。
 - 後續修改此卡時應先讀最新原始碼。
 
 ## Tracked Files

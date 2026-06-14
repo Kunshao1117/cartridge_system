@@ -3,6 +3,10 @@ import { createVisibleCartridgeIndex } from "../index-manager.js";
 import { classifyMemoryWarnings } from "../staleness.js";
 import type { MemoryCompactionMetrics } from "../memory-compaction.js";
 import type {
+  MemoryContentQualityStatus,
+  MemoryMainFileType,
+} from "../memory-main-file.js";
+import type {
   CartridgeEntry,
   CartridgeIndex,
   FileEventType,
@@ -20,6 +24,13 @@ export type DesktopProjectStatus =
 export interface DesktopCartridgeSnapshot {
   id: string;
   skillPath: string;
+  mainFileType: MemoryMainFileType;
+  mainFilePath: string | null;
+  mainFileCandidates: string[];
+  contentQualityStatus: MemoryContentQualityStatus;
+  contentQualityLabel: string;
+  migrationRequired: boolean;
+  legacyCompatibility: boolean;
   description: string;
   staleness: number;
   indirectStaleness: number;
@@ -65,6 +76,10 @@ export interface DesktopProjectSnapshot {
     ghostFiles: number;
     untrackedFiles: number;
     pendingChanges: number;
+    migrationRequired: number;
+    mainFileConflicts: number;
+    legacyMainFiles: number;
+    qualityReview: number;
   };
   cartridges: DesktopCartridgeSnapshot[];
   untrackedFiles: DesktopUntrackedFileSnapshot[];
@@ -90,6 +105,18 @@ export function buildDesktopProjectSnapshot(args: {
     (sum, item) => sum + item.pendingChanges,
     0,
   );
+  const migrationRequired = cartridges.filter(
+    (item) => item.migrationRequired,
+  ).length;
+  const mainFileConflicts = cartridges.filter(
+    (item) => item.mainFileType === "conflict",
+  ).length;
+  const legacyMainFiles = cartridges.filter(
+    (item) => item.mainFileType === "legacy SKILL.md",
+  ).length;
+  const qualityReview = cartridges.filter(
+    (item) => item.contentQualityStatus !== "complete",
+  ).length;
   const status = getProjectStatus({
     enabled: args.enabled,
     error: args.error,
@@ -115,6 +142,10 @@ export function buildDesktopProjectSnapshot(args: {
       ghostFiles,
       untrackedFiles: index.untrackedFiles?.length ?? 0,
       pendingChanges,
+      migrationRequired,
+      mainFileConflicts,
+      legacyMainFiles,
+      qualityReview,
     },
     cartridges,
     untrackedFiles: (index.untrackedFiles ?? []).map(toUntrackedFileSnapshot),
@@ -125,9 +156,21 @@ function toCartridgeSnapshot(
   id: string,
   entry: CartridgeEntry,
 ): DesktopCartridgeSnapshot {
+  const contentQualityStatus =
+    entry.contentQuality?.status ??
+    entry.contentQualityStatus ??
+    "pending_review";
   return {
     id,
     skillPath: entry.skillPath,
+    mainFileType: entry.mainFile?.type ?? entry.mainFileType ?? "legacy SKILL.md",
+    mainFilePath: entry.mainFile?.activePath ?? entry.skillPath ?? null,
+    mainFileCandidates: entry.mainFile?.candidatePaths ?? [entry.skillPath],
+    contentQualityStatus,
+    contentQualityLabel:
+      entry.contentQuality?.label ?? qualityLabel(contentQualityStatus),
+    migrationRequired: entry.migrationRequired ?? false,
+    legacyCompatibility: entry.legacyCompatibility ?? false,
     description: entry.description,
     staleness: entry.staleness,
     indirectStaleness: entry.indirectStaleness ?? 0,
@@ -141,6 +184,15 @@ function toCartridgeSnapshot(
     compaction: entry.compaction ?? null,
     guidance: buildCartridgeGuidance(id, entry),
   };
+}
+
+function qualityLabel(status: MemoryContentQualityStatus): string {
+  if (status === "complete") return "完整";
+  if (status === "missing_fields") return "缺欄位";
+  if (status === "missing_sections") return "缺段落";
+  if (status === "conflict") return "衝突";
+  if (status === "superseded") return "已取代";
+  return "待審";
 }
 
 function toPendingChangeSnapshot(
@@ -173,6 +225,21 @@ function buildCartridgeGuidance(id: string, entry: CartridgeEntry): string {
   const ghosts = entry.ghostFiles?.length ?? 0;
   const indirect = entry.indirectStaleness ?? 0;
   const compaction = entry.compaction;
+  if (entry.mainFile?.type === "conflict" || entry.mainFileType === "conflict") {
+    return `${id} 同時存在 MEMORY.md 與 SKILL.md，需先人工解決雙主檔衝突；候選：${entry.mainFile?.candidatePaths.join(", ") ?? "未知"}`;
+  }
+  if (entry.mainFile?.type === "missing" || entry.mainFileType === "missing") {
+    return `${id} 缺少作用中記憶主檔，需先恢復 MEMORY.md 或 legacy SKILL.md。`;
+  }
+  if (entry.legacyCompatibility) {
+    return `${id} 仍使用 legacy SKILL.md；相容期可讀寫，但需遷移到 MEMORY.md 後才算新版標準。`;
+  }
+  if (
+    entry.contentQuality?.status &&
+    entry.contentQuality.status !== "complete"
+  ) {
+    return `${id} 內容品質狀態為 ${entry.contentQuality.label}，需補齊欄位、段落或驗證證據。`;
+  }
   if (compaction?.needsCompaction) {
     if (compaction.reasons.includes("cycleEventLimitExceeded")) {
       return `${id} 的 Cycle Events 已超過 ${compaction.cycleEventLimit} 筆，必須先彙整後再同步。`;

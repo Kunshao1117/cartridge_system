@@ -3,7 +3,7 @@ name: core-types
 scopePath: src/
 description: |
   專案記憶：共用型別、設定與跨層小工具模組。 Use when: 處理系統共用型別定義、設定工廠函式、路徑驗證、時間戳或 staleness 等級轉換時載入。
-last_updated: '2026-06-04T08:01:01+08:00'
+last_updated: '2026-06-14T19:15:58+08:00'
 status: stable
 staleness: 0
 memory_schema_version: 2
@@ -25,6 +25,7 @@ metadata:
     - 'filesystem:read'
     - 'filesystem:write'
 ---
+
 # core types — Module Memory
 
 ## Current Truth
@@ -36,6 +37,8 @@ metadata:
 - This is a root-level memory card unless Relations says otherwise.
 - Current behavior must still be verified against source before edits.
 - Memory warning classification counts only visible product untracked files.
+- Memory main-file resolution is centralized in the shared memory-main-file helper and enforces exact MEMORY.md / SKILL.md casing.
+- Content quality analysis now treats verified cards without actionable Evidence Base entries as pending review.
 
 ## Active Constraints
 
@@ -49,6 +52,7 @@ metadata:
 
 - 01: Migrated the legacy card into schema v2 and preserved old content in archive volumes.
 - 02: Updated memory warning classification to ignore managed memory archive residues in untracked counts.
+- 03: Added exact memory main-file casing and Evidence Base quality gates.
 
 ## Archive Index
 
@@ -71,7 +75,9 @@ metadata:
 - src/path-guard.ts
 - src/staleness.ts
 - src/timestamp.ts
+- src/memory-main-file.ts
 - src/tests/memory-compaction.test.ts
+- src/tests/memory-main-file.test.ts
 - src/tests/path-guard.test.ts
 - src/tests/staleness.test.ts
 - src/tests/timestamp.test.ts

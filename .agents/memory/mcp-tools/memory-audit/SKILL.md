@@ -3,7 +3,7 @@ name: mcp-tools.memory-audit
 description: >
   專案記憶：memory_audit 記憶卡完整健檢工具與舊格式相容提醒規則。Use when: 處理專案記憶卡 audit、compatibility
   mode、舊索引導入提醒或完整健檢測試時載入。
-last_updated: '2026-06-04T08:01:01+08:00'
+last_updated: '2026-06-14T19:15:58+08:00'
 status: stable
 staleness: 0
 dependencies:
@@ -42,6 +42,8 @@ metadata:
 - Current behavior must still be verified against source before edits.
 - `memory_audit` filters managed memory internals from persisted untracked counts before building health summaries.
 - Persisted untracked archive residues are filtered with the shared visible-untracked helper.
+- `memory_audit` reports placeholder or empty Evidence Base sections as pending quality review.
+- `memory_audit` includes parent directories with child memory cards but no active main file in missing-main dry-run results.
 
 ## Active Constraints
 
@@ -61,6 +63,7 @@ metadata:
 - 01: Migrated the legacy card into schema v2 and preserved old content in archive volumes.
 - 02: Ignored schema v2 archive volume paths when counting memory untracked files in audit summaries.
 - 03: Replaced local archive filtering with the shared visible-untracked helper.
+- 04: Added Evidence Base findings and aligned missing-parent card discovery with index scanning.
 
 ## Archive Index
 

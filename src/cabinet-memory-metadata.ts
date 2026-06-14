@@ -22,7 +22,14 @@ export async function loadCabinetMemoryMetadata(
   await Promise.all(
     Object.entries(index.cartridges).map(async ([id, entry]) => {
       try {
-        const raw = await fs.readFile(path.resolve(projectRoot, entry.skillPath), "utf-8");
+        if (entry.mainFile?.type === "conflict" || entry.mainFile?.type === "missing") {
+          result[id] = emptyMetadata();
+          return;
+        }
+        const raw = await fs.readFile(
+          path.resolve(projectRoot, entry.mainFile?.activePath ?? entry.skillPath),
+          "utf-8",
+        );
         result[id] = parseCabinetMemoryMetadata(raw);
       } catch {
         result[id] = emptyMetadata();

@@ -13,6 +13,9 @@ export interface CabinetCard {
   title: string;
   description: string;
   skillPath: string;
+  mainFileType?: string;
+  contentQualityStatus?: string;
+  migrationRequired?: boolean;
   depth: number;
   parent: string | null;
   status: CabinetCardStatus;
@@ -116,7 +119,11 @@ export function buildCabinetWorkbenchModel(
       label: id.split(".").pop() ?? id,
       title: metadata.title ?? id,
       description: metadata.summary ?? entry.description.trim(),
-      skillPath: normalizePath(entry.skillPath),
+      skillPath: normalizePath(entry.mainFile?.activePath ?? entry.skillPath),
+      mainFileType: entry.mainFile?.type ?? entry.mainFileType,
+      contentQualityStatus:
+        entry.contentQuality?.status ?? entry.contentQualityStatus,
+      migrationRequired: entry.migrationRequired,
       depth: entry.depth,
       parent: entry.parent,
       status: statusFromEntry(entry.staleness, compactionDue),

@@ -3,7 +3,10 @@
  * 覆蓋 parseTrackedFiles 路徑淨化邏輯與 CartridgeIndexManager 核心方法
  */
 
-import { describe, it, expect, beforeEach } from "vitest";
+import fs from "node:fs/promises";
+import os from "node:os";
+import path from "node:path";
+import { afterEach, describe, it, expect, beforeEach } from "vitest";
 import {
   createVisibleCartridgeIndex,
   parseTrackedFiles,
@@ -13,6 +16,15 @@ import { CartridgeIndexManager } from "../index-manager.js";
 import { createConfig } from "../config.js";
 import type { GitignoreFilter } from "../gitignore-filter.js";
 import type { CartridgeIndex } from "../types.js";
+
+const tempRoots: string[] = [];
+
+afterEach(async () => {
+  await Promise.all(
+    tempRoots.map((root) => fs.rm(root, { recursive: true, force: true })),
+  );
+  tempRoots.length = 0;
+});
 
 // ---------------------------------------------------------------------------
 // parseTrackedFiles — 路徑淨化邏輯
@@ -162,6 +174,149 @@ describe("parseTrackedFiles — 路徑淨化邏輯", () => {
 
     expect(parseTrackedFiles(content)).toEqual([]);
     expect(shouldWarnEmptyTrackedFiles(content)).toBe(true);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// CartridgeIndexManager — 記憶主檔標準化掃描
+// ---------------------------------------------------------------------------
+describe("CartridgeIndexManager — 記憶主檔標準化掃描", () => {
+  async function createScanFixture(): Promise<string> {
+    const root = await fs.mkdtemp(path.join(os.tmpdir(), "cartridge-index-"));
+    tempRoots.push(root);
+    await fs.mkdir(path.join(root, ".agents", "memory"), { recursive: true });
+    await fs.mkdir(path.join(root, "src"), { recursive: true });
+    await fs.writeFile(path.join(root, "src", "index.ts"), "export {};\n");
+    return root;
+  }
+
+  async function writeMemoryCard(
+    root: string,
+    moduleName: string,
+    fileName: "MEMORY.md" | "SKILL.md",
+  ): Promise<void> {
+    const cardDir = path.join(root, ".agents", "memory", moduleName);
+    await fs.mkdir(cardDir, { recursive: true });
+    await fs.writeFile(
+      path.join(cardDir, fileName),
+      [
+        "---",
+        `name: ${moduleName}`,
+        `description: ${moduleName} memory`,
+        "last_updated: '2026-01-01T00:00:00+08:00'",
+        "staleness: 0",
+        "memory_schema_version: 2",
+        "memory_quality_version: 1",
+        "memory_kind: implementation",
+        "verification_status: verified",
+        "last_verified: '2026-06-14T00:00:00+08:00'",
+        "valid_scope:",
+        "  - src/index.ts",
+        "---",
+        "",
+        "## Current Truth",
+        "- True.",
+        "## Active Constraints",
+        "- Constraint.",
+        "## Cycle Events",
+        "- Event.",
+        "## Archive Index",
+        "- None.",
+        "## Evidence Base",
+        "- src/index.ts",
+        "## Read Contract",
+        "- Read.",
+        "## Conflicts and Supersession",
+        "- None.",
+        "## 中文摘要",
+        "- 摘要。",
+        "## Tracked Files",
+        "- src/index.ts",
+        "",
+      ].join("\n"),
+    );
+  }
+
+  it("掃描 MEMORY.md 為新版主檔", async () => {
+    const root = await createScanFixture();
+    await writeMemoryCard(root, "core", "MEMORY.md");
+    const manager = new CartridgeIndexManager(createConfig(root));
+
+    const index = await manager.scan();
+
+    expect(index.cartridges.core.mainFileType).toBe("MEMORY.md");
+    expect(index.cartridges.core.skillPath).toBe(
+      ".agents/memory/core/MEMORY.md",
+    );
+    expect(index.cartridges.core.contentQualityStatus).toBe("complete");
+  });
+
+  it("掃描 legacy SKILL.md 並標記需遷移", async () => {
+    const root = await createScanFixture();
+    await writeMemoryCard(root, "legacy", "SKILL.md");
+    const manager = new CartridgeIndexManager(createConfig(root));
+
+    const index = await manager.scan();
+
+    expect(index.cartridges.legacy.mainFileType).toBe("legacy SKILL.md");
+    expect(index.cartridges.legacy.legacyCompatibility).toBe(true);
+    expect(index.cartridges.legacy.migrationRequired).toBe(true);
+  });
+
+  it("雙主檔衝突不可靜默選擇", async () => {
+    const root = await createScanFixture();
+    await writeMemoryCard(root, "conflict", "MEMORY.md");
+    await writeMemoryCard(root, "conflict", "SKILL.md");
+    const manager = new CartridgeIndexManager(createConfig(root));
+
+    const index = await manager.scan();
+
+    expect(index.cartridges.conflict.mainFileType).toBe("conflict");
+    expect(index.cartridges.conflict.mainFile?.activePath).toBeNull();
+    expect(index.cartridges.conflict.contentQualityStatus).toBe("conflict");
+  });
+
+  it("archive 目錄內的 SKILL.md 不會被掃成作用中主檔", async () => {
+    const root = await createScanFixture();
+    await writeMemoryCard(root, "core", "MEMORY.md");
+    await fs.mkdir(path.join(root, ".agents", "memory", "core", "archive", "001"), {
+      recursive: true,
+    });
+    await fs.writeFile(
+      path.join(root, ".agents", "memory", "core", "archive", "001", "SKILL.md"),
+      "# Archived",
+    );
+    const manager = new CartridgeIndexManager(createConfig(root));
+
+    const index = await manager.scan();
+
+    expect(Object.keys(index.cartridges)).toEqual(["core"]);
+    expect(index.cartridges.core.mainFileType).toBe("MEMORY.md");
+  });
+
+  it("父層缺主檔但有子卡時應列為 missing", async () => {
+    const root = await createScanFixture();
+    await writeMemoryCard(root, path.join("domain", "child"), "MEMORY.md");
+    const manager = new CartridgeIndexManager(createConfig(root));
+
+    const index = await manager.scan();
+
+    expect(index.cartridges.domain.mainFileType).toBe("missing");
+    expect(index.cartridges["domain.child"].mainFileType).toBe("MEMORY.md");
+  });
+
+  it("錯誤大小寫的 memory.md 不應當成作用中主檔", async () => {
+    const root = await createScanFixture();
+    const cardDir = path.join(root, ".agents", "memory", "case-test");
+    await fs.mkdir(cardDir, { recursive: true });
+    await fs.writeFile(path.join(cardDir, "memory.md"), "");
+    await writeMemoryCard(root, path.join("case-test", "child"), "MEMORY.md");
+    const manager = new CartridgeIndexManager(createConfig(root));
+
+    const index = await manager.scan();
+
+    expect(index.cartridges["case-test"].mainFileType).toBe("missing");
+    expect(index.cartridges["case-test.child"].mainFileType).toBe("MEMORY.md");
   });
 });
 

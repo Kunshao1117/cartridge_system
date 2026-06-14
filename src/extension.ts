@@ -21,6 +21,7 @@ import { MemoryWriter } from "./writer";
 import { CartridgeWatcher } from "./watcher";
 import { CartridgeStatusBar } from "./status-bar";
 import { GitignoreFilter } from "./gitignore-filter";
+import { refreshMemoryIndex } from "./memory-reindex";
 import { CartridgeCodeLensProvider } from "./codelens-provider";
 import { registerGovernanceViews } from "./governance-views";
 import type { GovernanceViewsController } from "./governance-views";
@@ -53,15 +54,23 @@ export async function activate(
         vscode.window.showWarningMessage("記憶卡匣：系統尚未初始化完成");
         return;
       }
-      const newIndex = await indexManager.scan();
-      indexManager.detectMissedChanges(config.scoring);
-      indexManager.refilterUntrackedFiles(gitignoreFilter);
+      const result = await refreshMemoryIndex({
+        projectRoot: config.projectRoot,
+        config,
+        indexManager,
+        gitignoreFilter,
+        detectMissedChanges: true,
+        includeProjectFiles: true,
+        persist: false,
+      });
       await indexManager.flushIfDirty();
       await indexManager.persist();
       statusBar?.update(indexManager.getVisibleIndex());
       governanceViews?.refresh();
-      const count = Object.keys(newIndex.cartridges).length;
-      vscode.window.showInformationMessage(`記憶卡匣：已掃描 ${count} 個卡匣`);
+      const count = result.summary.cartridgeCount;
+      vscode.window.showInformationMessage(
+        `記憶卡匣：已掃描 ${count} 個卡匣；衝突 ${result.summary.conflicts.length}，需遷移 ${result.summary.migrationRequired}`,
+      );
     }),
   );
 
@@ -205,9 +214,10 @@ export async function activate(
         );
 
         if (choice === "開啟記憶卡" && entry?.skillPath) {
+          const targetPath = entry.mainFile?.activePath ?? entry.skillPath;
           await vscode.commands.executeCommand(
             "vscode.open",
-            vscode.Uri.file(path.resolve(config.projectRoot, entry.skillPath)),
+            vscode.Uri.file(path.resolve(config.projectRoot, targetPath)),
           );
         }
       },
@@ -311,11 +321,18 @@ export async function activate(
     gitignoreFilter = new GitignoreFilter(projectRoot);
 
     indexManager = new CartridgeIndexManager(config);
-    const index = await indexManager.scan();
 
     const writer = new MemoryWriter(config);
 
-    indexManager.detectMissedChanges(config.scoring);
+    const { index } = await refreshMemoryIndex({
+      projectRoot,
+      config,
+      indexManager,
+      gitignoreFilter,
+      detectMissedChanges: true,
+      includeProjectFiles: false,
+      persist: false,
+    });
 
     // v2.0: 啟動時將過期警報寫入 SKILL.md（修復 #3：原本只更新 RAM 沒有寫入檔案）
     for (const [, entry] of Object.entries(index.cartridges)) {
@@ -325,7 +342,7 @@ export async function activate(
       ) {
         const changedFiles = entry.pendingChanges.map((c) => c.filePath);
         await writer.injectWarning(
-          entry.skillPath,
+          entry.mainFile?.activePath ?? entry.skillPath,
           changedFiles,
           entry.staleness,
         );

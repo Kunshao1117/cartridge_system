@@ -3,7 +3,7 @@ name: mcp-tools.handlers
 description: >
   專案記憶：底層 memory_* MCP handlers。Use when: 處理 mcp-handlers.ts、 底層
   memory_list/read/status/commit/deps 行為或 handler 測試時載入。
-last_updated: '2026-06-04T08:01:01+08:00'
+last_updated: '2026-06-14T19:15:58+08:00'
 status: stable
 staleness: 0
 dependencies:
@@ -42,6 +42,8 @@ metadata:
 - Current behavior must still be verified against source before edits.
 - `memory_commit` and `memory_list` exclude managed memory internals from untracked file output.
 - `memory_list` now consumes the shared visible index view rather than duplicating archive path filtering.
+- `memory_read`, `memory_status`, and `memory_commit` re-check the active memory main file on disk before trusting stale conflict or missing entries in the persisted index.
+- `memory_commit` reports Evidence Base quality warnings and writes back to the actual active main file discovered by the shared resolver.
 
 ## Active Constraints
 
@@ -61,6 +63,7 @@ metadata:
 - 01: Migrated the legacy card into schema v2 and preserved old content in archive volumes.
 - 02: Applied the managed memory artifact guard to memory_commit cleanup and memory_list output so archive volumes cannot remain as untracked product files.
 - 03: Consolidated memory_list and memory_commit archive filtering through shared visible-untracked helpers.
+- 04: Repaired stale-index main-file resolution so read, status, and commit follow current disk state.
 
 ## Archive Index
 

@@ -73,7 +73,7 @@ export class StalenessAnalyzer {
       if (level === "significant" || level === "critical") {
         const changedFiles = entry.pendingChanges.map((c) => c.filePath);
         await this.writer.injectWarning(
-          entry.skillPath,
+          entry.mainFile?.activePath ?? entry.skillPath,
           changedFiles,
           newStaleness,
         );

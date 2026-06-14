@@ -4,8 +4,8 @@ description: >
   專案記憶：桌面監控台 React + Fluent UI 渲染端。Use when: 修改多專案 UI、狀態卡、 專案詳情、桌面版樣式或 renderer
   build 設定時載入。
 last_updated: '2026-06-04T07:15:03+08:00'
-status: stable
-staleness: 0
+status: stale
+staleness: 40
 dependencies:
   - desktop-console.app
 memory_schema_version: 2
@@ -26,6 +26,16 @@ metadata:
   tool_scope:
     - 'filesystem:read'
 ---
+<!-- CARTRIDGE_SYSTEM_WARNING_START -->
+
+> [!CAUTION]
+> 🔴 **系統強制攔截**：此記憶已過期失真！
+> 追蹤檔案異動：`src/desktop/renderer/issue-drawer.tsx`、`src/desktop/renderer/project-detail.tsx`、`src/desktop/renderer/status.ts`、`src/tests/desktop-renderer-layout.test.ts`（2026-06-14T23:07:24+08:00）
+> AI 嚴禁基於此記憶施工，必須優先閱讀最新原始碼並更新此記憶卡。
+> staleness: 40 | threshold: 🔴 嚴重過期
+
+<!-- CARTRIDGE_SYSTEM_WARNING_END -->
+
 # desktop console / renderer — Module Memory
 
 ## Current Truth

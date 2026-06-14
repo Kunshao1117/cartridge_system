@@ -4,8 +4,8 @@ description: >
   專案記憶：MCP 工具分派與工具層防線。Use when: 處理 MCP tool routing、unknown tool 錯誤、 high-risk
   tool 明確確認與 dispatcher 測試時載入。
 last_updated: '2026-06-04T07:18:28+08:00'
-status: stable
-staleness: 0
+status: stale
+staleness: 20
 dependencies:
   - core-types
   - mcp-tools.handlers
@@ -35,6 +35,16 @@ metadata:
     - 'filesystem:read'
     - 'filesystem:write'
 ---
+<!-- CARTRIDGE_SYSTEM_WARNING_START -->
+
+> [!CAUTION]
+> 🟠 **系統強制攔截**：此記憶已過期失真！
+> 追蹤檔案異動：`src/tool-dispatcher.ts`、`src/tests/tool-dispatcher.test.ts`（2026-06-14T23:07:24+08:00）
+> AI 嚴禁基於此記憶施工，必須優先閱讀最新原始碼並更新此記憶卡。
+> staleness: 20 | threshold: 🟠 顯著過期
+
+<!-- CARTRIDGE_SYSTEM_WARNING_END -->
+
 # mcp tools / dispatcher — Module Memory
 
 ## Current Truth

@@ -8,6 +8,12 @@ import {
   type MemoryWarningItem,
 } from "./staleness.js";
 import type { MemoryCompactionMetrics } from "./memory-compaction.js";
+import type {
+  MemoryContentQualityStatus,
+  MemoryMainFileInfo,
+  MemoryMainFileType,
+  MemoryQualityReport,
+} from "./memory-main-file.js";
 
 export interface PreflightCartridgeEntry {
   skillPath?: string;
@@ -18,6 +24,12 @@ export interface PreflightCartridgeEntry {
   parent?: string | null;
   dependencies?: string[];
   compaction?: MemoryCompactionMetrics;
+  mainFile?: MemoryMainFileInfo;
+  mainFileType?: MemoryMainFileType;
+  contentQuality?: MemoryQualityReport;
+  contentQualityStatus?: MemoryContentQualityStatus;
+  migrationRequired?: boolean;
+  legacyCompatibility?: boolean;
 }
 
 export interface PreflightIndex {
@@ -42,6 +54,9 @@ type Blocker = {
     | "memory_compaction_due"
     | "memory_compaction_invalid"
     | "memory_archive_volume_due"
+    | "memory_main_file_conflict"
+    | "memory_main_file_missing"
+    | "memory_quality_conflict"
     | "memory_compatibility"
     | "git_dirty";
   target: string;
@@ -92,6 +107,30 @@ export function parseGitStatusPorcelain(output: string): GitStatusEntry[] {
 
 function buildMemoryGate(index: PreflightIndex) {
   const entries = Object.entries(index.cartridges ?? {});
+  const mainFileTypes: Record<MemoryMainFileType, number> = {
+    "MEMORY.md": 0,
+    "legacy SKILL.md": 0,
+    conflict: 0,
+    missing: 0,
+  };
+  const contentQualityStatuses: Record<MemoryContentQualityStatus, number> = {
+    complete: 0,
+    missing_fields: 0,
+    missing_sections: 0,
+    pending_review: 0,
+    conflict: 0,
+    superseded: 0,
+  };
+  let migrationRequired = 0;
+  for (const [, entry] of entries) {
+    const mainFileType =
+      entry.mainFile?.type ?? entry.mainFileType ?? "legacy SKILL.md";
+    mainFileTypes[mainFileType] += 1;
+    const qualityStatus =
+      entry.contentQuality?.status ?? entry.contentQualityStatus ?? "pending_review";
+    contentQualityStatuses[qualityStatus] += 1;
+    if (entry.migrationRequired) migrationRequired += 1;
+  }
   const classification = classifyMemoryWarnings(index);
   const staleModules = entries
     .filter(([, entry]) => (entry.staleness ?? 0) > 0)
@@ -159,6 +198,9 @@ function buildMemoryGate(index: PreflightIndex) {
       granularityAdvisories: splitSuggestions.length,
       legacyCards,
       languageWarnings,
+      mainFileTypes,
+      contentQualityStatuses,
+      migrationRequired,
     },
     blockers,
     reviewItems: classification.review,
@@ -218,15 +260,7 @@ function buildRecommendedActions(
   for (const blocker of memory.blockers) {
     actions.push({
       priority: blocker.type === "memory_stale" ? "P2" : "P1",
-      action:
-        blocker.type === "memory_stale"
-          ? "repair_stale_memory"
-          : blocker.type === "memory_compaction_due" ||
-              blocker.type === "memory_compaction_invalid"
-            ? "compact_memory_card"
-            : blocker.type === "memory_archive_volume_due"
-              ? "open_next_archive_volume"
-          : "repair_memory_health",
+      action: actionForBlocker(blocker.type),
       target: blocker.target,
       reason: blocker.reason,
     });
@@ -246,6 +280,29 @@ function buildRecommendedActions(
     });
   }
   return actions.sort((a, b) => a.priority.localeCompare(b.priority));
+}
+
+function actionForBlocker(blockerType: Blocker["type"]): string {
+  if (blockerType === "memory_stale") return "repair_stale_memory";
+  if (blockerType === "memory_main_file_conflict") {
+    return "resolve_memory_main_file_conflict";
+  }
+  if (blockerType === "memory_main_file_missing") {
+    return "restore_memory_main_file";
+  }
+  if (blockerType === "memory_quality_conflict") {
+    return "review_memory_quality_conflict";
+  }
+  if (
+    blockerType === "memory_compaction_due" ||
+    blockerType === "memory_compaction_invalid"
+  ) {
+    return "compact_memory_card";
+  }
+  if (blockerType === "memory_archive_volume_due") {
+    return "open_next_archive_volume";
+  }
+  return "repair_memory_health";
 }
 
 function toReviewAction(item: MemoryWarningItem): RecommendedAction {
@@ -277,6 +334,23 @@ function toReviewAction(item: MemoryWarningItem): RecommendedAction {
     return {
       priority: "P2",
       action: "migrate_archive_path",
+      target: item.target,
+      reason: item.reason,
+    };
+  }
+  if (
+    item.code === "memory_main_file_legacy" ||
+    item.code === "memory_quality_missing_fields" ||
+    item.code === "memory_quality_missing_sections" ||
+    item.code === "memory_quality_pending_review" ||
+    item.code === "memory_quality_superseded"
+  ) {
+    return {
+      priority: "P2",
+      action:
+        item.code === "memory_main_file_legacy"
+          ? "migrate_memory_main_file"
+          : "review_memory_quality",
       target: item.target,
       reason: item.reason,
     };

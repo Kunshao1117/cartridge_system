@@ -4,8 +4,8 @@ description: >
   專案記憶：桌面版純 Node 多專案監控 runtime。Use when: 處理桌面監控核心、Node 檔案監聽、 多專案快照、共享 watcher
   規則或監控測試時載入。
 last_updated: '2026-06-04T08:01:01+08:00'
-status: stable
-staleness: 0
+status: stale
+staleness: 50
 dependencies:
   - index-manager
   - extension.watcher
@@ -27,6 +27,15 @@ metadata:
   tool_scope:
     - 'filesystem:read'
 ---
+<!-- CARTRIDGE_SYSTEM_WARNING_START -->
+
+> [!CAUTION]
+> 🔴 **系統強制攔截**：此記憶已過期失真！
+> 追蹤檔案異動：`src/monitoring/project-event-handler.ts`、`src/monitoring/project-snapshot.ts`、`src/monitoring/project-monitor.ts`、`src/tests/monitoring-event-handler.test.ts`、`src/tests/desktop-snapshot.test.ts`（2026-06-14T23:07:24+08:00）
+> AI 嚴禁基於此記憶施工，必須優先閱讀最新原始碼並更新此記憶卡。
+> staleness: 50 | threshold: 🔴 嚴重過期
+
+<!-- CARTRIDGE_SYSTEM_WARNING_END -->
 
 # desktop console / monitoring — Module Memory
 

@@ -102,6 +102,34 @@ describe("handleProjectFileEvent", () => {
 
     expect(indexManager.getUntrackedFiles()).toEqual([]);
   });
+
+  it("refreshes index when MEMORY.md changes", async () => {
+    const root = await createProjectFixture();
+    const memoryPath = path.join(root, ".agents", "memory", "core", "MEMORY.md");
+    await fs.rename(
+      path.join(root, ".agents", "memory", "core", "SKILL.md"),
+      memoryPath,
+    );
+    const config = createConfig(root);
+    const gitignoreFilter = new GitignoreFilter(root);
+    const indexManager = new CartridgeIndexManager(config);
+    const writer = new MemoryWriter(config);
+    const analyzer = new StalenessAnalyzer(config, indexManager, writer);
+    await indexManager.scan();
+
+    await fs.appendFile(memoryPath, "\n## Current Truth\n- Updated.\n");
+    await handleProjectFileEvent({
+      config,
+      indexManager,
+      analyzer,
+      gitignoreFilter,
+      writer,
+      absFilePath: memoryPath,
+      eventType: "change",
+    });
+
+    expect(indexManager.getIndex().cartridges.core.mainFileType).toBe("MEMORY.md");
+  });
 });
 
 async function createProjectFixture(): Promise<string> {

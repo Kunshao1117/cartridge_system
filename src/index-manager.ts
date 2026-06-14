@@ -19,7 +19,14 @@ import {
   buildArchiveVolumeMetrics,
   buildCompactionMetrics,
   type MemoryArchiveVolumeMetrics,
+  type MemoryCompactionMetrics,
 } from "./memory-compaction.js";
+import {
+  analyzeMemoryContentQuality,
+  hasChildMemoryCardDirectorySync,
+  isMemoryArchiveArtifactPath,
+  resolveMemoryMainFileInDirectorySync,
+} from "./memory-main-file.js";
 import { getTaiwanISO } from "./timestamp.js";
 import { suggestOwner } from "./smart-owner.js";
 
@@ -68,7 +75,7 @@ export function createVisibleCartridgeIndex(index: CartridgeIndex): CartridgeInd
 }
 
 /**
- * 從記憶卡匣 SKILL.md 解析追蹤檔案清單
+ * 從記憶卡匣主檔解析追蹤檔案清單
  */
 export function parseTrackedFiles(content: string): string[] {
   // 統一行尾為 LF，防止 Windows CRLF 導致正則失配
@@ -212,7 +219,7 @@ export class CartridgeIndexManager {
 
   /**
    * 遞迴掃描記憶卡目錄，從目錄結構推導 depth 和 parent
-   * @param requireMemPrefix - true: 只掃描 mem-* 前綴目錄（向後相容 skills/）；false: 掃描所有含 SKILL.md 的目錄
+   * @param requireMemPrefix - true: 只掃描 mem-* 前綴目錄（向後相容 skills/）；false: 掃描所有含作用中主檔的目錄
    */
   private scanRecursive(
     dir: string,
@@ -233,44 +240,70 @@ export class CartridgeIndexManager {
 
     for (const entry of entries) {
       if (!entry.isDirectory()) continue;
+      if (entry.name.toLowerCase() === "archive") continue;
       // 向後相容模式：只掃描 mem-* 前綴；新模式：掃描所有目錄（排除系統目錄）
       if (requireMemPrefix && !entry.name.startsWith("mem-")) continue;
       if (!requireMemPrefix && entry.name.startsWith(".")) continue;
 
-      const skillPath = path.join(dir, entry.name, "SKILL.md");
-      if (!fs.existsSync(skillPath)) continue;
+      const cardDir = path.join(dir, entry.name);
+      const mainResolution = resolveMemoryMainFileInDirectorySync(
+        this.config.projectRoot,
+        cardDir,
+      );
+      const activeRelPath = mainResolution.mainFile.activePath;
+      const activeAbsPath = activeRelPath
+        ? path.resolve(this.config.projectRoot, activeRelPath)
+        : null;
 
-      let raw: string;
-      try {
-        raw = fs.readFileSync(skillPath, "utf-8");
-      } catch (err) {
-        console.warn(`[記憶卡匣] 無法讀取記憶卡：${skillPath}`, err);
+      if (
+        mainResolution.mainFile.type === "missing" &&
+        !hasChildMemoryCardDirectorySync(this.config.projectRoot, cardDir)
+      ) {
         continue;
       }
 
-      let frontmatter: Record<string, unknown>;
-      let content: string;
-      try {
-        const parsed = matter(raw);
-        frontmatter = parsed.data as Record<string, unknown>;
-        content = parsed.content;
-      } catch (err) {
-        console.warn(`[記憶卡匣] YAML 格式錯誤，已跳過：${skillPath}`, err);
-        continue;
+      let raw: string | null = null;
+      let frontmatter: Record<string, unknown> = {};
+      let content = "";
+      let trackedFiles: string[] = [];
+      let compaction: MemoryCompactionMetrics | undefined;
+
+      if (activeAbsPath) {
+        try {
+          raw = fs.readFileSync(activeAbsPath, "utf-8");
+        } catch (err) {
+          console.warn(`[記憶卡匣] 無法讀取記憶卡：${activeAbsPath}`, err);
+        }
+
+        if (raw !== null) {
+          try {
+            const parsed = matter(raw);
+            frontmatter = parsed.data as Record<string, unknown>;
+            content = parsed.content;
+          } catch (err) {
+            console.warn(
+              `[記憶卡匣] YAML 格式錯誤，已以待審狀態保留：${activeAbsPath}`,
+              err,
+            );
+          }
+          trackedFiles = parseTrackedFiles(content);
+          compaction = buildCompactionMetrics(raw, frontmatter, {
+            cardPath: activeAbsPath,
+            archiveVolumes: this.scanArchiveVolumes(cardDir),
+            archiveMigrationWarnings: this.findArchiveMigrationWarnings(cardDir),
+          });
+          if (shouldWarnEmptyTrackedFiles(content)) {
+            console.warn(
+              `[記憶卡匣] 疑似格式偏差，Tracked Files 解析為空：${activeAbsPath}`,
+            );
+          }
+        }
       }
 
-      const cardDir = path.dirname(skillPath);
-      const trackedFiles = parseTrackedFiles(content);
-      const compaction = buildCompactionMetrics(raw, frontmatter, {
-        cardPath: skillPath,
-        archiveVolumes: this.scanArchiveVolumes(cardDir),
-        archiveMigrationWarnings: this.findArchiveMigrationWarnings(cardDir),
-      });
-      if (shouldWarnEmptyTrackedFiles(content)) {
-        console.warn(
-          `[記憶卡匣] 疑似格式偏差，Tracked Files 解析為空：${skillPath}`,
-        );
-      }
+      const contentQuality = analyzeMemoryContentQuality(
+        raw,
+        mainResolution.mainFile,
+      );
       // 巢狀記憶使用 dot-separated 路徑作為唯一識別碼
       // 根層: "extension"、巢狀: "api.auth"、深層: "api.auth.oauth"
       const cartridgeId = parentId ? `${parentId}.${entry.name}` : entry.name;
@@ -279,7 +312,18 @@ export class CartridgeIndexManager {
       const existingEntry = this.index.cartridges[cartridgeId];
 
       cartridges[cartridgeId] = {
-        skillPath: path.relative(this.config.projectRoot, skillPath),
+        skillPath:
+          mainResolution.mainFile.activePath ??
+          mainResolution.mainFile.candidatePaths[0] ??
+          mainResolution.relativeDirectory,
+        mainFile: mainResolution.mainFile,
+        mainFileType: mainResolution.mainFile.type,
+        contentQuality,
+        contentQualityStatus: contentQuality.status,
+        migrationRequired:
+          mainResolution.mainFile.migrationRequired ||
+          contentQuality.migrationRequired,
+        legacyCompatibility: mainResolution.mainFile.legacyCompatibility,
         description: (frontmatter.description as string) ?? "",
         trackedFiles,
         staleness: (frontmatter.staleness as number) ?? 0,
@@ -303,7 +347,7 @@ export class CartridgeIndexManager {
 
       // 遞迴掃描子目錄（子卡不需要 mem- 前綴）
       this.scanRecursive(
-        path.join(dir, entry.name),
+        cardDir,
         depth + 1,
         cartridgeId,
         cartridges,
@@ -417,7 +461,15 @@ export class CartridgeIndexManager {
    */
   resolveModulePath(moduleName: string): string | null {
     const entry = this.index.cartridges[moduleName];
-    if (entry) return path.resolve(this.config.projectRoot, entry.skillPath);
+    if (entry?.mainFile?.type === "conflict" || entry?.mainFile?.type === "missing") {
+      return null;
+    }
+    if (entry) {
+      return path.resolve(
+        this.config.projectRoot,
+        entry.mainFile?.activePath ?? entry.skillPath,
+      );
+    }
     return null;
   }
 
@@ -669,8 +721,12 @@ export class CartridgeIndexManager {
         continue;
       // 排除已追蹤檔案
       if (allTracked.has(file)) continue;
-      // 排除記憶卡本身 (SKILL.md)
-      if (file.endsWith("SKILL.md") && file.includes(".agents/memory/"))
+      // 排除記憶卡主檔與歸檔治理產物
+      if (isMemoryArchiveArtifactPath(file)) continue;
+      if (
+        (file.endsWith("SKILL.md") || file.endsWith("MEMORY.md")) &&
+        file.includes(".agents/memory/")
+      )
         continue;
 
       // 加入未歸屬檔案池

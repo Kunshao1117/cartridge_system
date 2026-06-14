@@ -54,10 +54,23 @@ const memoryCommitSchema = {
     confirm: {
       type: "boolean",
       description:
-        "確認已完成 SKILL.md 內容寫入，並允許同步記憶卡後設資料。",
+        "確認已完成作用中記憶主檔內容寫入，並允許同步記憶卡後設資料。",
     },
   },
   required: ["moduleName", "confirm"],
+};
+
+const memoryReindexSchema = {
+  type: "object" as const,
+  properties: {
+    projectRoot: projectRootProperty,
+    confirm: {
+      type: "boolean",
+      description:
+        "確認允許重建 .cartridge/index.json，刷新主檔型態、品質狀態、幽靈檔案與未歸屬摘要。",
+    },
+  },
+  required: ["confirm"],
 };
 
 const memoryGraphSchema = {
@@ -164,7 +177,7 @@ export const CARTRIDGE_TOOLS: CartridgeToolDefinition[] = [
   {
     name: "memory_commit",
     description:
-      "在 AI 已寫入 SKILL.md 後同步後設資料：時間戳、staleness、索引與結構驗證。此工具會寫入檔案。",
+      "在 AI 已寫入作用中記憶主檔後同步後設資料：時間戳、staleness、索引與結構驗證。此工具會寫入檔案。",
     safetySummary: "會寫入記憶卡後設資料，必須在使用者或流程確認後帶 confirm:true。",
     risk: "high",
     capability: "write",
@@ -173,6 +186,20 @@ export const CARTRIDGE_TOOLS: CartridgeToolDefinition[] = [
     safeForStartup: false,
     expectedLatency: "medium",
     inputSchema: memoryCommitSchema,
+  },
+  {
+    name: "memory_reindex",
+    description:
+      "重建記憶索引，刷新主檔型態、內容品質狀態、遷移需求、幽靈檔案與未歸屬檔案摘要。此工具會寫入索引。",
+    safetySummary:
+      "會重寫 .cartridge/index.json，不會改名記憶卡或重寫歸檔卷；必須帶 confirm:true。",
+    risk: "high",
+    capability: "write",
+    readOnly: false,
+    requiresExplicitApproval: true,
+    safeForStartup: false,
+    expectedLatency: "medium",
+    inputSchema: memoryReindexSchema,
   },
   {
     name: "memory_deps",

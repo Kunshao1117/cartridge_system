@@ -12,7 +12,21 @@ function fixtureIndex(): CartridgeIndex {
     lastScanned: "2026-05-17T00:00:00.000Z",
     cartridges: {
       extension: {
-        skillPath: ".agents/memory/extension/SKILL.md",
+        skillPath: ".agents/memory/extension/MEMORY.md",
+        mainFile: {
+          type: "MEMORY.md",
+          activePath: ".agents/memory/extension/MEMORY.md",
+          activeFileName: "MEMORY.md",
+          candidates: { memory: ".agents/memory/extension/MEMORY.md" },
+          candidatePaths: [".agents/memory/extension/MEMORY.md"],
+          legacyCompatibility: false,
+          migrationRequired: false,
+          conflict: false,
+        },
+        mainFileType: "MEMORY.md",
+        contentQualityStatus: "complete",
+        migrationRequired: false,
+        legacyCompatibility: false,
         description: "Extension UI",
         trackedFiles: ["src/extension.ts"],
         staleness: 30,

@@ -66,11 +66,20 @@ export class CartridgeTreeProvider implements vscode.TreeDataProvider<CartridgeT
         { cartridgeId: id },
       );
       item.tooltip = this.cartridgeTooltip(entry);
-      item.command = {
-        command: "vscode.open",
-        title: "開啟記憶卡",
-        arguments: [vscode.Uri.file(path.resolve(this.projectRoot, entry.skillPath))],
-      };
+      if (entry.mainFile?.type !== "conflict" && entry.mainFile?.type !== "missing") {
+        item.command = {
+          command: "vscode.open",
+          title: "開啟記憶卡",
+          arguments: [
+            vscode.Uri.file(
+              path.resolve(
+                this.projectRoot,
+                entry.mainFile?.activePath ?? entry.skillPath,
+              ),
+            ),
+          ],
+        };
+      }
       items.push(item);
     }
 
@@ -107,13 +116,23 @@ export class CartridgeTreeProvider implements vscode.TreeDataProvider<CartridgeT
         { cartridgeId: childId },
       );
       item.tooltip = this.cartridgeTooltip(childEntry);
-      item.command = {
-        command: "vscode.open",
-        title: "開啟記憶卡",
-        arguments: [
-          vscode.Uri.file(path.resolve(this.projectRoot, childEntry.skillPath)),
-        ],
-      };
+      if (
+        childEntry.mainFile?.type !== "conflict" &&
+        childEntry.mainFile?.type !== "missing"
+      ) {
+        item.command = {
+          command: "vscode.open",
+          title: "開啟記憶卡",
+          arguments: [
+            vscode.Uri.file(
+              path.resolve(
+                this.projectRoot,
+                childEntry.mainFile?.activePath ?? childEntry.skillPath,
+              ),
+            ),
+          ],
+        };
+      }
       items.push(item);
     }
 
@@ -175,6 +194,15 @@ export class CartridgeTreeProvider implements vscode.TreeDataProvider<CartridgeT
   }
 
   private cartridgeIcon(entry: CartridgeEntry): string {
+    if (entry.mainFile?.type === "conflict" || entry.mainFile?.type === "missing") {
+      return "🔴";
+    }
+    if (
+      entry.legacyCompatibility ||
+      entry.contentQualityStatus !== "complete"
+    ) {
+      return "🟡";
+    }
     if (entry.compaction?.needsCompaction) return "🔴";
     if (
       entry.compaction?.isLegacy ||
@@ -188,9 +216,14 @@ export class CartridgeTreeProvider implements vscode.TreeDataProvider<CartridgeT
 
   private cartridgeTooltip(entry: CartridgeEntry): string {
     const parts = [
+      `主檔: ${entry.mainFile?.type ?? entry.mainFileType ?? "legacy SKILL.md"}`,
+      `品質: ${entry.contentQuality?.label ?? entry.contentQualityStatus ?? "待審"}`,
       `過期指數: ${entry.staleness}`,
       `追蹤 ${entry.trackedFiles.length} 個檔案`,
     ];
+    if (entry.mainFile?.type === "conflict") {
+      parts.push(`候選: ${entry.mainFile.candidatePaths.join(", ")}`);
+    }
     if (entry.compaction) {
       parts.push(
         `壓縮: ${entry.compaction.compactionStatus}`,

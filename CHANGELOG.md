@@ -2,6 +2,27 @@
 
 ## [Unreleased]
 
+## [5.5.0] — 2026-06-14
+
+### feat
+
+- 記憶主檔標準化 — 支援 `MEMORY.md` 新版主檔、legacy `SKILL.md` 相容讀取、雙主檔衝突阻塞、歸檔卷排除與主檔型態輸出。
+- 內容品質審計 — 新增 `memory_schema_version`、`memory_quality_version`、`memory_kind`、`verification_status`、`last_verified`、`valid_scope` 與標準段落完整性檢查；Evidence Base 缺失、空白或 placeholder 不再視為品質完整。
+- 索引重建工具 — 新增 `memory_reindex` MCP 工具，要求 `confirm: true` 後重建記憶索引，刷新主檔型態、品質狀態、幽靈檔案與未歸屬檔案摘要。
+- 插件與桌面顯示 — 記憶清單、審計、工作區摘要、提交前檢查、治理側邊欄、機櫃工作台與桌面快照顯示主檔型態、內容品質狀態與遷移需求。
+
+### fix
+
+- 舊索引修復 — `memory_read`、`memory_status`、`memory_commit` 在索引殘留 conflict 或 missing 時會重查磁碟實況，人工解決衝突後不再被舊索引阻塞。
+- 即時品質重算 — 有作用中主檔時以目前檔案內容重算品質，避免沿用過期索引快照。
+- 缺主檔父層卡 — 審計與索引共用「有子卡但自身缺主檔」判定，乾跑盤點不再漏報父層缺口。
+- 主檔檔名語義 — 僅精確 `MEMORY.md` 與 `SKILL.md` 可作為作用中主檔，避免大小寫錯誤在不同平台出現不一致判定。
+
+### chore
+
+- 版本升級 — package、lockfile、README 安裝範例、版本測試與 MCP server 對外版本同步至 5.5.0。
+- 測試覆蓋 — 補上主檔解析、索引、MCP 讀寫、審計與真實 MCP smoke 回歸；全量測試更新為 38 個測試檔案、307 個案例。
+
 ## [desktop-v5.4.3] — 2026-06-04
 
 ### fix

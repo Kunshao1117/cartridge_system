@@ -14,6 +14,12 @@ import type {
   ProjectContextSummary,
 } from "./project-context-types.js";
 import type { MemoryCompactionMetrics } from "./memory-compaction.js";
+import type {
+  MemoryContentQualityStatus,
+  MemoryMainFileInfo,
+  MemoryMainFileType,
+  MemoryQualityReport,
+} from "./memory-main-file.js";
 
 const STALENESS_SIGNIFICANT = 10;
 
@@ -26,6 +32,12 @@ export interface BriefCartridgeEntry {
   dependencies?: string[];
   parent?: string | null;
   compaction?: MemoryCompactionMetrics;
+  mainFile?: MemoryMainFileInfo;
+  mainFileType?: MemoryMainFileType;
+  contentQuality?: MemoryQualityReport;
+  contentQualityStatus?: MemoryContentQualityStatus;
+  migrationRequired?: boolean;
+  legacyCompatibility?: boolean;
 }
 
 export interface BriefIndex {
@@ -93,6 +105,30 @@ type StartupReadiness = {
 
 function buildMemorySummary(index: BriefIndex) {
   const cartridges = Object.entries(index.cartridges ?? {});
+  const mainFileTypes: Record<MemoryMainFileType, number> = {
+    "MEMORY.md": 0,
+    "legacy SKILL.md": 0,
+    conflict: 0,
+    missing: 0,
+  };
+  const contentQualityStatuses: Record<MemoryContentQualityStatus, number> = {
+    complete: 0,
+    missing_fields: 0,
+    missing_sections: 0,
+    pending_review: 0,
+    conflict: 0,
+    superseded: 0,
+  };
+  const migrationRequiredModules: string[] = [];
+  for (const [module, entry] of cartridges) {
+    const mainFileType =
+      entry.mainFile?.type ?? entry.mainFileType ?? "legacy SKILL.md";
+    mainFileTypes[mainFileType] += 1;
+    const qualityStatus =
+      entry.contentQuality?.status ?? entry.contentQualityStatus ?? "pending_review";
+    contentQualityStatuses[qualityStatus] += 1;
+    if (entry.migrationRequired) migrationRequiredModules.push(module);
+  }
   const byScore = <T extends { score: number }>(items: T[]) =>
     items.sort((a, b) => b.score - a.score);
   const staleModules = byScore(
@@ -189,6 +225,16 @@ function buildMemorySummary(index: BriefIndex) {
     legacyCardModules: legacyCards,
     languageWarnings: languageWarnings.length,
     languageWarningModules: languageWarnings,
+    mainFileTypes,
+    contentQualityStatuses,
+    migrationRequired: migrationRequiredModules.length,
+    migrationRequiredModules,
+    mainFileConflicts: cartridges
+      .filter(([, entry]) => (entry.mainFile?.type ?? entry.mainFileType) === "conflict")
+      .map(([module, entry]) => ({
+        module,
+        candidates: entry.mainFile?.candidatePaths ?? [],
+      })),
     dependencies: {
       totalEdges: dependencyEdges,
     },
@@ -422,6 +468,46 @@ function toRecommendedAction(item: MemoryWarningItem): RecommendedAction {
     return {
       priority: "P2",
       action: "migrate_archive_path",
+      target: item.target,
+      reason: item.reason,
+      label: item.label,
+      nextTool: "memory_audit",
+      blocking: false,
+    };
+  }
+  if (
+    item.code === "memory_main_file_conflict" ||
+    item.code === "memory_main_file_missing" ||
+    item.code === "memory_quality_conflict"
+  ) {
+    return {
+      priority: "P1",
+      action:
+        item.code === "memory_main_file_conflict"
+          ? "resolve_memory_main_file_conflict"
+          : item.code === "memory_main_file_missing"
+            ? "restore_memory_main_file"
+            : "review_memory_quality_conflict",
+      target: item.target,
+      reason: item.reason,
+      label: item.label,
+      nextTool: "memory_audit",
+      blocking: true,
+    };
+  }
+  if (
+    item.code === "memory_main_file_legacy" ||
+    item.code === "memory_quality_missing_fields" ||
+    item.code === "memory_quality_missing_sections" ||
+    item.code === "memory_quality_pending_review" ||
+    item.code === "memory_quality_superseded"
+  ) {
+    return {
+      priority: "P2",
+      action:
+        item.code === "memory_main_file_legacy"
+          ? "migrate_memory_main_file"
+          : "review_memory_quality",
       target: item.target,
       reason: item.reason,
       label: item.label,

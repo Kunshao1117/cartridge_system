@@ -45,7 +45,7 @@ export function buildProjectActionItems(
       title: counts.blocking > 0 ? "先處理阻塞記憶卡" : "沒有阻塞記憶卡",
       description:
         counts.blocking > 0
-          ? "找出哪張記憶卡因這個專案的檔案變動而需要更新或確認。"
+          ? "找出哪張記憶卡因檔案變動、雙主檔、缺主檔或壓縮門檻而需要處理。"
           : "這個專案目前沒有會阻擋 AI 使用記憶的問題。",
       count: counts.blocking,
       tone: counts.blocking > 0 ? "danger" : "success",
@@ -81,7 +81,7 @@ export function buildProjectActionItems(
           : "沒有複審提醒",
       description:
         counts.review > 0 || counts.advisory > 0
-          ? "這個專案有上游影響、舊卡、語言比例或拆分建議，建議確認但不一定要立刻修。"
+          ? "這個專案有上游影響、舊主檔、品質待審、語言比例或拆分建議，建議確認但不一定要立刻修。"
           : "這個專案目前沒有需要額外確認的間接影響。",
       count: counts.review + counts.advisory,
       tone: counts.review > 0 || counts.advisory > 0 ? "warning" : "success",
@@ -107,6 +107,13 @@ export function getCartridgeStatus(cartridge: DesktopCartridgeSnapshot): {
   label: string;
   tone: Tone;
 } {
+  if (
+    cartridge.mainFileType === "conflict" ||
+    cartridge.mainFileType === "missing" ||
+    cartridge.contentQualityStatus === "conflict"
+  ) {
+    return { label: "阻塞", tone: "danger" };
+  }
   if (cartridge.compaction?.needsCompaction) {
     return { label: "阻塞", tone: "danger" };
   }
@@ -117,7 +124,11 @@ export function getCartridgeStatus(cartridge: DesktopCartridgeSnapshot): {
   ) {
     return { label: "阻塞", tone: "danger" };
   }
-  if (cartridge.indirectStaleness > 0) {
+  if (
+    cartridge.indirectStaleness > 0 ||
+    cartridge.legacyCompatibility ||
+    cartridge.contentQualityStatus !== "complete"
+  ) {
     return { label: "複審", tone: "warning" };
   }
   if (hasCompactionAdvisory(cartridge)) {
@@ -132,7 +143,11 @@ export function cartridgesForIssue(
 ): DesktopCartridgeSnapshot[] {
   if (issue === "review") {
     return project.cartridges.filter(
-      (item) => item.indirectStaleness > 0 || hasCompactionAdvisory(item),
+      (item) =>
+        item.indirectStaleness > 0 ||
+        item.legacyCompatibility ||
+        item.contentQualityStatus !== "complete" ||
+        hasCompactionAdvisory(item),
     );
   }
   if (issue === "ghost") {
@@ -144,6 +159,9 @@ export function cartridgesForIssue(
         item.staleness > 0 ||
         item.pendingChanges > 0 ||
         item.ghostFiles > 0 ||
+        item.mainFileType === "conflict" ||
+        item.mainFileType === "missing" ||
+        item.contentQualityStatus === "conflict" ||
         Boolean(item.compaction?.needsCompaction),
     );
   }
@@ -153,6 +171,8 @@ export function cartridgesForIssue(
 function hasCompactionAdvisory(cartridge: DesktopCartridgeSnapshot): boolean {
   return Boolean(
     cartridge.compaction?.isLegacy ||
+      cartridge.legacyCompatibility ||
+      cartridge.contentQualityStatus !== "complete" ||
       cartridge.compaction?.reasons.includes("highChineseRatio") ||
       cartridge.trackedFiles.length > 8 ||
       (cartridge.compaction?.archiveMigrationWarnings?.length ?? 0) > 0,

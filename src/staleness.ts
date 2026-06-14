@@ -1,5 +1,11 @@
 import type { CartridgeConfig, StalenessLevel } from "./types.js";
 import type { MemoryCompactionMetrics } from "./memory-compaction.js";
+import type {
+  MemoryContentQualityStatus,
+  MemoryMainFileInfo,
+  MemoryMainFileType,
+  MemoryQualityReport,
+} from "./memory-main-file.js";
 import { filterVisibleUntrackedFiles } from "./index-manager.js";
 
 const STALENESS_THRESHOLDS = { significant: 10, critical: 30 };
@@ -7,12 +13,19 @@ const STALENESS_THRESHOLDS = { significant: 10, critical: 30 };
 export type MemoryWarningTier = "blocking" | "review" | "advisory" | "info";
 
 export interface MemoryWarningEntry {
+  skillPath?: string;
   staleness?: number;
   ghostFiles?: unknown[];
   indirectStaleness?: number;
   parent?: string | null;
   trackedFiles?: unknown[];
   compaction?: MemoryCompactionMetrics;
+  mainFile?: MemoryMainFileInfo;
+  mainFileType?: MemoryMainFileType;
+  contentQuality?: MemoryQualityReport;
+  contentQualityStatus?: MemoryContentQualityStatus;
+  migrationRequired?: boolean;
+  legacyCompatibility?: boolean;
 }
 
 export interface MemoryWarningIndex {
@@ -33,6 +46,14 @@ export interface MemoryWarningItem {
     | "memory_compaction_invalid"
     | "memory_archive_volume_due"
     | "memory_archive_migration"
+    | "memory_main_file_conflict"
+    | "memory_main_file_missing"
+    | "memory_main_file_legacy"
+    | "memory_quality_missing_fields"
+    | "memory_quality_missing_sections"
+    | "memory_quality_pending_review"
+    | "memory_quality_conflict"
+    | "memory_quality_superseded"
     | "memory_legacy_schema"
     | "memory_language_ratio"
     | "memory_granularity_advisory";
@@ -77,6 +98,99 @@ export function classifyMemoryWarnings(
   const childReviewByParent = new Map<string, string[]>();
 
   for (const [module, entry] of Object.entries(index.cartridges ?? {})) {
+    const mainFileType =
+      entry.mainFile?.type ??
+      entry.mainFileType ??
+      (entry.skillPath
+        ? entry.skillPath.replace(/\\/g, "/").endsWith("/MEMORY.md")
+          ? "MEMORY.md"
+          : "legacy SKILL.md"
+        : null);
+    if (mainFileType === "conflict") {
+      blocking.push({
+        tier: "blocking",
+        code: "memory_main_file_conflict",
+        target: module,
+        reason: `candidates=${(entry.mainFile?.candidatePaths ?? []).join(",")}`,
+        label: `解決雙主檔衝突：${module}`,
+        score: 100,
+        blocking: true,
+      });
+    } else if (mainFileType === "missing") {
+      blocking.push({
+        tier: "blocking",
+        code: "memory_main_file_missing",
+        target: module,
+        reason: "mainFile=missing",
+        label: `補齊記憶主檔：${module}`,
+        score: 100,
+        blocking: true,
+      });
+    } else if (mainFileType === "legacy SKILL.md") {
+      advisory.push({
+        tier: "advisory",
+        code: "memory_main_file_legacy",
+        target: module,
+        reason: "mainFile=legacy SKILL.md",
+        label: `遷移舊版主檔：${module}`,
+        score: 1,
+        blocking: false,
+      });
+    }
+
+    const qualityStatus = entry.contentQuality?.status ?? entry.contentQualityStatus;
+    if (qualityStatus === "conflict") {
+      blocking.push({
+        tier: "blocking",
+        code: "memory_quality_conflict",
+        target: module,
+        reason: "contentQuality=conflict",
+        label: `處理品質衝突：${module}`,
+        score: 100,
+        blocking: true,
+      });
+    } else if (qualityStatus === "missing_fields") {
+      review.push({
+        tier: "review",
+        code: "memory_quality_missing_fields",
+        target: module,
+        reason: `missingFields=${entry.contentQuality?.missingFields.join(",") ?? "unknown"}`,
+        label: `補齊品質欄位：${module}`,
+        score: entry.contentQuality?.missingFields.length ?? 1,
+        blocking: false,
+      });
+    } else if (qualityStatus === "missing_sections") {
+      review.push({
+        tier: "review",
+        code: "memory_quality_missing_sections",
+        target: module,
+        reason: `missingSections=${entry.contentQuality?.missingSections.join(",") ?? "unknown"}`,
+        label: `補齊品質段落：${module}`,
+        score: entry.contentQuality?.missingSections.length ?? 1,
+        blocking: false,
+      });
+    } else if (qualityStatus === "pending_review") {
+      review.push({
+        tier: "review",
+        code: "memory_quality_pending_review",
+        target: module,
+        reason: `verificationStatus=${entry.contentQuality?.verificationStatus ?? "unknown"}`,
+        label: `複審品質證據：${module}`,
+        score: 1,
+        blocking: false,
+      });
+    } else if (qualityStatus === "superseded") {
+      review.push({
+        tier: "review",
+        code: "memory_quality_superseded",
+        target: module,
+        reason: "contentQuality=superseded",
+        label: `確認已取代主卡：${module}`,
+        score: 1,
+        blocking: false,
+      });
+    }
+
     const staleness = entry.staleness ?? 0;
     if (staleness > 0) {
       blocking.push({

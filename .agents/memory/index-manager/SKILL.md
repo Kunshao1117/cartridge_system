@@ -3,7 +3,7 @@ name: index-manager
 description: >
   專案記憶：記憶索引管理器模組。管理卡匣索引、檔案反向映射、離線偵測、未歸屬檔案池、Cache-First 持久化。Use when:
   處理卡匣索引、檔案反向映射、持久化讀寫時載入。
-last_updated: '2026-06-04T08:01:01+08:00'
+last_updated: '2026-06-14T19:15:58+08:00'
 status: stable
 staleness: 0
 dependencies:
@@ -39,6 +39,8 @@ metadata:
 - Current behavior must still be verified against source before edits.
 - Managed memory internals under `.agents/memory/**` and `.agents/skills/mem-*` are excluded from untracked file detection and refiltering.
 - `getVisibleIndex()` and shared visible-untracked helpers are the canonical read path for UI, MCP summaries, and desktop snapshots.
+- Index scanning uses the shared main-file resolver and records parent directories as missing when they only exist to contain child memory cards.
+- Memory reindex refreshes main-file type, content quality, ghost files, and visible untracked summaries from the same scan path.
 
 ## Active Constraints
 
@@ -58,6 +60,7 @@ metadata:
 - 01: Migrated the legacy card into schema v2 and preserved old content in archive volumes.
 - 02: Excluded managed memory internals from the untracked file pool so schema v2 archive volumes are not treated as orphan product files.
 - 03: Added a canonical visible index view and persisted cleanup so stale archive-volume residues cannot leak into product untracked displays.
+- 04: Shared the missing-parent main-file rule between index scanning and audit dry runs.
 
 ## Archive Index
 
@@ -76,6 +79,7 @@ metadata:
 ## Tracked Files
 
 - src/index-manager.ts
+- src/memory-reindex.ts
 - src/smart-owner.ts
 - src/tests/index-manager.test.ts
 - src/tests/detect-missed-changes.test.ts

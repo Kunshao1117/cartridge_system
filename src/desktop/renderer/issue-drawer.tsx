@@ -88,6 +88,7 @@ function CartridgeGuidance(props: {
   const styles = useDesktopStyles();
   const detail = useDetailStyles();
   const prompt = buildCartridgePrompt(props.cartridge);
+  const canOpenMainFile = props.cartridge.mainFileType !== "conflict";
   return (
     <>
       <section className={detail.drawerSection}>
@@ -98,10 +99,14 @@ function CartridgeGuidance(props: {
         <div className={detail.sectionActions}>
           <Button
             size="small"
+            disabled={!canOpenMainFile}
             onClick={() =>
               props.onOperation(
                 "正在開啟記憶卡...",
-                desktopApi.openFile(props.project.root, props.cartridge.skillPath),
+                desktopApi.openFile(
+                  props.project.root,
+                  props.cartridge.mainFilePath ?? props.cartridge.skillPath,
+                ),
               )
             }
           >
@@ -213,12 +218,15 @@ function UntrackedGuidance(props: {
           </Button>
           <Button
             size="small"
-            disabled={!suggested}
+            disabled={!suggested || suggested.mainFileType === "conflict"}
             onClick={() =>
               suggested &&
               props.onOperation(
                 "正在開啟建議記憶卡...",
-                desktopApi.openFile(props.project.root, suggested.skillPath),
+                desktopApi.openFile(
+                  props.project.root,
+                  suggested.mainFilePath ?? suggested.skillPath,
+                ),
               )
             }
           >
@@ -351,6 +359,9 @@ function buildCartridgePrompt(cartridge: DesktopCartridgeSnapshot): string {
     : "沒有壓縮治理度量。";
   return [
     `請檢查記憶卡 ${cartridge.id}。`,
+    `主檔型態：${cartridge.mainFileType}`,
+    `主檔候選：${cartridge.mainFileCandidates.join(", ") || "無"}`,
+    `內容品質：${cartridge.contentQualityLabel}`,
     cartridge.guidance,
     compaction,
     pending ? `待處理檔案：${pending}` : "沒有待處理異動檔案。",

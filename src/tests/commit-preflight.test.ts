@@ -33,6 +33,21 @@ describe("handleCommitPreflight", () => {
       JSON.stringify({
         cartridges: {
           "mcp-tools": {
+            skillPath: ".agents/memory/mcp-tools/MEMORY.md",
+            mainFile: {
+              type: "MEMORY.md",
+              activePath: ".agents/memory/mcp-tools/MEMORY.md",
+              activeFileName: "MEMORY.md",
+              candidates: { memory: ".agents/memory/mcp-tools/MEMORY.md" },
+              candidatePaths: [".agents/memory/mcp-tools/MEMORY.md"],
+              legacyCompatibility: false,
+              migrationRequired: false,
+              conflict: false,
+            },
+            mainFileType: "MEMORY.md",
+            contentQualityStatus: "complete",
+            migrationRequired: false,
+            legacyCompatibility: false,
             staleness: 0,
             ghostFiles: [],
             indirectStaleness: 0,

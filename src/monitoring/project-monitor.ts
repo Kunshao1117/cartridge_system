@@ -2,10 +2,10 @@ import path from "node:path";
 import { createConfig } from "../config.js";
 import { GitignoreFilter } from "../gitignore-filter.js";
 import { CartridgeIndexManager } from "../index-manager.js";
+import { refreshMemoryIndex } from "../memory-reindex.js";
 import { StalenessAnalyzer } from "../analyzer.js";
 import { MemoryWriter } from "../writer.js";
 import type { CartridgeConfig, CartridgeIndex } from "../types.js";
-import { listProjectFiles } from "./file-list.js";
 import { handleProjectFileEvent } from "./project-event-handler.js";
 import { NodeProjectWatcher } from "./node-project-watcher.js";
 import {
@@ -74,13 +74,16 @@ export class CartridgeProjectMonitor {
 
   async rescan(): Promise<DesktopProjectSnapshot> {
     try {
-      this.gitignoreFilter.reload();
-      const index = await this.indexManager.scan();
-      this.indexManager.detectMissedChanges(this.config.scoring);
+      const { index } = await refreshMemoryIndex({
+        projectRoot: this.projectRoot,
+        config: this.config,
+        indexManager: this.indexManager,
+        gitignoreFilter: this.gitignoreFilter,
+        detectMissedChanges: true,
+        includeProjectFiles: true,
+        persist: false,
+      });
       await this.injectStartupWarnings(index);
-      const files = await listProjectFiles(this.projectRoot);
-      this.indexManager.detectUntrackedFiles(files, this.gitignoreFilter);
-      this.indexManager.refilterUntrackedFiles(this.gitignoreFilter);
       this.indexManager.markDirty();
       await this.indexManager.flushIfDirty();
       this.error = null;
@@ -137,7 +140,7 @@ export class CartridgeProjectMonitor {
         entry.pendingChanges.length > 0
       ) {
         await this.writer.injectWarning(
-          entry.skillPath,
+          entry.mainFile?.activePath ?? entry.skillPath,
           entry.pendingChanges.map((change) => change.filePath),
           entry.staleness,
         );

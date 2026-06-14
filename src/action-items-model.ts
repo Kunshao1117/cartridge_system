@@ -1,7 +1,7 @@
 import type { ContextAuditFinding, ContextInventory } from "./context-types.js";
 import { createVisibleCartridgeIndex } from "./index-manager.js";
 import { classifyMemoryWarnings } from "./staleness.js";
-import type { CartridgeIndex } from "./types.js";
+import type { CartridgeEntry, CartridgeIndex } from "./types.js";
 
 export type ActionItemKind =
   | "stale"
@@ -24,6 +24,13 @@ export interface GovernanceActionItem {
   severity: "info" | "warning" | "error";
 }
 
+function memoryMainTargetPath(entry: CartridgeEntry | undefined): string | undefined {
+  if (!entry || entry.mainFile?.type === "conflict" || entry.mainFile?.type === "missing") {
+    return undefined;
+  }
+  return entry.mainFile?.activePath ?? entry.skillPath;
+}
+
 export function buildGovernanceActionItems(args: {
   index: CartridgeIndex;
   inventory: ContextInventory;
@@ -41,8 +48,8 @@ export function buildGovernanceActionItems(args: {
         label: `更新記憶卡：${id}`,
         description: `過期指數 ${entry.staleness}`,
         reason: "這張記憶卡追蹤的檔案已變更，AI 可能讀到舊說明。",
-        recommendedAction: "開啟 SKILL.md 更新內容後執行 memory_commit。",
-        targetPath: entry.skillPath,
+        recommendedAction: "開啟作用中記憶主檔更新內容後執行 memory_commit。",
+        targetPath: memoryMainTargetPath(entry),
         cartridgeId: id,
         severity: entry.staleness >= 100 ? "error" : "warning",
       });
@@ -56,7 +63,7 @@ export function buildGovernanceActionItems(args: {
         recommendedAction: "查看修復說明，確認要從記憶卡移除或恢復檔案。",
         affectedPath: filePath,
         cartridgeId: id,
-        targetPath: entry.skillPath,
+        targetPath: memoryMainTargetPath(entry),
         severity: "warning",
       });
     }
@@ -96,7 +103,7 @@ export function buildGovernanceActionItems(args: {
           ? "開啟下一個 archive-###.md 歸檔卷。"
           : "先彙整 Cycle Events 或拆分/歸檔主卡內容，再同步記憶卡。",
       affectedPath: item.target,
-      targetPath: target?.skillPath,
+      targetPath: memoryMainTargetPath(target),
       cartridgeId: item.target,
       severity: "error",
     });
@@ -118,7 +125,7 @@ export function buildGovernanceActionItems(args: {
           ? "檢查子卡狀態；父卡內容未必需要更新。"
           : "使用 memory_deps 檢查上游來源；只有內容失真時才更新記憶卡。",
       affectedPath: item.target,
-      targetPath: target?.skillPath,
+      targetPath: memoryMainTargetPath(target),
       cartridgeId: item.target,
       severity: "warning",
     });
@@ -147,7 +154,7 @@ export function buildGovernanceActionItems(args: {
               ? "將 archive/001/SKILL.md 類路徑改為 archive-001.md 平面檔名。"
               : "將主體維持英文，中文保留在摘要與觸發描述。",
       affectedPath: item.target,
-      targetPath: target?.skillPath,
+      targetPath: memoryMainTargetPath(target),
       cartridgeId: item.target,
       severity: "warning",
     });

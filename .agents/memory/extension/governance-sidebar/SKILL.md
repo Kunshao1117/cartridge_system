@@ -4,8 +4,8 @@ description: >
   專案記憶：v5 獨立 Activity Bar 治理側邊欄。Use when: 修改 Cartridge Activity Bar
   container、治理總覽、上下文治理 findings、待處理項目或 VS Code TreeView provider 時載入。
 last_updated: '2026-06-04T08:01:01+08:00'
-status: stable
-staleness: 0
+status: stale
+staleness: 20
 memory_schema_version: 2
 content_language: en
 human_language: zh-TW
@@ -24,6 +24,15 @@ metadata:
   tool_scope:
     - 'filesystem:read'
 ---
+<!-- CARTRIDGE_SYSTEM_WARNING_START -->
+
+> [!CAUTION]
+> 🟠 **系統強制攔截**：此記憶已過期失真！
+> 追蹤檔案異動：`src/action-items-model.ts`、`src/tests/governance-sidebar.test.ts`（2026-06-14T23:07:24+08:00）
+> AI 嚴禁基於此記憶施工，必須優先閱讀最新原始碼並更新此記憶卡。
+> staleness: 20 | threshold: 🟠 顯著過期
+
+<!-- CARTRIDGE_SYSTEM_WARNING_END -->
 
 # extension / governance sidebar — Module Memory
 

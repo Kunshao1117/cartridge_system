@@ -244,6 +244,7 @@ function CartridgeRow(props: {
 }) {
   const detail = useDetailStyles();
   const kind = pickIssueForCartridge(props.cartridge, props.activeIssue);
+  const hasMainFileConflict = props.cartridge.mainFileType === "conflict";
   return (
     <button
       className={cx(
@@ -266,13 +267,20 @@ function CartridgeRow(props: {
         className={detail.tableButton}
         onClick={(event) => {
           event.stopPropagation();
+          if (hasMainFileConflict) {
+            props.onSelect("blocking", props.cartridge.id);
+            return;
+          }
           props.onOperation(
             "正在開啟記憶卡...",
-            desktopApi.openFile(props.project.root, props.cartridge.skillPath),
+            desktopApi.openFile(
+              props.project.root,
+              props.cartridge.mainFilePath ?? props.cartridge.skillPath,
+            ),
           );
         }}
       >
-        開啟
+        {hasMainFileConflict ? "衝突" : "開啟"}
       </Button>
     </button>
   );
@@ -280,7 +288,9 @@ function CartridgeRow(props: {
 
 function formatCartridgeMetrics(cartridge: DesktopCartridgeSnapshot): string {
   const compaction = cartridge.compaction;
-  const base = `過期 ${cartridge.staleness} · 待 ${cartridge.pendingChanges} · 幽 ${cartridge.ghostFiles}`;
+  const base =
+    `主檔 ${cartridge.mainFileType} · 品質 ${cartridge.contentQualityLabel} · ` +
+    `過期 ${cartridge.staleness} · 待 ${cartridge.pendingChanges} · 幽 ${cartridge.ghostFiles}`;
   if (!compaction) return base;
   return `${base} · ${Math.ceil(compaction.sizeBytes / 1024)}KB · ${compaction.lineCount} 行 · 週期 ${compaction.cycleEventCount}/${compaction.cycleEventLimit}`;
 }
@@ -353,12 +363,18 @@ function pickIssueForCartridge(
   if (preferred === "ghost" && cartridge.ghostFiles > 0) return "ghost";
   if (
     preferred === "review" &&
-    (cartridge.indirectStaleness > 0 || hasCompactionAdvisory(cartridge))
+    (cartridge.indirectStaleness > 0 ||
+      cartridge.legacyCompatibility ||
+      cartridge.contentQualityStatus !== "complete" ||
+      hasCompactionAdvisory(cartridge))
   ) {
     return "review";
   }
   if (cartridge.ghostFiles > 0) return "ghost";
   if (
+    cartridge.mainFileType === "conflict" ||
+    cartridge.mainFileType === "missing" ||
+    cartridge.contentQualityStatus === "conflict" ||
     cartridge.compaction?.needsCompaction ||
     cartridge.staleness > 0 ||
     cartridge.pendingChanges > 0 ||
@@ -366,7 +382,13 @@ function pickIssueForCartridge(
   ) {
     return "blocking";
   }
-  if (cartridge.indirectStaleness > 0) return "review";
+  if (
+    cartridge.indirectStaleness > 0 ||
+    cartridge.legacyCompatibility ||
+    cartridge.contentQualityStatus !== "complete"
+  ) {
+    return "review";
+  }
   if (hasCompactionAdvisory(cartridge)) return "review";
   return "blocking";
 }
@@ -374,6 +396,8 @@ function pickIssueForCartridge(
 function hasCompactionAdvisory(cartridge: DesktopCartridgeSnapshot): boolean {
   return Boolean(
     cartridge.compaction?.isLegacy ||
+      cartridge.legacyCompatibility ||
+      cartridge.contentQualityStatus !== "complete" ||
       cartridge.compaction?.reasons.includes("highChineseRatio") ||
       cartridge.trackedFiles.length > 8 ||
       (cartridge.compaction?.archiveMigrationWarnings?.length ?? 0) > 0,

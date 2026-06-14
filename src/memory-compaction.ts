@@ -96,10 +96,10 @@ function normalizePathForKind(cardPath: string | undefined): string {
 export function detectMemoryCardKind(cardPath?: string): MemoryCardKind {
   const normalizedPath = normalizePathForKind(cardPath);
   if (/\/archive-\d{3}\.md$/.test(normalizedPath)) return "archive_volume";
-  if (/\/\.agents\/memory\/_map\/skill\.md$/.test(normalizedPath)) {
+  if (/\/\.agents\/memory\/_map\/(?:memory|skill)\.md$/.test(normalizedPath)) {
     return "root_index";
   }
-  if (/^\.agents\/memory\/_map\/skill\.md$/.test(normalizedPath)) {
+  if (/^\.agents\/memory\/_map\/(?:memory|skill)\.md$/.test(normalizedPath)) {
     return "root_index";
   }
   return "main";

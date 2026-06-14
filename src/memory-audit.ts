@@ -28,6 +28,15 @@ import {
   type MemoryArchiveVolumeMetrics,
   type MemoryCompactionMetrics,
 } from "./memory-compaction.js";
+import {
+  analyzeMemoryContentQuality,
+  countLegacyMainFileReferences,
+  hasChildMemoryCardDirectory,
+  moduleNameFromMemoryMainPath,
+  resolveMemoryMainFileInDirectory,
+  type MemoryMainFileInfo,
+  type MemoryQualityReport,
+} from "./memory-main-file.js";
 import { validateProjectRoot } from "./path-guard.js";
 import type { CartridgeEntry, CartridgeIndex } from "./types.js";
 
@@ -68,6 +77,16 @@ export interface MemoryAuditReport {
     oversizedContent: number;
     archiveVolumeDue: number;
     archiveMigrationWarnings: number;
+    memoryMainFiles: number;
+    legacyMainFiles: number;
+    mainFileConflicts: number;
+    missingMainFiles: number;
+    legacyPathReferences: number;
+    missingQualityFields: number;
+    missingQualitySections: number;
+    evidenceWarnings: number;
+    pendingQualityReview: number;
+    supersededQuality: number;
     granularityAdvisories: number;
     languageWarnings: number;
   };
@@ -87,6 +106,12 @@ interface AuditIndexEntry {
   dependencies?: string[];
   parent?: string | null;
   compaction?: MemoryCompactionMetrics;
+  mainFile?: MemoryMainFileInfo;
+  mainFileType?: string;
+  contentQuality?: MemoryQualityReport;
+  contentQualityStatus?: string;
+  migrationRequired?: boolean;
+  legacyCompatibility?: boolean;
 }
 
 interface AuditIndex {
@@ -104,6 +129,9 @@ interface MemoryCard {
   frontmatter: Record<string, unknown>;
   trackedFiles: string[];
   compaction: MemoryCompactionMetrics;
+  mainFile: MemoryMainFileInfo;
+  contentQuality: MemoryQualityReport;
+  legacyPathReferenceCount: number;
 }
 
 const projectRootField = z
@@ -129,21 +157,6 @@ function normalizeRelative(projectRoot: string, absolutePath: string): string {
   return path.relative(projectRoot, absolutePath).replace(/\\/g, "/");
 }
 
-function moduleNameFromSkillPath(relativePath: string): string {
-  const normalized = relativePath.replace(/\\/g, "/");
-  if (normalized.startsWith(".agents/memory/")) {
-    return normalized
-      .slice(".agents/memory/".length)
-      .replace(/\/SKILL\.md$/, "")
-      .replace(/\//g, ".");
-  }
-  return normalized
-    .replace(/^\.agents\/skills\//, "")
-    .replace(/^mem-/, "")
-    .replace(/\/SKILL\.md$/, "")
-    .replace(/\//g, ".");
-}
-
 async function pathExists(target: string): Promise<boolean> {
   try {
     await fs.access(target);
@@ -153,7 +166,11 @@ async function pathExists(target: string): Promise<boolean> {
   }
 }
 
-async function collectSkillFiles(root: string): Promise<string[]> {
+async function collectMemoryCardDirectories(
+  projectRoot: string,
+  root: string,
+  requireMemPrefix: boolean,
+): Promise<string[]> {
   if (!(await pathExists(root))) return [];
   const results: string[] = [];
 
@@ -163,9 +180,21 @@ async function collectSkillFiles(root: string): Promise<string[]> {
     for (const entry of entries) {
       const fullPath = path.join(dir, entry.name);
       if (entry.isDirectory()) {
+        if (entry.name.toLowerCase() === "archive") continue;
+        if (depth === 1 && requireMemPrefix && !entry.name.startsWith("mem-")) {
+          continue;
+        }
+        const resolution = await resolveMemoryMainFileInDirectory(
+          projectRoot,
+          fullPath,
+        );
+        if (
+          resolution.mainFile.type !== "missing" ||
+          (await hasChildMemoryCardDirectory(projectRoot, fullPath))
+        ) {
+          results.push(fullPath);
+        }
         await walk(fullPath, depth + 1);
-      } else if (entry.isFile() && entry.name === "SKILL.md") {
-        results.push(fullPath);
       }
     }
   }
@@ -230,27 +259,62 @@ async function readIndex(projectRoot: string): Promise<{
 }
 
 async function readMemoryCards(projectRoot: string): Promise<MemoryCard[]> {
-  const memoryFiles = await collectSkillFiles(path.join(projectRoot, ".agents", "memory"));
-  const legacySkillFiles = (await collectSkillFiles(
+  const memoryDirs = await collectMemoryCardDirectories(
+    projectRoot,
+    path.join(projectRoot, ".agents", "memory"),
+    false,
+  );
+  const legacySkillDirs = await collectMemoryCardDirectories(
+    projectRoot,
     path.join(projectRoot, ".agents", "skills"),
-  )).filter((filePath) => path.basename(path.dirname(filePath)).startsWith("mem-"));
-  const files = [...memoryFiles, ...legacySkillFiles];
+    true,
+  );
+  const cardDirs = [...memoryDirs, ...legacySkillDirs];
 
   const cards: MemoryCard[] = [];
-  for (const absolutePath of files) {
-    const raw = await fs.readFile(absolutePath, "utf-8");
-    const parsed = matter(raw);
-    const skillPath = normalizeRelative(projectRoot, absolutePath);
-    const cardDir = path.dirname(absolutePath);
-    const frontmatter = parsed.data as Record<string, unknown>;
+  for (const cardDir of cardDirs) {
+    const resolution = await resolveMemoryMainFileInDirectory(projectRoot, cardDir);
+    const mainFile = resolution.mainFile;
+    const activeRelativePath =
+      mainFile.activePath ?? mainFile.candidatePaths[0] ?? resolution.relativeDirectory;
+    const absolutePath = mainFile.activePath
+      ? path.join(projectRoot, mainFile.activePath)
+      : cardDir;
     const archiveVolumes = await readArchiveVolumes(projectRoot, cardDir);
     const archiveMigrationWarnings = await findLegacyArchiveSkillPaths(
       projectRoot,
       cardDir,
     );
+    if (mainFile.type === "conflict" || !mainFile.activePath) {
+      const raw = "";
+      const contentQuality = analyzeMemoryContentQuality(raw, mainFile);
+      cards.push({
+        module: moduleNameFromMemoryMainPath(activeRelativePath),
+        skillPath: activeRelativePath,
+        absolutePath,
+        raw,
+        body: "",
+        frontmatter: {},
+        trackedFiles: [],
+        compaction: buildCompactionMetrics(raw, {}, {
+          cardPath: absolutePath,
+          archiveVolumes,
+          archiveMigrationWarnings,
+        }),
+        mainFile,
+        contentQuality,
+        legacyPathReferenceCount: 0,
+      });
+      continue;
+    }
+
+    const raw = await fs.readFile(absolutePath, "utf-8");
+    const parsed = matter(raw);
+    const frontmatter = parsed.data as Record<string, unknown>;
+    const contentQuality = analyzeMemoryContentQuality(raw, mainFile);
     cards.push({
-      module: moduleNameFromSkillPath(skillPath),
-      skillPath,
+      module: moduleNameFromMemoryMainPath(activeRelativePath),
+      skillPath: activeRelativePath,
       absolutePath,
       raw,
       body: parsed.content,
@@ -261,6 +325,9 @@ async function readMemoryCards(projectRoot: string): Promise<MemoryCard[]> {
         archiveVolumes,
         archiveMigrationWarnings,
       }),
+      mainFile,
+      contentQuality,
+      legacyPathReferenceCount: countLegacyMainFileReferences(raw),
     });
   }
   return cards;
@@ -349,6 +416,9 @@ function parseTrackedFilesLoosely(content: string): string[] {
 }
 
 function auditFrontmatter(card: MemoryCard): MemoryAuditFinding[] {
+  if (card.mainFile.type === "conflict" || card.mainFile.type === "missing") {
+    return [];
+  }
   const findings: MemoryAuditFinding[] = [];
   for (const field of REQUIRED_FRONTMATTER) {
     if (!(field in card.frontmatter)) {
@@ -374,6 +444,9 @@ function auditFrontmatter(card: MemoryCard): MemoryAuditFinding[] {
 }
 
 function auditTrackedFiles(card: MemoryCard): MemoryAuditFinding[] {
+  if (card.mainFile.type === "conflict" || card.mainFile.type === "missing") {
+    return [];
+  }
   const findings: MemoryAuditFinding[] = [];
   const normalized = card.raw.replace(/\r\n/g, "\n");
   if (!/^## Tracked Files[ \t]*$/m.test(normalized)) {
@@ -437,6 +510,94 @@ function auditTrackedFiles(card: MemoryCard): MemoryAuditFinding[] {
   return findings;
 }
 
+function auditMemoryMainFileAndQuality(card: MemoryCard): MemoryAuditFinding[] {
+  const findings: MemoryAuditFinding[] = [];
+  if (card.mainFile.type === "conflict") {
+    findings.push({
+      severity: "error",
+      code: "MEMORY_MAIN_FILE_CONFLICT",
+      message: `${card.module} 同時存在 MEMORY.md 與 SKILL.md，必須先人工解決，工具不可靜默選擇任一主檔。`,
+      module: card.module,
+      file: card.mainFile.candidatePaths.join(", "),
+    });
+    return findings;
+  }
+  if (card.mainFile.type === "missing") {
+    findings.push({
+      severity: "error",
+      code: "MEMORY_MAIN_FILE_MISSING",
+      message: `${card.module} 缺少作用中記憶主檔。`,
+      module: card.module,
+      file: card.skillPath,
+    });
+    return findings;
+  }
+  if (card.mainFile.type === "legacy SKILL.md") {
+    findings.push({
+      severity: "warning",
+      code: "MEMORY_MAIN_FILE_LEGACY",
+      message: `${card.module} 仍使用 legacy SKILL.md；可讀但需要遷移到 MEMORY.md。`,
+      module: card.module,
+      file: card.skillPath,
+    });
+  }
+  if (card.contentQuality.missingFields.length > 0) {
+    findings.push({
+      severity: "warning",
+      code: "MEMORY_QUALITY_FIELD_MISSING",
+      message: `${card.module} 缺少品質欄位：${card.contentQuality.missingFields.join(", ")}。`,
+      module: card.module,
+      file: card.skillPath,
+    });
+  }
+  if (card.contentQuality.missingSections.length > 0) {
+    findings.push({
+      severity: "warning",
+      code: "MEMORY_QUALITY_SECTION_MISSING",
+      message: `${card.module} 缺少品質段落：${card.contentQuality.missingSections.join(", ")}。`,
+      module: card.module,
+      file: card.skillPath,
+    });
+  }
+  if (card.contentQuality.evidenceWarnings.length > 0) {
+    findings.push({
+      severity: "warning",
+      code: "MEMORY_QUALITY_EVIDENCE_MISSING",
+      message: `${card.module} Evidence Base 缺少可驗證證據；缺工具或缺證據不可視為通過。`,
+      module: card.module,
+      file: card.skillPath,
+    });
+  }
+  if (card.contentQuality.status === "pending_review") {
+    findings.push({
+      severity: "warning",
+      code: "MEMORY_QUALITY_PENDING_REVIEW",
+      message: `${card.module} verification_status 尚未達已驗證；缺工具或缺證據不可視為通過。`,
+      module: card.module,
+      file: card.skillPath,
+    });
+  }
+  if (card.contentQuality.status === "superseded") {
+    findings.push({
+      severity: "warning",
+      code: "MEMORY_QUALITY_SUPERSEDED",
+      message: `${card.module} 已標記為取代/被取代，需確認是否仍為作用中主卡。`,
+      module: card.module,
+      file: card.skillPath,
+    });
+  }
+  if (card.legacyPathReferenceCount > 0) {
+    findings.push({
+      severity: "warning",
+      code: "MEMORY_LEGACY_PATH_REFERENCE",
+      message: `${card.module} 內文仍引用 .agents/memory/**/SKILL.md ${card.legacyPathReferenceCount} 次。`,
+      module: card.module,
+      file: card.skillPath,
+    });
+  }
+  return findings;
+}
+
 function auditIndexEntries(
   index: AuditIndex,
   cards: MemoryCard[],
@@ -449,7 +610,7 @@ function auditIndexEntries(
       findings.push({
         severity: "warning",
         code: "INDEX_CARD_MISSING",
-        message: `${card.module} 存在 SKILL.md，但索引沒有對應卡片。`,
+        message: `${card.module} 存在記憶主檔，但索引沒有對應卡片。`,
         module: card.module,
         file: card.skillPath,
       });
@@ -481,7 +642,7 @@ function auditIndexEntries(
       findings.push({
         severity: "warning",
         code: "INDEX_GHOST_CARD",
-        message: `${moduleName} 仍在索引中，但沒有找到對應 SKILL.md。`,
+        message: `${moduleName} 仍在索引中，但沒有找到對應記憶主檔。`,
         module: moduleName,
         file: ".cartridge/index.json",
       });
@@ -516,6 +677,9 @@ function auditDependencySemantics(cards: MemoryCard[]): MemoryAuditFinding[] {
 }
 
 function auditCompaction(card: MemoryCard): MemoryAuditFinding[] {
+  if (card.mainFile.type === "conflict" || card.mainFile.type === "missing") {
+    return [];
+  }
   const findings: MemoryAuditFinding[] = [];
   const metrics = card.compaction;
   if (metrics.isLegacy) {
@@ -661,6 +825,13 @@ function buildEngineeringIndex(
 
     cartridges[card.module] = {
       skillPath: card.skillPath,
+      mainFile: card.mainFile,
+      mainFileType: card.mainFile.type,
+      contentQuality: card.contentQuality,
+      contentQualityStatus: card.contentQuality.status,
+      migrationRequired:
+        card.mainFile.migrationRequired || card.contentQuality.migrationRequired,
+      legacyCompatibility: card.mainFile.legacyCompatibility,
       description:
         typeof card.frontmatter.description === "string"
           ? card.frontmatter.description
@@ -730,9 +901,21 @@ function buildReport(
       "TRACKED_FILES_SECTION_MISSING",
       "TRACKED_FILES_HEADING_TYPO",
       "MEMORY_LEGACY_SCHEMA",
+      "MEMORY_MAIN_FILE_LEGACY",
+      "MEMORY_MAIN_FILE_CONFLICT",
+      "MEMORY_MAIN_FILE_MISSING",
+      "MEMORY_QUALITY_FIELD_MISSING",
+      "MEMORY_QUALITY_SECTION_MISSING",
+      "MEMORY_QUALITY_PENDING_REVIEW",
+      "MEMORY_QUALITY_SUPERSEDED",
+      "MEMORY_LEGACY_PATH_REFERENCE",
     ].includes(finding.code),
   );
-  const compactionMetrics = cards.map((card) => card.compaction);
+  const activeCards = cards.filter(
+    (card) => card.mainFile.type !== "conflict" && card.mainFile.type !== "missing",
+  );
+  const compactionMetrics = activeCards.map((card) => card.compaction);
+  const qualityReports = cards.map((card) => card.contentQuality);
   return {
     compatibility: {
       mode: compatibilityWarnings.length > 0 ? "compatibility" : "modern",
@@ -781,6 +964,40 @@ function buildReport(
         (sum, metrics) => sum + (metrics.archiveMigrationWarnings?.length ?? 0),
         0,
       ),
+      memoryMainFiles: cards.filter(
+        (card) => card.mainFile.type === "MEMORY.md",
+      ).length,
+      legacyMainFiles: cards.filter(
+        (card) => card.mainFile.type === "legacy SKILL.md",
+      ).length,
+      mainFileConflicts: cards.filter(
+        (card) => card.mainFile.type === "conflict",
+      ).length,
+      missingMainFiles: cards.filter(
+        (card) => card.mainFile.type === "missing",
+      ).length,
+      legacyPathReferences: cards.reduce(
+        (sum, card) => sum + card.legacyPathReferenceCount,
+        0,
+      ),
+      missingQualityFields: qualityReports.reduce(
+        (sum, quality) => sum + quality.missingFields.length,
+        0,
+      ),
+      missingQualitySections: qualityReports.reduce(
+        (sum, quality) => sum + quality.missingSections.length,
+        0,
+      ),
+      evidenceWarnings: qualityReports.reduce(
+        (sum, quality) => sum + quality.evidenceWarnings.length,
+        0,
+      ),
+      pendingQualityReview: qualityReports.filter(
+        (quality) => quality.status === "pending_review",
+      ).length,
+      supersededQuality: qualityReports.filter(
+        (quality) => quality.status === "superseded",
+      ).length,
       granularityAdvisories: entries.filter(
         (entry) => (entry.trackedFiles?.length ?? 0) > 8,
       ).length,
@@ -862,6 +1079,39 @@ function buildRecommendedActions(report: MemoryAuditReport) {
       reason: `archiveMigrationWarnings=${report.summary.archiveMigrationWarnings}`,
     });
   }
+  if (report.summary.mainFileConflicts > 0) {
+    actions.push({
+      priority: "P1",
+      action: "resolve_memory_main_file_conflicts",
+      target: "workspace",
+      reason: `mainFileConflicts=${report.summary.mainFileConflicts}`,
+    });
+  }
+  if (report.summary.legacyMainFiles > 0) {
+    actions.push({
+      priority: "P2",
+      action: "migrate_legacy_skill_main_files",
+      target: "workspace",
+      reason: `legacyMainFiles=${report.summary.legacyMainFiles}`,
+    });
+  }
+  if (
+    report.summary.missingQualityFields > 0 ||
+    report.summary.missingQualitySections > 0 ||
+    report.summary.evidenceWarnings > 0 ||
+    report.summary.pendingQualityReview > 0
+  ) {
+    actions.push({
+      priority: "P2",
+      action: "review_memory_content_quality",
+      target: "workspace",
+      reason:
+        `missingFields=${report.summary.missingQualityFields}, ` +
+        `missingSections=${report.summary.missingQualitySections}, ` +
+        `evidenceWarnings=${report.summary.evidenceWarnings}, ` +
+        `pendingReview=${report.summary.pendingQualityReview}`,
+    });
+  }
   if (report.summary.granularityAdvisories > 0) {
     actions.push({
       priority: "P2",
@@ -915,6 +1165,7 @@ export async function buildMemoryAuditReport(
   ];
   const findings = [
     ...indexFindings,
+    ...cards.flatMap(auditMemoryMainFileAndQuality),
     ...cards.flatMap(auditFrontmatter),
     ...cards.flatMap(auditTrackedFiles),
     ...cards.flatMap(auditCompaction),

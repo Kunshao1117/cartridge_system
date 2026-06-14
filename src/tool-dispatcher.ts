@@ -3,6 +3,7 @@ import {
   handleMemoryDeps,
   handleMemoryList,
   handleMemoryRead,
+  handleMemoryReindex,
   handleMemoryStatus,
 } from "./mcp-handlers.js";
 import { handleMemoryGraph } from "./memory-graph.js";
@@ -40,6 +41,7 @@ const toolHandlers: Record<string, ToolHandler> = {
   memory_read: handleMemoryRead,
   memory_status: handleMemoryStatus,
   memory_commit: handleMemoryCommit,
+  memory_reindex: handleMemoryReindex,
   memory_deps: handleMemoryDeps,
   memory_graph: handleMemoryGraph,
   memory_audit: handleMemoryAudit,
@@ -104,7 +106,7 @@ function createApprovalRequiredResult(
           code: "explicit_approval_required",
           message:
             `${tool.name} is a high-risk write tool. ` +
-            "Pass confirm: true after updating SKILL.md intentionally.",
+            "Pass confirm: true after intentionally approving this write operation.",
         },
       ],
       recommendedActions: [

@@ -5,6 +5,7 @@ import { isManagedMemoryArtifactPath } from "../index-manager.js";
 import type { StalenessAnalyzer } from "../analyzer.js";
 import type { GitignoreFilter } from "../gitignore-filter.js";
 import type { MemoryWriter } from "../writer.js";
+import { isActiveMemoryMainFilePath } from "../memory-main-file.js";
 
 export interface ProjectEventHandlerDeps {
   config: CartridgeConfig;
@@ -109,9 +110,5 @@ async function handleProjectSkillFileChange(
 }
 
 export function isMemorySkillPath(relPath: string): boolean {
-  return (
-    (relPath.includes(".agents/memory/") ||
-      relPath.includes(".agents/skills/mem-")) &&
-    relPath.endsWith("SKILL.md")
-  );
+  return isActiveMemoryMainFilePath(relPath);
 }

@@ -4,8 +4,8 @@ description: >
   專案記憶：卡匣機櫃工作台。Use when: 修改編輯區 WebviewPanel、卡匣工作台模型、 V2 記憶卡 metadata
   解析、Cytoscape Webview 前端或卡匣機櫃測試時載入。
 last_updated: '2026-06-04T08:01:01+08:00'
-status: stable
-staleness: 0
+status: stale
+staleness: 30
 dependencies:
   - core-types
   - index-manager
@@ -27,6 +27,15 @@ metadata:
   tool_scope:
     - 'filesystem:read'
 ---
+<!-- CARTRIDGE_SYSTEM_WARNING_START -->
+
+> [!CAUTION]
+> 🔴 **系統強制攔截**：此記憶已過期失真！
+> 追蹤檔案異動：`src/cabinet-workbench-panel.ts`、`src/cabinet-workbench-model.ts`、`src/cabinet-memory-metadata.ts`（2026-06-14T23:07:24+08:00）
+> AI 嚴禁基於此記憶施工，必須優先閱讀最新原始碼並更新此記憶卡。
+> staleness: 30 | threshold: 🔴 嚴重過期
+
+<!-- CARTRIDGE_SYSTEM_WARNING_END -->
 
 # extension / cabinet workbench — Module Memory
 

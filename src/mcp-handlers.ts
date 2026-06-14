@@ -23,7 +23,14 @@ import {
   buildCompactionMetrics,
   formatCompactionWarnings,
 } from "./memory-compaction.js";
-import type { CartridgeIndex } from "./types.js";
+import {
+  analyzeMemoryContentQuality,
+  resolveMemoryMainFileInDirectory,
+  type MemoryMainFileInfo,
+  type MemoryQualityReport,
+} from "./memory-main-file.js";
+import { refreshMemoryIndex } from "./memory-reindex.js";
+import type { CartridgeEntry, CartridgeIndex } from "./types.js";
 import {
   createToolEnvelope,
   createToolErrorEnvelope,
@@ -89,6 +96,12 @@ export const memoryCommitSchema = z.object({
   confirm: z.literal(true),
 });
 
+/** memory_reindex 工具參數驗證 Schema */
+export const memoryReindexSchema = z.object({
+  projectRoot: projectRootField,
+  confirm: z.literal(true),
+});
+
 function createHandlerErrorResult(args: {
   tool: string;
   readOnly: boolean;
@@ -115,6 +128,44 @@ function createHandlerErrorResult(args: {
   );
 }
 
+function createMemoryMainConflictResult(args: {
+  tool: string;
+  readOnly: boolean;
+  projectRoot: string;
+  moduleName: string;
+  candidates: string[];
+}): McpToolResult {
+  const message =
+    `Module "${args.moduleName}" has both MEMORY.md and SKILL.md. ` +
+    "Resolve the conflict before reading or writing this memory card.";
+  return toMcpTextResult(
+    createToolEnvelope({
+      tool: args.tool,
+      readOnly: args.readOnly,
+      projectRoot: args.projectRoot,
+      status: "error",
+      summary: {
+        module: args.moduleName,
+        error: message,
+        mainFileType: "conflict",
+        candidates: args.candidates,
+        migrationRequired: true,
+      },
+      findings: [
+        {
+          severity: "error",
+          code: "memory_main_file_conflict",
+          message,
+        },
+      ],
+      legacy: {
+        text: `${message} Candidates: ${args.candidates.join(", ")}`,
+        candidates: args.candidates,
+      },
+    }),
+  );
+}
+
 /**
  * 使用 gray-matter 結構化更新 frontmatter 欄位
  * 取代易碎的正則替換，完整支援單引號、雙引號、無引號格式
@@ -133,112 +184,288 @@ export function updateFrontmatterFields(
   return matter.stringify(content, frontmatter);
 }
 
-/**
- * 共用路徑解析函式：將模組名稱解析為 SKILL.md 絕對路徑
- * 三層策略確保向後相容：索引查找 → 平面回退（memory → skills）→ 遞迴搜尋
- */
-export async function resolveSkillPath(
+type MemoryMainFileLookup =
+  | {
+      status: "ready";
+      filePath: string;
+      relativePath: string;
+      mainFile: MemoryMainFileInfo;
+      contentQuality: MemoryQualityReport;
+      entry?: CartridgeEntry;
+    }
+  | {
+      status: "conflict" | "missing" | "not_found";
+      mainFile?: MemoryMainFileInfo;
+      candidates: string[];
+      message: string;
+      entry?: CartridgeEntry;
+    };
+
+function mainFileInfoFromEntry(entry: CartridgeEntry): MemoryMainFileInfo | null {
+  if (entry.mainFile) return entry.mainFile;
+  if (!entry.skillPath) return null;
+  const normalized = entry.skillPath.replace(/\\/g, "/");
+  const isMemory = normalized.endsWith("/MEMORY.md") || normalized === "MEMORY.md";
+  return {
+    type: isMemory ? "MEMORY.md" : "legacy SKILL.md",
+    activePath: normalized,
+    activeFileName: path.basename(normalized),
+    candidates: isMemory ? { memory: normalized } : { legacySkill: normalized },
+    candidatePaths: [normalized],
+    legacyCompatibility: !isMemory,
+    migrationRequired: !isMemory,
+    conflict: false,
+  };
+}
+
+function resolvePathInsideRoot(projectRoot: string, relativePath: string): string | null {
+  const normalized = relativePath.replace(/\\/g, "/");
+  const absolute = path.isAbsolute(normalized)
+    ? path.resolve(normalized)
+    : path.resolve(projectRoot, normalized);
+  const relativeToRoot = path.relative(projectRoot, absolute);
+  if (relativeToRoot.startsWith("..") || path.isAbsolute(relativeToRoot)) {
+    return null;
+  }
+  return absolute;
+}
+
+function directoryCandidatesFromEntry(
+  projectRoot: string,
+  entry: CartridgeEntry,
+): string[] {
+  const mainFile = mainFileInfoFromEntry(entry);
+  const paths = [
+    mainFile?.activePath,
+    ...(mainFile?.candidatePaths ?? []),
+    entry.skillPath,
+  ].filter((item): item is string => Boolean(item));
+  const directories = new Set<string>();
+  for (const candidatePath of paths) {
+    const normalized = candidatePath.replace(/\\/g, "/");
+    const fileName = path.posix.basename(normalized);
+    const directoryPath = /\.md$/i.test(fileName)
+      ? path.posix.dirname(normalized)
+      : normalized;
+    const absoluteDirectory = resolvePathInsideRoot(projectRoot, directoryPath);
+    if (absoluteDirectory) directories.add(absoluteDirectory);
+  }
+  return [...directories];
+}
+
+async function lookupFromIndexEntryDirectories(
+  projectRoot: string,
+  entry: CartridgeEntry,
+): Promise<MemoryMainFileLookup | null> {
+  for (const directory of directoryCandidatesFromEntry(projectRoot, entry)) {
+    const lookup = await lookupFromDirectory(projectRoot, directory);
+    if (lookup) return lookup;
+  }
+  return null;
+}
+
+function staleIndexAsMissingLookup(
+  mainFile: MemoryMainFileInfo,
+  entry: CartridgeEntry,
+): MemoryMainFileLookup {
+  return {
+    status: "missing",
+    mainFile: {
+      ...mainFile,
+      type: "missing",
+      activePath: null,
+      activeFileName: null,
+      candidates: {},
+      legacyCompatibility: false,
+      migrationRequired: true,
+      conflict: false,
+    },
+    candidates: mainFile.candidatePaths,
+    message: "Memory main file is missing.",
+    entry,
+  };
+}
+
+async function lookupFromDirectory(
+  projectRoot: string,
+  cardDir: string,
+): Promise<MemoryMainFileLookup | null> {
+  const resolution = await resolveMemoryMainFileInDirectory(projectRoot, cardDir);
+  const mainFile = resolution.mainFile;
+  if (mainFile.type === "missing") return null;
+  if (mainFile.type === "conflict") {
+    return {
+      status: "conflict",
+      mainFile,
+      candidates: mainFile.candidatePaths,
+      message: "Memory main file conflict: MEMORY.md and SKILL.md both exist.",
+    };
+  }
+  if (!mainFile.activePath) {
+    return {
+      status: "missing",
+      mainFile,
+      candidates: mainFile.candidatePaths,
+      message: "Memory main file is missing.",
+    };
+  }
+  const filePath = path.join(projectRoot, mainFile.activePath);
+  try {
+    const raw = await fs.readFile(filePath, "utf-8");
+    return {
+      status: "ready",
+      filePath,
+      relativePath: mainFile.activePath,
+      mainFile,
+      contentQuality: analyzeMemoryContentQuality(raw, mainFile),
+    };
+  } catch {
+    return {
+      status: "missing",
+      mainFile,
+      candidates: mainFile.candidatePaths,
+      message: `Memory main file does not exist: ${mainFile.activePath}`,
+    };
+  }
+}
+
+export async function resolveMemoryMainFileForModule(
   projectRoot: string,
   moduleName: string,
-): Promise<string | null> {
-  // 策略 1：從索引查找（最快）
+): Promise<MemoryMainFileLookup> {
+  const normalizedRoot = path.resolve(projectRoot);
   const indexPath = path.join(projectRoot, ".cartridge", "index.json");
+  let staleIndexedMissing: MemoryMainFileLookup | null = null;
   try {
     const raw = await fs.readFile(indexPath, "utf-8");
-    const index = JSON.parse(raw);
+    const index = JSON.parse(raw) as CartridgeIndex;
     const entry = index.cartridges?.[moduleName];
-    if (entry?.skillPath) {
-      const resolved = path.join(projectRoot, entry.skillPath);
-      try {
-        await fs.access(resolved);
-        return resolved;
-      } catch {
-        /* 索引記錄的路徑不存在，繼續嘗試 */
+    if (entry) {
+      const mainFile = mainFileInfoFromEntry(entry);
+      const indexedDirectoryLookup = await lookupFromIndexEntryDirectories(
+        normalizedRoot,
+        entry,
+      );
+      if (indexedDirectoryLookup) {
+        return { ...indexedDirectoryLookup, entry };
+      }
+      if (mainFile?.type === "conflict" || mainFile?.type === "missing") {
+        staleIndexedMissing = staleIndexAsMissingLookup(mainFile, entry);
+      }
+      if (mainFile?.activePath) {
+        const directoryLookup = await lookupFromDirectory(
+          normalizedRoot,
+          path.dirname(path.join(normalizedRoot, mainFile.activePath)),
+        );
+        if (directoryLookup) {
+          return { ...directoryLookup, entry };
+        }
+        const resolved = path.join(normalizedRoot, mainFile.activePath);
+        try {
+          const rawContent = await fs.readFile(resolved, "utf-8");
+          return {
+            status: "ready",
+            filePath: resolved,
+            relativePath: mainFile.activePath,
+            mainFile,
+            contentQuality: analyzeMemoryContentQuality(rawContent, mainFile),
+            entry,
+          };
+        } catch {
+          /* 索引記錄的路徑不存在，繼續嘗試 */
+        }
       }
     }
   } catch {
     /* 索引不存在 */
   }
 
-  // 策略 2a：新路徑平面回退（v4.0 memory/ 目錄）
-  const memoryPath = path.join(
-    projectRoot,
-    ".agents",
-    "memory",
-    moduleName,
-    "SKILL.md",
-  );
-  try {
-    await fs.access(memoryPath);
-    return memoryPath;
-  } catch {
-    /* 不存在 */
+  const directDirs = [
+    path.join(normalizedRoot, ".agents", "memory", moduleName),
+    path.join(normalizedRoot, ".agents", "memory", ...moduleName.split(".")),
+    path.join(normalizedRoot, ".agents", "skills", moduleName),
+    path.join(normalizedRoot, ".agents", "skills", ...moduleName.split(".")),
+  ];
+  for (const dir of directDirs) {
+    const lookup = await lookupFromDirectory(normalizedRoot, dir);
+    if (lookup) return lookup;
   }
 
-  // 策略 2b：舊路徑平面回退（向後相容 skills/ 目錄）
-  const flatPath = path.join(
-    projectRoot,
-    ".agents",
-    "skills",
-    moduleName,
-    "SKILL.md",
-  );
-  try {
-    await fs.access(flatPath);
-    return flatPath;
-  } catch {
-    /* 不存在 */
-  }
-
-  // 策略 3a：遞迴搜尋 memory/ 目錄（無 mem- 前綴限制）
-  const fromMemory = await findSkillRecursive(
-    path.join(projectRoot, ".agents", "memory"),
+  const fromMemory = await findMemoryMainRecursive(
+    normalizedRoot,
+    path.join(normalizedRoot, ".agents", "memory"),
     moduleName,
     1,
+    null,
     false,
   );
   if (fromMemory) return fromMemory;
 
-  // 策略 3b：遞迴搜尋 skills/ 目錄（向後相容，保留 mem- 過濾）
-  return findSkillRecursive(
-    path.join(projectRoot, ".agents", "skills"),
+  const fromSkills = await findMemoryMainRecursive(
+    normalizedRoot,
+    path.join(normalizedRoot, ".agents", "skills"),
     moduleName,
     1,
+    null,
     true,
   );
+  if (fromSkills) return fromSkills;
+
+  if (staleIndexedMissing) {
+    return staleIndexedMissing;
+  }
+
+  return {
+    status: "not_found",
+    candidates: [],
+    message: `Module "${moduleName}" not found.`,
+  };
 }
 
 /**
- * 遞迴搜尋巢狀目錄中的 SKILL.md
+ * 相容包裝：回傳目前實際作用中主檔絕對路徑。
+ * 新流程應改用 resolveMemoryMainFileForModule 取得衝突與品質資訊。
+ */
+export async function resolveSkillPath(
+  projectRoot: string,
+  moduleName: string,
+): Promise<string | null> {
+  const lookup = await resolveMemoryMainFileForModule(projectRoot, moduleName);
+  return lookup.status === "ready" ? lookup.filePath : null;
+}
+
+/**
+ * 遞迴搜尋巢狀目錄中的記憶主檔
  * @param requireMemPrefix - true: 只掃描 mem-* 目錄；false: 掃描所有目錄
  */
-async function findSkillRecursive(
+async function findMemoryMainRecursive(
+  projectRoot: string,
   dir: string,
   moduleName: string,
   depth: number,
+  parentId: string | null,
   requireMemPrefix: boolean,
-): Promise<string | null> {
+): Promise<MemoryMainFileLookup | null> {
   if (depth > 4) return null;
   try {
     const entries = await fs.readdir(dir, { withFileTypes: true });
     for (const entry of entries) {
       if (!entry.isDirectory()) continue;
+      if (entry.name.toLowerCase() === "archive") continue;
       if (requireMemPrefix && !entry.name.startsWith("mem-")) continue;
       if (!requireMemPrefix && entry.name.startsWith(".")) continue;
-      if (entry.name === moduleName) {
-        const candidate = path.join(dir, entry.name, "SKILL.md");
-        try {
-          await fs.access(candidate);
-          return candidate;
-        } catch {
-          continue;
-        }
+      const cartridgeId = parentId ? `${parentId}.${entry.name}` : entry.name;
+      const cardDir = path.join(dir, entry.name);
+      if (cartridgeId === moduleName) {
+        const lookup = await lookupFromDirectory(projectRoot, cardDir);
+        if (lookup) return lookup;
       }
-      // 遞迴搜尋子目錄
-      const found = await findSkillRecursive(
-        path.join(dir, entry.name),
+      const found = await findMemoryMainRecursive(
+        projectRoot,
+        cardDir,
         moduleName,
         depth + 1,
+        cartridgeId,
         false,
       );
       if (found) return found;
@@ -322,6 +549,16 @@ export async function handleMemoryList(args: unknown): Promise<McpToolResult> {
           cycleEventLimit: entry.compaction?.cycleEventLimit ?? null,
           needsCompaction: entry.compaction?.needsCompaction ?? false,
           legacyMemory: entry.compaction?.isLegacy ?? false,
+          mainFile: entry.mainFile ?? null,
+          mainFileType: entry.mainFile?.type ?? entry.mainFileType ?? "legacy SKILL.md",
+          mainFilePath: entry.mainFile?.activePath ?? entry.skillPath ?? null,
+          contentQuality: entry.contentQuality ?? null,
+          contentQualityStatus:
+            entry.contentQuality?.status ??
+            entry.contentQualityStatus ??
+            "pending_review",
+          migrationRequired: entry.migrationRequired ?? false,
+          legacyCompatibility: entry.legacyCompatibility ?? false,
           compactionStatus: entry.compaction?.compactionStatus ?? null,
           compactionRecommendation:
             entry.compaction?.recommendedAction ?? "unknown",
@@ -390,6 +627,47 @@ export async function handleMemoryList(args: unknown): Promise<McpToolResult> {
       } catch {
         /* skills/ 不存在 */
       }
+      const fallbackCartridges = await Promise.all(
+        modules.map(async (module) => {
+          const lookup = await resolveMemoryMainFileForModule(
+            parsed.data.projectRoot,
+            module,
+          );
+          if (lookup.status === "ready") {
+            return {
+              module,
+              mainFile: lookup.mainFile,
+              mainFileType: lookup.mainFile.type,
+              contentQuality: lookup.contentQuality,
+              contentQualityStatus: lookup.contentQuality.status,
+              migrationRequired:
+                lookup.mainFile.migrationRequired ||
+                lookup.contentQuality.migrationRequired,
+              legacyCompatibility: lookup.mainFile.legacyCompatibility,
+            };
+          }
+          if (lookup.status === "conflict") {
+            return {
+              module,
+              mainFile: lookup.mainFile,
+              mainFileType: lookup.mainFile?.type ?? "conflict",
+              contentQuality: null,
+              contentQualityStatus: "conflict",
+              migrationRequired: true,
+              legacyCompatibility: false,
+            };
+          }
+          return {
+            module,
+            mainFile: null,
+            mainFileType: "missing",
+            contentQuality: null,
+            contentQualityStatus: "pending_review",
+            migrationRequired: true,
+            legacyCompatibility: false,
+          };
+        }),
+      );
       const text = `Available memories:\n${modules.join("\n")}`;
       return toMcpTextResult(
         createToolEnvelope({
@@ -399,7 +677,7 @@ export async function handleMemoryList(args: unknown): Promise<McpToolResult> {
           status: "ready",
           summary: {
             cartridgeCount: modules.length,
-            cartridges: modules.map((module) => ({ module })),
+            cartridges: fallbackCartridges,
             untrackedFiles: [],
           },
           legacy: { text, modules },
@@ -448,19 +726,32 @@ export async function handleMemoryRead(args: unknown): Promise<McpToolResult> {
   }
 
   try {
-    const filePath = await resolveSkillPath(
+    const lookup = await resolveMemoryMainFileForModule(
       parsed.data.projectRoot,
       parsed.data.moduleName,
     );
-    if (!filePath) {
+    if (lookup.status === "conflict") {
+      return createMemoryMainConflictResult({
+        tool: "memory_read",
+        readOnly: true,
+        projectRoot: parsed.data.projectRoot,
+        moduleName: parsed.data.moduleName,
+        candidates: lookup.candidates,
+      });
+    }
+    if (lookup.status !== "ready") {
       return createHandlerErrorResult({
         tool: "memory_read",
         readOnly: true,
         projectRoot: parsed.data.projectRoot,
-        code: "module_not_found",
-        message: `Error: Module "${parsed.data.moduleName}" not found. Searched: index → flat path → recursive scan.`,
+        code: lookup.status === "missing" ? "memory_main_file_missing" : "module_not_found",
+        message:
+          lookup.status === "missing"
+            ? `Error: Module "${parsed.data.moduleName}" has no active memory main file.`
+            : `Error: Module "${parsed.data.moduleName}" not found. Searched: index → flat path → recursive scan.`,
       });
     }
+    const filePath = lookup.filePath;
     const content = await fs.readFile(filePath, "utf-8");
 
     // 嘗試從索引取得父子關係提示
@@ -495,10 +786,23 @@ export async function handleMemoryRead(args: unknown): Promise<McpToolResult> {
         tool: "memory_read",
         readOnly: true,
         projectRoot: parsed.data.projectRoot,
-        status: "ready",
+        status:
+          lookup.contentQuality.status === "complete" &&
+          !lookup.mainFile.legacyCompatibility
+            ? "ready"
+            : "warning",
         summary: {
           module: parsed.data.moduleName,
           skillPath: path.relative(parsed.data.projectRoot, filePath),
+          mainFile: lookup.mainFile,
+          mainFileType: lookup.mainFile.type,
+          mainFilePath: lookup.relativePath,
+          contentQuality: lookup.contentQuality,
+          contentQualityStatus: lookup.contentQuality.status,
+          migrationRequired:
+            lookup.mainFile.migrationRequired ||
+            lookup.contentQuality.migrationRequired,
+          legacyCompatibility: lookup.mainFile.legacyCompatibility,
           content: text,
           hasRelationHint: parentHint.length > 0,
         },
@@ -568,6 +872,32 @@ export async function handleMemoryStatus(
       });
     }
 
+    const lookup = await resolveMemoryMainFileForModule(projectRoot, moduleName);
+    const currentMainFile =
+      lookup.status === "ready" || lookup.status === "conflict" || lookup.status === "missing"
+        ? (lookup.mainFile ?? entry.mainFile ?? null)
+        : (entry.mainFile ?? null);
+    const currentMainFileType =
+      currentMainFile?.type ??
+      (lookup.status === "missing" ? "missing" : entry.mainFileType ?? "legacy SKILL.md");
+    const currentContentQuality =
+      lookup.status === "ready" ? lookup.contentQuality : null;
+    const currentContentQualityStatus =
+      lookup.status === "conflict"
+        ? "conflict"
+        : lookup.status === "ready"
+          ? lookup.contentQuality.status
+          : "pending_review";
+    const inferredMigrationRequired =
+      currentMainFileType !== "MEMORY.md" ||
+      (currentContentQuality?.migrationRequired ??
+        currentContentQualityStatus !== "complete");
+    const currentMigrationRequired =
+      currentMainFile?.migrationRequired ??
+      entry.migrationRequired ??
+      inferredMigrationRequired;
+    const currentLegacyCompatibility =
+      currentMainFile?.legacyCompatibility ?? entry.legacyCompatibility ?? false;
     const level = stalenessToLevel(entry.staleness ?? 0);
     const pendingChanges = (entry.pendingChanges ?? []).map(
       (change: { filePath: string; eventType: string; timestamp: string }) => ({
@@ -607,6 +937,16 @@ export async function handleMemoryStatus(
       trackedFiles: entry.trackedFiles ?? [],
       pendingChanges,
       ghostFiles,
+      mainFile: currentMainFile,
+      mainFileType: currentMainFileType,
+      mainFilePath:
+        lookup.status === "ready"
+          ? lookup.relativePath
+          : currentMainFile?.activePath ?? entry.skillPath ?? null,
+      contentQuality: currentContentQuality,
+      contentQualityStatus: currentContentQualityStatus,
+      migrationRequired: currentMigrationRequired,
+      legacyCompatibility: currentLegacyCompatibility,
       actionRequired,
     };
 
@@ -615,9 +955,44 @@ export async function handleMemoryStatus(
         tool: "memory_status",
         readOnly: true,
         projectRoot,
-        status: entry.staleness > 0 || ghostFiles.length > 0 ? "warning" : "ready",
+        status:
+          currentMainFileType === "conflict"
+            ? "error"
+            : entry.staleness > 0 ||
+                ghostFiles.length > 0 ||
+                currentMainFileType !== "MEMORY.md" ||
+                currentContentQualityStatus !== "complete"
+              ? "warning"
+              : "ready",
         summary: status,
         findings: [
+          ...(currentMainFileType === "conflict"
+            ? [
+                {
+                  severity: "error" as const,
+                  code: "memory_main_file_conflict",
+                  message: `Module ${moduleName} has both MEMORY.md and SKILL.md.`,
+                },
+              ]
+            : []),
+          ...(currentMainFileType === "legacy SKILL.md"
+            ? [
+                {
+                  severity: "warning" as const,
+                  code: "memory_main_file_legacy",
+                  message: `Module ${moduleName} is using legacy SKILL.md compatibility.`,
+                },
+              ]
+            : []),
+          ...(currentContentQualityStatus !== "complete"
+            ? [
+                {
+                  severity: "warning" as const,
+                  code: "memory_content_quality",
+                  message: `Module ${moduleName} content quality status is ${currentContentQualityStatus}.`,
+                },
+              ]
+            : []),
           ...(entry.staleness > 0
             ? [
                 {
@@ -640,16 +1015,29 @@ export async function handleMemoryStatus(
   } catch {
     // 索引檔不存在 — 回退到讀取 SKILL.md frontmatter
     try {
-      const filePath = await resolveSkillPath(projectRoot, moduleName);
-      if (!filePath) {
+      const lookup = await resolveMemoryMainFileForModule(projectRoot, moduleName);
+      if (lookup.status === "conflict") {
+        return createMemoryMainConflictResult({
+          tool: "memory_status",
+          readOnly: true,
+          projectRoot,
+          moduleName,
+          candidates: lookup.candidates,
+        });
+      }
+      if (lookup.status !== "ready") {
         return createHandlerErrorResult({
           tool: "memory_status",
           readOnly: true,
           projectRoot,
-          code: "module_not_found",
-          message: `Error: Module "${moduleName}" not found.`,
+          code: lookup.status === "missing" ? "memory_main_file_missing" : "module_not_found",
+          message:
+            lookup.status === "missing"
+              ? `Error: Module "${moduleName}" has no active memory main file.`
+              : `Error: Module "${moduleName}" not found.`,
         });
       }
+      const filePath = lookup.filePath;
       const raw = await fs.readFile(filePath, "utf-8");
       const fmMatch = raw.match(/^---\n([\s\S]*?)\n---/);
       let staleness = 0;
@@ -668,31 +1056,58 @@ export async function handleMemoryStatus(
         lastUpdated,
         trackedFiles: [],
         pendingChanges: [],
+        mainFile: lookup.mainFile,
+        mainFileType: lookup.mainFile.type,
+        mainFilePath: lookup.relativePath,
+        contentQuality: lookup.contentQuality,
+        contentQualityStatus: lookup.contentQuality.status,
+        migrationRequired:
+          lookup.mainFile.migrationRequired ||
+          lookup.contentQuality.migrationRequired,
+        legacyCompatibility: lookup.mainFile.legacyCompatibility,
         actionRequired:
           staleness > 0
             ? `此記憶卡已過期（staleness: ${staleness}）。索引檔不存在，無法提供異動檔案清單。請手動檢查追蹤檔案清單中的原始碼。`
             : "",
         _note:
-          "索引檔不存在，過期資訊來自 SKILL.md frontmatter。pendingChanges 和 trackedFiles 無法提供。",
+          "索引檔不存在，過期資訊來自作用中主檔 frontmatter。pendingChanges 和 trackedFiles 無法提供。",
       };
+      const fallbackFindings: CartridgeFinding[] = [];
+      if (lookup.mainFile.type === "legacy SKILL.md") {
+        fallbackFindings.push({
+          severity: "warning",
+          code: "memory_main_file_legacy",
+          message: `Module ${moduleName} is using legacy SKILL.md compatibility.`,
+        });
+      }
+      if (lookup.contentQuality.status !== "complete") {
+        fallbackFindings.push({
+          severity: "warning",
+          code: "memory_content_quality",
+          message: `Module ${moduleName} content quality status is ${lookup.contentQuality.status}.`,
+        });
+      }
+      if (staleness > 0) {
+        fallbackFindings.push({
+          severity: "warning",
+          code: "memory_stale",
+          message: `Module ${moduleName} has staleness ${staleness}.`,
+        });
+      }
 
       return toMcpTextResult(
         createToolEnvelope({
           tool: "memory_status",
           readOnly: true,
           projectRoot,
-          status: staleness > 0 ? "warning" : "ready",
+          status:
+            staleness > 0 ||
+            lookup.mainFile.type !== "MEMORY.md" ||
+            lookup.contentQuality.status !== "complete"
+              ? "warning"
+              : "ready",
           summary: status,
-          findings:
-            staleness > 0
-              ? [
-                  {
-                    severity: "warning",
-                    code: "memory_stale",
-                    message: `Module ${moduleName} has staleness ${staleness}.`,
-                  },
-                ]
-              : [],
+          findings: fallbackFindings,
           legacy: status,
         }),
       );
@@ -744,6 +1159,39 @@ function validateTrackedFilePaths(
   return pathWarnings;
 }
 
+function formatQualityWarnings(
+  moduleName: string,
+  quality: MemoryQualityReport,
+): string[] {
+  const warnings: string[] = [];
+  if (quality.missingFields.length > 0) {
+    warnings.push(
+      `⚠️ [MEMORY_QUALITY_FIELDS] "${moduleName}" 缺少品質欄位：${quality.missingFields.join(", ")}。`,
+    );
+  }
+  if (quality.missingSections.length > 0) {
+    warnings.push(
+      `⚠️ [MEMORY_QUALITY_SECTIONS] "${moduleName}" 缺少品質段落：${quality.missingSections.join(", ")}。`,
+    );
+  }
+  if (quality.evidenceWarnings.length > 0) {
+    warnings.push(
+      `⚠️ [MEMORY_QUALITY_EVIDENCE] "${moduleName}" Evidence Base 缺少可驗證證據：${quality.evidenceWarnings.join(" ")}`,
+    );
+  }
+  if (quality.status === "pending_review") {
+    warnings.push(
+      `⚠️ [MEMORY_QUALITY_PENDING_REVIEW] "${moduleName}" 尚未達已驗證狀態；缺證據不可視為通過。`,
+    );
+  }
+  if (quality.status === "superseded") {
+    warnings.push(
+      `⚠️ [MEMORY_QUALITY_SUPERSEDED] "${moduleName}" 已標記為取代/被取代，需確認是否仍為作用中主卡。`,
+    );
+  }
+  return warnings;
+}
+
 /**
  * memory_commit — 後設資料同步工具
  * 在 AI 用原生工具寫入 SKILL.md 後呼叫，負責：
@@ -787,22 +1235,40 @@ export async function handleMemoryCommit(
     const isoLocal = getTaiwanISO();
 
     // 1. 路徑解析
-    const filePath = await resolveSkillPath(projectRoot, moduleName);
-    if (!filePath) {
+    const lookup = await resolveMemoryMainFileForModule(projectRoot, moduleName);
+    if (lookup.status === "conflict") {
+      return createMemoryMainConflictResult({
+        tool: "memory_commit",
+        readOnly: false,
+        projectRoot,
+        moduleName,
+        candidates: lookup.candidates,
+      });
+    }
+    if (lookup.status !== "ready") {
       return createHandlerErrorResult({
         tool: "memory_commit",
         readOnly: false,
         projectRoot,
-        code: "module_not_found",
-        message: `Error: Module "${moduleName}" not found. Please ensure the SKILL.md file exists before calling memory_commit.`,
+        code: lookup.status === "missing" ? "memory_main_file_missing" : "module_not_found",
+        message:
+          lookup.status === "missing"
+            ? `Error: Module "${moduleName}" has no active memory main file.`
+            : `Error: Module "${moduleName}" not found. Please ensure the memory main file exists before calling memory_commit.`,
       });
     }
+    const filePath = lookup.filePath;
 
-    // 2. 讀取已寫入的 SKILL.md
+    // 2. 讀取已寫入的作用中主檔
     const rawContent = await fs.readFile(filePath, "utf-8");
 
     // 3. 結構驗證
     const warnings: string[] = [];
+    if (lookup.mainFile.legacyCompatibility) {
+      warnings.push(
+        `⚠️ [LEGACY_COMPATIBILITY] "${moduleName}" 目前寫回 legacy SKILL.md；此同步只代表相容期更新，不代表已完成新版 MEMORY.md 標準。`,
+      );
+    }
     const { data: frontmatter, content: body } = matter(rawContent);
     if (!frontmatter.name) warnings.push("frontmatter 缺少 name 欄位");
     if (!frontmatter.description)
@@ -900,6 +1366,11 @@ export async function handleMemoryCommit(
     const postCommitCompaction = buildCompactionMetrics(updatedContent, commitFm, {
       cardPath: filePath,
     });
+    const postCommitQuality = analyzeMemoryContentQuality(
+      updatedContent,
+      lookup.mainFile,
+    );
+    warnings.push(...formatQualityWarnings(moduleName, postCommitQuality));
     await fs.writeFile(filePath, updatedContent, "utf-8");
 
     // 5. 索引同步（graceful，失敗不影響主流程）
@@ -916,9 +1387,20 @@ export async function handleMemoryCommit(
         index.cartridges[moduleName].lastUpdated = isoLocal;
         index.cartridges[moduleName].ghostFiles = [];
         index.cartridges[moduleName].compaction = postCommitCompaction;
+        index.cartridges[moduleName].skillPath = lookup.relativePath;
+        index.cartridges[moduleName].mainFile = lookup.mainFile;
+        index.cartridges[moduleName].mainFileType = lookup.mainFile.type;
+        index.cartridges[moduleName].contentQuality = postCommitQuality;
+        index.cartridges[moduleName].contentQualityStatus =
+          postCommitQuality.status;
+        index.cartridges[moduleName].migrationRequired =
+          lookup.mainFile.migrationRequired ||
+          postCommitQuality.migrationRequired;
+        index.cartridges[moduleName].legacyCompatibility =
+          lookup.mainFile.legacyCompatibility;
 
         // 重新解析 trackedFiles
-        const trackedFiles = parseTrackedFiles(body);
+        const trackedFiles = parseTrackedFiles(matter(updatedContent).content);
         index.cartridges[moduleName].trackedFiles = trackedFiles;
         trackedFilesCount = trackedFiles.length;
 
@@ -982,8 +1464,22 @@ export async function handleMemoryCommit(
         tool: "memory_commit",
         readOnly: false,
         projectRoot,
-        status: warnings.length > 0 ? "warning" : "ready",
-        summary: { ...report },
+        status:
+          warnings.length > 0 || postCommitQuality.status !== "complete"
+            ? "warning"
+            : "ready",
+        summary: {
+          ...report,
+          mainFile: lookup.mainFile,
+          mainFileType: lookup.mainFile.type,
+          mainFilePath: lookup.relativePath,
+          contentQuality: postCommitQuality,
+          contentQualityStatus: postCommitQuality.status,
+          migrationRequired:
+            lookup.mainFile.migrationRequired ||
+            postCommitQuality.migrationRequired,
+          legacyCompatibility: lookup.mainFile.legacyCompatibility,
+        },
         findings: warnings.map((warning) => ({
           severity: "warning",
           code: "memory_commit_warning",
@@ -1005,6 +1501,87 @@ export async function handleMemoryCommit(
           ? (args as { projectRoot: string }).projectRoot
           : "",
       code: "memory_commit_failed",
+      message: `Error: ${msg}`,
+    });
+  }
+}
+
+/**
+ * memory_reindex — 重建記憶索引並刷新主檔型態、品質狀態、幽靈檔案與未歸屬摘要
+ */
+export async function handleMemoryReindex(
+  args: unknown,
+): Promise<McpToolResult> {
+  const parsed = memoryReindexSchema.safeParse(args);
+  if (!parsed.success) {
+    return createHandlerErrorResult({
+      tool: "memory_reindex",
+      readOnly: false,
+      code: "validation_error",
+      message:
+        "Validation Error: projectRoot and confirm:true are required (projectRoot must be absolute path without ..)",
+    });
+  }
+
+  try {
+    const projectRoot = validateProjectRoot(parsed.data.projectRoot);
+    const result = await refreshMemoryIndex({
+      projectRoot,
+      detectMissedChanges: true,
+      includeProjectFiles: true,
+      persist: true,
+    });
+    const hasConflicts = result.summary.conflicts.length > 0;
+    const hasMigrationWork = result.summary.migrationRequired > 0;
+    return toMcpTextResult(
+      createToolEnvelope({
+        tool: "memory_reindex",
+        readOnly: false,
+        projectRoot,
+        status: hasConflicts ? "error" : hasMigrationWork ? "warning" : "ready",
+        summary: {
+          ...result.summary,
+          lastScanned: result.index.lastScanned,
+        },
+        findings: [
+          ...result.summary.conflicts.map((conflict) => ({
+            severity: "error" as const,
+            code: "memory_main_file_conflict",
+            message: `${conflict.module} has both MEMORY.md and SKILL.md.`,
+            file: conflict.candidates.join(", "),
+          })),
+          ...(hasMigrationWork && !hasConflicts
+            ? [
+                {
+                  severity: "warning" as const,
+                  code: "memory_migration_required",
+                  message: `${result.summary.migrationRequired} memory cards require migration or quality review.`,
+                },
+              ]
+            : []),
+        ],
+        legacy: {
+          text:
+            `memory_reindex complete: cartridges=${result.summary.cartridgeCount}, ` +
+            `migrationRequired=${result.summary.migrationRequired}, ` +
+            `conflicts=${result.summary.conflicts.length}`,
+          summary: result.summary,
+        },
+      }),
+    );
+  } catch (e: unknown) {
+    const msg = e instanceof Error ? e.message : String(e);
+    return createHandlerErrorResult({
+      tool: "memory_reindex",
+      readOnly: false,
+      projectRoot:
+        typeof args === "object" &&
+        args !== null &&
+        "projectRoot" in args &&
+        typeof (args as { projectRoot?: unknown }).projectRoot === "string"
+          ? (args as { projectRoot: string }).projectRoot
+          : "",
+      code: "memory_reindex_failed",
       message: `Error: ${msg}`,
     });
   }
@@ -1072,8 +1649,12 @@ export async function handleMemoryDeps(args: unknown): Promise<McpToolResult> {
     const dependents = reverseGraph.get(moduleName) ?? [];
     let frontmatterDependencies: string[] = [];
     try {
+      if (entry.mainFile?.type === "conflict") {
+        throw new Error("memory main file conflict");
+      }
+      const dependencyMainPath = entry.mainFile?.activePath ?? entry.skillPath;
       const rawSkill = await fs.readFile(
-        path.join(normalizedPath, entry.skillPath),
+        path.join(normalizedPath, dependencyMainPath),
         "utf-8",
       );
       const { data } = matter(rawSkill);

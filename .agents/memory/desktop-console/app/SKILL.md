@@ -4,8 +4,8 @@ description: >
   專案記憶：Electron 桌面外殼、IPC、系統匣、通知與專案清單設定。Use when: 修改桌面主程序、 預載橋接、AppData
   專案設定、桌面通知或桌面打包設定時載入。
 last_updated: '2026-06-04T07:14:50+08:00'
-status: stable
-staleness: 0
+status: stale
+staleness: 10
 dependencies:
   - desktop-console.monitoring
   - _system
@@ -27,6 +27,16 @@ metadata:
   tool_scope:
     - 'filesystem:read'
 ---
+<!-- CARTRIDGE_SYSTEM_WARNING_START -->
+
+> [!CAUTION]
+> 🟠 **系統強制攔截**：此記憶已過期失真！
+> 追蹤檔案異動：`src/tests/desktop-notifier.test.ts`（2026-06-14T23:07:24+08:00）
+> AI 嚴禁基於此記憶施工，必須優先閱讀最新原始碼並更新此記憶卡。
+> staleness: 10 | threshold: 🟠 顯著過期
+
+<!-- CARTRIDGE_SYSTEM_WARNING_END -->
+
 # desktop console / app — Module Memory
 
 ## Current Truth

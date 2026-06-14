@@ -71,9 +71,13 @@ export class CabinetWorkbenchPanel {
   private async openCard(cardId: string): Promise<void> {
     const entry = this.args.indexManager.getIndex().cartridges[cardId];
     if (!entry) return;
+    if (entry.mainFile?.type === "conflict" || entry.mainFile?.type === "missing") {
+      return;
+    }
+    const targetPath = entry.mainFile?.activePath ?? entry.skillPath;
     await vscode.commands.executeCommand(
       "vscode.open",
-      vscode.Uri.file(path.resolve(this.args.projectRoot, entry.skillPath)),
+      vscode.Uri.file(path.resolve(this.args.projectRoot, targetPath)),
     );
   }
 }

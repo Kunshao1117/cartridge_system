@@ -10,6 +10,7 @@ describe("tool-registry — MCP 工具名冊", () => {
       "memory_read",
       "memory_status",
       "memory_commit",
+      "memory_reindex",
       "memory_deps",
       "memory_graph",
       "memory_audit",
@@ -47,17 +48,24 @@ describe("tool-registry — MCP 工具名冊", () => {
     const memoryCommit = CARTRIDGE_TOOLS.find(
       (tool) => tool.name === "memory_commit",
     );
+    const memoryReindex = CARTRIDGE_TOOLS.find(
+      (tool) => tool.name === "memory_reindex",
+    );
 
-    expect(memoryCommit?.readOnly).toBe(false);
-    expect(memoryCommit?.risk).toBe("high");
-    expect(memoryCommit?.requiresExplicitApproval).toBe(true);
-    expect(memoryCommit?.safeForStartup).toBe(false);
+    for (const tool of [memoryCommit, memoryReindex]) {
+      expect(tool?.readOnly).toBe(false);
+      expect(tool?.risk).toBe("high");
+      expect(tool?.requiresExplicitApproval).toBe(true);
+      expect(tool?.safeForStartup).toBe(false);
+      expect(tool?.inputSchema.required).toContain("confirm");
+      expect(tool?.inputSchema.required).not.toContain("projectRoot");
+      expect(tool?.inputSchema.properties.confirm).toEqual(
+        expect.objectContaining({ type: "boolean" }),
+      );
+    }
     expect(memoryCommit?.inputSchema.required).toContain("confirm");
     expect(memoryCommit?.inputSchema.required).toContain("moduleName");
-    expect(memoryCommit?.inputSchema.required).not.toContain("projectRoot");
-    expect(memoryCommit?.inputSchema.properties.confirm).toEqual(
-      expect.objectContaining({ type: "boolean" }),
-    );
+    expect(memoryReindex?.inputSchema.required).not.toContain("moduleName");
   });
 
   it("AI 開工入口工具應標示為安全啟動工具", () => {
@@ -79,7 +87,7 @@ describe("tool-registry — MCP 工具名冊", () => {
       fs.readFileSync(path.resolve(process.cwd(), "package.json"), "utf-8"),
     );
 
-    expect(packageJson.version).toBe("5.4.3");
+    expect(packageJson.version).toBe("5.5.0");
     expect(packageJson.bin).toEqual({
       "cartridge-system": "dist/mcp-server.js",
       "cartridge-mcp": "dist/mcp-server.js",

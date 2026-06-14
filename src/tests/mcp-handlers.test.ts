@@ -30,6 +30,44 @@ function parseEnvelope(result: { content: Array<{ text: string }> }) {
   return JSON.parse(result.content[0].text);
 }
 
+function completeMemory(moduleName = "mem-test"): string {
+  return [
+    "---",
+    `name: ${moduleName}`,
+    "description: test memory",
+    "last_updated: '2026-06-14T00:00:00+08:00'",
+    "staleness: 0",
+    "memory_schema_version: 2",
+    "memory_quality_version: 1",
+    "memory_kind: implementation",
+    "verification_status: verified",
+    "last_verified: '2026-06-14T00:00:00+08:00'",
+    "valid_scope:",
+    "  - src/test.ts",
+    "---",
+    "",
+    "## Current Truth",
+    "- True.",
+    "## Active Constraints",
+    "- Constraint.",
+    "## Cycle Events",
+    "- Event.",
+    "## Archive Index",
+    "- None.",
+    "## Evidence Base",
+    "- src/test.ts",
+    "## Read Contract",
+    "- Read before edits.",
+    "## Conflicts and Supersession",
+    "- None.",
+    "## 中文摘要",
+    "- 摘要。",
+    "## Tracked Files",
+    "- src/test.ts",
+    "",
+  ].join("\n");
+}
+
 function handleMemoryCommit(args: unknown) {
   if (typeof args !== "object" || args === null) {
     return handleMemoryCommitRaw(args);
@@ -39,9 +77,13 @@ function handleMemoryCommit(args: unknown) {
 }
 
 beforeEach(() => {
-  vi.clearAllMocks();
-  // resolveSkillPath 會呼叫 fs.access 驗證路徑存在，預設為成功（平面路徑回退）
-  vi.mocked(fs.access).mockResolvedValue(undefined);
+  vi.resetAllMocks();
+  // 預設模擬相容期：只有 legacy SKILL.md 存在，MEMORY.md 需由個別測試明確開啟。
+  vi.mocked(fs.access).mockImplementation(async (target) => {
+    const filePath = String(target).replace(/\\/g, "/");
+    if (filePath.endsWith("/SKILL.md")) return;
+    throw new Error("ENOENT");
+  });
 });
 
 // ---------------------------------------------------------------------------
@@ -348,11 +390,23 @@ describe("handleMemoryStatus", () => {
         { filePath: ".agents/memory/mem-_system" },
       ],
     };
-    vi.mocked(fs.readFile).mockResolvedValue(
-      JSON.stringify(indexData) as unknown as Awaited<
-        ReturnType<typeof fs.readFile>
-      >,
-    );
+    vi.mocked(fs.readdir).mockResolvedValue([
+      { isFile: () => true, name: "MEMORY.md" },
+    ] as unknown as Awaited<ReturnType<typeof fs.readdir>>);
+    vi.mocked(fs.readFile).mockImplementation(async (target) => {
+      const filePath = String(target).replace(/\\/g, "/");
+      if (filePath.endsWith(".cartridge/index.json")) {
+        return JSON.stringify(indexData) as unknown as Awaited<
+          ReturnType<typeof fs.readFile>
+        >;
+      }
+      if (filePath.endsWith(".agents/memory/mem-test/MEMORY.md")) {
+        return completeMemory("mem-test") as unknown as Awaited<
+          ReturnType<typeof fs.readFile>
+        >;
+      }
+      throw new Error("ENOENT");
+    });
 
     const result = await handleMemoryStatus({
       moduleName: "mem-analyzer",
@@ -375,7 +429,7 @@ describe("handleMemoryStatus", () => {
     vi.mocked(fs.readFile)
       .mockRejectedValueOnce(new Error("ENOENT"))
       .mockRejectedValueOnce(new Error("ENOENT"))
-      .mockResolvedValueOnce(
+      .mockResolvedValue(
         skillContent as unknown as Awaited<ReturnType<typeof fs.readFile>>,
       );
 
@@ -388,6 +442,27 @@ describe("handleMemoryStatus", () => {
     expect(status.staleness).toBe(5);
     expect(status.level).toBe("mild");
     expect(status._note).toContain("索引檔不存在");
+  });
+
+  it("索引檔不存在且品質未完整時不應回傳 ready", async () => {
+    const skillContent =
+      '---\nname: mem-test\nlast_updated: "2026-03-28T10:00:00+08:00"\nstaleness: 0\n---\n# Test';
+    vi.mocked(fs.readFile)
+      .mockRejectedValueOnce(new Error("ENOENT"))
+      .mockRejectedValueOnce(new Error("ENOENT"))
+      .mockResolvedValue(
+        skillContent as unknown as Awaited<ReturnType<typeof fs.readFile>>,
+      );
+
+    const result = await handleMemoryStatus({
+      moduleName: "mem-test",
+      projectRoot: PROJECT_ROOT,
+    });
+    const envelope = parseEnvelope(result);
+
+    expect(envelope.status).toBe("warning");
+    expect(envelope.summary.mainFileType).toBe("legacy SKILL.md");
+    expect(envelope.summary.contentQualityStatus).not.toBe("complete");
   });
 
   it("模組不在索引中應回傳錯誤", async () => {
@@ -436,11 +511,23 @@ describe("handleMemoryList — 增強回傳", () => {
         },
       },
     };
-    vi.mocked(fs.readFile).mockResolvedValue(
-      JSON.stringify(indexData) as unknown as Awaited<
-        ReturnType<typeof fs.readFile>
-      >,
-    );
+    vi.mocked(fs.readdir).mockResolvedValue([
+      { isFile: () => true, name: "MEMORY.md" },
+    ] as unknown as Awaited<ReturnType<typeof fs.readdir>>);
+    vi.mocked(fs.readFile).mockImplementation(async (target) => {
+      const filePath = String(target).replace(/\\/g, "/");
+      if (filePath.endsWith(".cartridge/index.json")) {
+        return JSON.stringify(indexData) as unknown as Awaited<
+          ReturnType<typeof fs.readFile>
+        >;
+      }
+      if (filePath.endsWith(".agents/memory/mem-test/MEMORY.md")) {
+        return completeMemory("mem-test") as unknown as Awaited<
+          ReturnType<typeof fs.readFile>
+        >;
+      }
+      throw new Error("ENOENT");
+    });
 
     const result = await handleMemoryList({ projectRoot: PROJECT_ROOT });
     const data = parseEnvelope(result).summary;
@@ -504,8 +591,9 @@ describe("MCP envelope 收斂", () => {
     });
     const envelope = parseEnvelope(result);
 
-    expect(envelope.status).toBe("ready");
+    expect(envelope.status).toBe("warning");
     expect(envelope.metadata.tool).toBe("memory_read");
+    expect(envelope.summary.mainFileType).toBe("legacy SKILL.md");
     expect(envelope.summary.content).toBe(mockContent);
     expect(envelope.legacy.text).toBe(mockContent);
   });
@@ -514,17 +602,44 @@ describe("MCP envelope 收斂", () => {
     const indexData = {
       cartridges: {
         "mem-test": {
+          skillPath: ".agents/memory/mem-test/MEMORY.md",
+          mainFile: {
+            type: "MEMORY.md",
+            activePath: ".agents/memory/mem-test/MEMORY.md",
+            activeFileName: "MEMORY.md",
+            candidates: { memory: ".agents/memory/mem-test/MEMORY.md" },
+            candidatePaths: [".agents/memory/mem-test/MEMORY.md"],
+            legacyCompatibility: false,
+            migrationRequired: false,
+            conflict: false,
+          },
+          mainFileType: "MEMORY.md",
+          contentQualityStatus: "complete",
+          migrationRequired: false,
+          legacyCompatibility: false,
           staleness: 0,
           trackedFiles: ["src/test.ts"],
           pendingChanges: [],
         },
       },
     };
-    vi.mocked(fs.readFile).mockResolvedValue(
-      JSON.stringify(indexData) as unknown as Awaited<
-        ReturnType<typeof fs.readFile>
-      >,
-    );
+    vi.mocked(fs.readdir).mockResolvedValue([
+      { isFile: () => true, name: "MEMORY.md" },
+    ] as unknown as Awaited<ReturnType<typeof fs.readdir>>);
+    vi.mocked(fs.readFile).mockImplementation(async (target) => {
+      const filePath = String(target).replace(/\\/g, "/");
+      if (filePath.endsWith(".cartridge/index.json")) {
+        return JSON.stringify(indexData) as unknown as Awaited<
+          ReturnType<typeof fs.readFile>
+        >;
+      }
+      if (filePath.endsWith(".agents/memory/mem-test/MEMORY.md")) {
+        return completeMemory("mem-test") as unknown as Awaited<
+          ReturnType<typeof fs.readFile>
+        >;
+      }
+      throw new Error("ENOENT");
+    });
 
     const result = await handleMemoryStatus({
       moduleName: "mem-test",
@@ -536,6 +651,117 @@ describe("MCP envelope 收斂", () => {
     expect(envelope.metadata.tool).toBe("memory_status");
     expect(envelope.summary.module).toBe("mem-test");
     expect(envelope.legacy.module).toBe("mem-test");
+  });
+
+  it("memory_read 應重查磁碟而不是沿用舊 conflict 索引", async () => {
+    const indexData = {
+      cartridges: {
+        core: {
+          skillPath: ".agents/memory/core/MEMORY.md",
+          mainFile: {
+            type: "conflict",
+            activePath: null,
+            activeFileName: null,
+            candidates: {
+              memory: ".agents/memory/core/MEMORY.md",
+              legacySkill: ".agents/memory/core/SKILL.md",
+            },
+            candidatePaths: [
+              ".agents/memory/core/MEMORY.md",
+              ".agents/memory/core/SKILL.md",
+            ],
+            legacyCompatibility: false,
+            migrationRequired: true,
+            conflict: true,
+          },
+          staleness: 0,
+          pendingChanges: [],
+        },
+      },
+    };
+    vi.mocked(fs.readdir).mockResolvedValue([
+      { isFile: () => true, name: "MEMORY.md" },
+    ] as unknown as Awaited<ReturnType<typeof fs.readdir>>);
+    vi.mocked(fs.readFile).mockImplementation(async (target) => {
+      const filePath = String(target).replace(/\\/g, "/");
+      if (filePath.endsWith(".cartridge/index.json")) {
+        return JSON.stringify(indexData) as unknown as Awaited<
+          ReturnType<typeof fs.readFile>
+        >;
+      }
+      if (filePath.endsWith(".agents/memory/core/MEMORY.md")) {
+        return completeMemory("core") as unknown as Awaited<
+          ReturnType<typeof fs.readFile>
+        >;
+      }
+      throw new Error("ENOENT");
+    });
+
+    const result = await handleMemoryRead({
+      moduleName: "core",
+      projectRoot: PROJECT_ROOT,
+    });
+    const envelope = parseEnvelope(result);
+
+    expect(result.isError).toBeUndefined();
+    expect(envelope.summary.mainFileType).toBe("MEMORY.md");
+    expect(envelope.summary.contentQualityStatus).toBe("complete");
+  });
+
+  it("memory_status 應重查磁碟並重算品質而不是沿用舊索引", async () => {
+    const indexData = {
+      cartridges: {
+        core: {
+          skillPath: ".agents/memory/core",
+          mainFile: {
+            type: "missing",
+            activePath: null,
+            activeFileName: null,
+            candidates: {},
+            candidatePaths: [],
+            legacyCompatibility: false,
+            migrationRequired: true,
+            conflict: false,
+          },
+          mainFileType: "missing",
+          contentQualityStatus: "complete",
+          migrationRequired: false,
+          legacyCompatibility: false,
+          staleness: 0,
+          trackedFiles: ["src/test.ts"],
+          pendingChanges: [],
+        },
+      },
+    };
+    const diskContent = completeMemory("core").replace(
+      "## Evidence Base\n- src/test.ts",
+      "## Evidence Base\n- None.",
+    );
+    vi.mocked(fs.readdir).mockResolvedValue([
+      { isFile: () => true, name: "MEMORY.md" },
+    ] as unknown as Awaited<ReturnType<typeof fs.readdir>>);
+    vi.mocked(fs.readFile).mockImplementation(async (target) => {
+      const filePath = String(target).replace(/\\/g, "/");
+      if (filePath.endsWith(".cartridge/index.json")) {
+        return JSON.stringify(indexData) as unknown as Awaited<
+          ReturnType<typeof fs.readFile>
+        >;
+      }
+      if (filePath.endsWith(".agents/memory/core/MEMORY.md")) {
+        return diskContent as unknown as Awaited<ReturnType<typeof fs.readFile>>;
+      }
+      throw new Error("ENOENT");
+    });
+
+    const result = await handleMemoryStatus({
+      moduleName: "core",
+      projectRoot: PROJECT_ROOT,
+    });
+    const envelope = parseEnvelope(result);
+
+    expect(envelope.status).toBe("warning");
+    expect(envelope.summary.mainFileType).toBe("MEMORY.md");
+    expect(envelope.summary.contentQualityStatus).toBe("pending_review");
   });
 
   it("memory_commit 成功時應回傳標準 envelope 並標示寫入工具", async () => {
@@ -593,6 +819,73 @@ describe("handleMemoryCommit", () => {
     expect(writtenContent).toContain("staleness: 0");
     expect(writtenContent).toContain("+08:00");
     expect(writtenContent).not.toContain("staleness: 5");
+  });
+
+  it("舊 conflict 索引已由磁碟解決時應寫回 MEMORY.md", async () => {
+    const indexData = {
+      cartridges: {
+        core: {
+          skillPath: ".agents/memory/core/MEMORY.md",
+          mainFile: {
+            type: "conflict",
+            activePath: null,
+            activeFileName: null,
+            candidates: {
+              memory: ".agents/memory/core/MEMORY.md",
+              legacySkill: ".agents/memory/core/SKILL.md",
+            },
+            candidatePaths: [
+              ".agents/memory/core/MEMORY.md",
+              ".agents/memory/core/SKILL.md",
+            ],
+            legacyCompatibility: false,
+            migrationRequired: true,
+            conflict: true,
+          },
+          staleness: 0,
+          trackedFiles: ["src/test.ts"],
+          pendingChanges: [],
+        },
+      },
+      fileMap: { "src/test.ts": ["core"] },
+      untrackedFiles: [],
+    };
+    vi.mocked(fs.readdir).mockResolvedValue([
+      { isFile: () => true, name: "MEMORY.md" },
+    ] as unknown as Awaited<ReturnType<typeof fs.readdir>>);
+    vi.mocked(fs.readFile).mockImplementation(async (target) => {
+      const filePath = String(target).replace(/\\/g, "/");
+      if (filePath.endsWith(".cartridge/index.json")) {
+        return JSON.stringify(indexData) as unknown as Awaited<
+          ReturnType<typeof fs.readFile>
+        >;
+      }
+      if (filePath.endsWith(".agents/memory/core/MEMORY.md")) {
+        return completeMemory("core") as unknown as Awaited<
+          ReturnType<typeof fs.readFile>
+        >;
+      }
+      throw new Error("ENOENT");
+    });
+    const writtenPaths: string[] = [];
+    vi.mocked(fs.writeFile).mockImplementation(async (target) => {
+      writtenPaths.push(String(target).replace(/\\/g, "/"));
+    });
+
+    const result = await handleMemoryCommit({
+      moduleName: "core",
+      projectRoot: PROJECT_ROOT,
+    });
+    const envelope = parseEnvelope(result);
+
+    expect(result.isError).toBeUndefined();
+    expect(
+      writtenPaths.some((filePath) =>
+        filePath.endsWith("/.agents/memory/core/MEMORY.md"),
+      ),
+    ).toBe(true);
+    expect(envelope.summary.mainFileType).toBe("MEMORY.md");
+    expect(envelope.summary.legacyCompatibility).toBe(false);
   });
 
   it("時間戳應包含台灣時區 +08:00", async () => {

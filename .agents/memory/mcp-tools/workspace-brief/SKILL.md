@@ -4,8 +4,8 @@ description: >
   專案記憶：workspace_brief 高階治理摘要工具。Use when: 處理 AI 開工摘要、記憶卡健康彙整、readiness
   判斷與建議行動排序時載入。
 last_updated: '2026-06-04T08:01:01+08:00'
-status: stable
-staleness: 0
+status: stale
+staleness: 20
 dependencies:
   - core-types
   - mcp-tools.tool-registry
@@ -31,6 +31,15 @@ metadata:
     - 'filesystem:read'
     - 'filesystem:write'
 ---
+<!-- CARTRIDGE_SYSTEM_WARNING_START -->
+
+> [!CAUTION]
+> 🟠 **系統強制攔截**：此記憶已過期失真！
+> 追蹤檔案異動：`src/workspace-brief-summary.ts`、`src/tests/workspace-brief.test.ts`（2026-06-14T23:07:24+08:00）
+> AI 嚴禁基於此記憶施工，必須優先閱讀最新原始碼並更新此記憶卡。
+> staleness: 20 | threshold: 🟠 顯著過期
+
+<!-- CARTRIDGE_SYSTEM_WARNING_END -->
 
 # mcp tools / workspace brief — Module Memory
 

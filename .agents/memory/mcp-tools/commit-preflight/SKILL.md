@@ -4,8 +4,8 @@ description: >
   專案記憶：commit_preflight 提交前治理檢查工具。Use when: 處理 git dirty state、記憶卡健康阻塞、
   提交前建議動作與收尾治理決策時載入。
 last_updated: '2026-06-04T08:01:01+08:00'
-status: stable
-staleness: 0
+status: stale
+staleness: 30
 dependencies:
   - core-types
   - mcp-tools.tool-registry
@@ -29,6 +29,15 @@ metadata:
     - 'filesystem:read'
     - 'filesystem:write'
 ---
+<!-- CARTRIDGE_SYSTEM_WARNING_START -->
+
+> [!CAUTION]
+> 🔴 **系統強制攔截**：此記憶已過期失真！
+> 追蹤檔案異動：`src/commit-preflight.ts`、`src/commit-preflight-summary.ts`、`src/tests/commit-preflight.test.ts`（2026-06-14T23:07:24+08:00）
+> AI 嚴禁基於此記憶施工，必須優先閱讀最新原始碼並更新此記憶卡。
+> staleness: 30 | threshold: 🔴 嚴重過期
+
+<!-- CARTRIDGE_SYSTEM_WARNING_END -->
 
 # mcp tools / commit preflight — Module Memory
 

@@ -52,6 +52,35 @@ describe("buildDesktopProjectSnapshot", () => {
 
     expect(snapshot.status).toBe("paused");
   });
+
+  it("keeps canonical blocking health ahead of a transient sync warning", () => {
+    const snapshot = buildDesktopProjectSnapshot({
+      projectRoot: "D:/demo",
+      enabled: true,
+      syncWarning: "index temporarily unavailable",
+      index: createIndex(),
+    });
+
+    expect(snapshot.status).toBe("blocked");
+    expect(snapshot.syncWarning).toBe("index temporarily unavailable");
+  });
+
+  it("shows warning when a canonical-ready project has a sync warning", () => {
+    const snapshot = buildDesktopProjectSnapshot({
+      projectRoot: "D:/demo",
+      enabled: true,
+      syncWarning: "index temporarily unavailable",
+      index: {
+        version: 1,
+        lastScanned: "now",
+        cartridges: {},
+        fileMap: {},
+        untrackedFiles: [],
+      },
+    });
+
+    expect(snapshot.status).toBe("warning");
+  });
 });
 
 function createIndex(): CartridgeIndex {

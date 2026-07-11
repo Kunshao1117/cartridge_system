@@ -6,6 +6,14 @@ import type { StalenessAnalyzer } from "../analyzer.js";
 import type { GitignoreFilter } from "../gitignore-filter.js";
 import type { MemoryWriter } from "../writer.js";
 import { isActiveMemoryMainFilePath } from "../memory-main-file.js";
+import {
+  refreshProjectUntrackedFiles,
+} from "../memory-reindex.js";
+import {
+  ProjectIndexInvalidError,
+  ProjectIndexMissingError,
+  runProjectIndexTransaction,
+} from "../project-index-transaction.js";
 
 export interface ProjectEventHandlerDeps {
   config: CartridgeConfig;
@@ -25,28 +33,58 @@ export interface ProjectFileEvent extends ProjectEventHandlerDeps {
 export async function handleProjectFileEvent(
   args: ProjectFileEvent,
 ): Promise<void> {
+  try {
+    const transaction = await runProjectIndexTransaction({
+      projectRoot: args.config.projectRoot,
+      indexManager: args.indexManager,
+      mutation: () => handleProjectFileEventUnlocked(args),
+    });
+    if (transaction.value.refresh) args.onRefresh?.();
+    if (transaction.value.updated) args.onUpdate?.();
+  } catch (error) {
+    if (
+      error instanceof ProjectIndexInvalidError ||
+      error instanceof ProjectIndexMissingError
+    ) {
+      args.indexManager.notifyCommittedChange();
+      args.onUpdate?.();
+      return;
+    }
+    throw error;
+  }
+}
+
+async function handleProjectFileEventUnlocked(
+  args: ProjectFileEvent,
+): Promise<{ updated: boolean; refresh: boolean }> {
   const relPath = path
     .relative(args.config.projectRoot, args.absFilePath)
     .replace(/\\/g, "/");
 
   if (args.config.ignoreFiles.some((file) => relPath.endsWith(file))) {
-    return;
+    return { updated: false, refresh: false };
   }
 
   if (isMemorySkillPath(relPath)) {
     await handleProjectSkillFileChange({ ...args, relPath });
-    return;
+    return { updated: true, refresh: true };
   }
 
   if (isManagedMemoryArtifactPath(relPath)) {
-    return;
+    return { updated: false, refresh: false };
   }
 
-  if (
-    args.config.excludeDirs.some((dir) => relPath.startsWith(dir)) ||
-    args.gitignoreFilter.isIgnored(relPath)
-  ) {
-    return;
+  if (isGitExclusionControlPath(relPath)) {
+    await refreshProjectUntrackedFiles({
+      projectRoot: args.config.projectRoot,
+      indexManager: args.indexManager,
+      gitignoreFilter: args.gitignoreFilter,
+    });
+    return { updated: true, refresh: false };
+  }
+
+  if (args.config.excludeDirs.some((dir) => relPath.startsWith(dir))) {
+    return { updated: false, refresh: false };
   }
 
   if (
@@ -54,7 +92,16 @@ export async function handleProjectFileEvent(
     !relPath.includes(".agents/memory/") &&
     !relPath.includes(".agents/skills/mem-")
   ) {
-    return;
+    return { updated: false, refresh: false };
+  }
+
+  const ignoreDecision = await args.gitignoreFilter.checkIgnored(relPath);
+  if (ignoreDecision.ignored) {
+    if (args.indexManager.removeUntrackedFile(relPath)) {
+      args.indexManager.markDirty();
+      return { updated: true, refresh: false };
+    }
+    return { updated: false, refresh: false };
   }
 
   const affected = args.indexManager.getAffectedCartridges(relPath);
@@ -66,25 +113,18 @@ export async function handleProjectFileEvent(
       }
       args.indexManager.markDirty();
     }
-    args.onUpdate?.();
-    return;
-  }
-
-  if (relPath === ".gitignore" && args.eventType === "change") {
-    args.gitignoreFilter.reload();
-    args.indexManager.refilterUntrackedFiles(args.gitignoreFilter);
-    args.indexManager.markDirty();
-    args.onUpdate?.();
-    return;
+    return { updated: true, refresh: false };
   }
 
   if (args.eventType === "unlink") {
-    args.indexManager.removeUntrackedFile(relPath);
+    if (!args.indexManager.removeUntrackedFile(relPath)) {
+      return { updated: false, refresh: false };
+    }
   } else {
     args.indexManager.addUntrackedFile(relPath, args.eventType);
   }
   args.indexManager.markDirty();
-  args.onUpdate?.();
+  return { updated: true, refresh: false };
 }
 
 async function handleProjectSkillFileChange(
@@ -102,13 +142,25 @@ async function handleProjectSkillFileChange(
 
   await args.writer.checkAndCleanWarning(args.relPath);
   await args.indexManager.scan();
-  args.indexManager.refilterUntrackedFiles(args.gitignoreFilter);
+  await refreshProjectUntrackedFiles({
+    projectRoot: args.config.projectRoot,
+    indexManager: args.indexManager,
+    gitignoreFilter: args.gitignoreFilter,
+  });
   args.indexManager.markDirty();
-  await args.indexManager.flushIfDirty();
-  args.onRefresh?.();
-  args.onUpdate?.();
 }
 
 export function isMemorySkillPath(relPath: string): boolean {
   return isActiveMemoryMainFilePath(relPath);
+}
+
+export function isGitExclusionControlPath(relPath: string): boolean {
+  const normalized = relPath.replace(/\\/g, "/").toLowerCase();
+  return (
+    normalized === ".gitignore" ||
+    normalized.endsWith("/.gitignore") ||
+    normalized === ".git/info/exclude" ||
+    normalized === ".git/index" ||
+    normalized === ".git/config"
+  );
 }

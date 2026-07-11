@@ -38,10 +38,32 @@ describe("CartridgeStatusBar", () => {
 
     bar.update(createIndex());
 
+    expect(statusItem.text).toContain("需要處理");
     expect(statusItem.text).toContain("1 未歸屬");
     expect(statusItem.tooltip).toContain("src/new.ts");
     expect(statusItem.tooltip).not.toContain("archive-001.md");
     expect(statusItem.show).toHaveBeenCalled();
+  });
+
+  it("canonical ready 但有同步警告時應與 Desktop 同樣顯示 warning", () => {
+    const subscriptions = { push: vi.fn() };
+    const bar = new CartridgeStatusBar({ subscriptions } as never);
+
+    bar.update(
+      {
+        version: 1,
+        lastScanned: "now",
+        cartridges: {},
+        fileMap: {},
+        untrackedFiles: [],
+      },
+      "canonical index reload failed",
+    );
+
+    expect(statusItem.text).toContain("需要複審");
+    expect(statusItem.backgroundColor).toMatchObject({
+      id: "statusBarItem.warningBackground",
+    });
   });
 });
 

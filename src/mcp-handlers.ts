@@ -15,6 +15,7 @@ import { validateProjectRoot } from "./path-guard.js";
 import { stalenessToLevel } from "./staleness.js";
 import { getTaiwanISO } from "./timestamp.js";
 import {
+  CartridgeIndexManager,
   parseTrackedFiles,
 } from "./index-manager.js";
 import {
@@ -32,6 +33,8 @@ import {
   type MemoryQualityReport,
 } from "./memory-main-file.js";
 import { refreshMemoryIndex } from "./memory-reindex.js";
+import { createConfig } from "./config.js";
+import { runProjectIndexTransaction } from "./project-index-transaction.js";
 import type { CartridgeEntry, CartridgeIndex } from "./types.js";
 import {
   createToolEnvelope,
@@ -1131,6 +1134,7 @@ export interface CommitReport {
   status: "success";
   module: string;
   trackedFilesCount: number;
+  indexSynchronized: boolean;
   warnings: string[];
 }
 
@@ -1375,14 +1379,21 @@ export async function handleMemoryCommit(
     warnings.push(...formatQualityWarnings(moduleName, postCommitQuality));
     await fs.writeFile(filePath, updatedContent, "utf-8");
 
-    // 5. 索引同步（graceful，失敗不影響主流程）
+    // 5. 索引同步：主檔已成功寫入時，索引失敗需明確回報 partial warning。
     let trackedFilesCount = 0;
+    let indexSynchronized = false;
     try {
-      const indexPath = path.join(projectRoot, ".cartridge", "index.json");
-      const index =
-        indexForCommit ??
-        (JSON.parse(await fs.readFile(indexPath, "utf-8")) as CartridgeIndex);
-      if (index.cartridges?.[moduleName]) {
+      const manager = new CartridgeIndexManager(createConfig(projectRoot));
+      await runProjectIndexTransaction({
+        projectRoot,
+        indexManager: manager,
+        mutation: async () => {
+          const index = manager.getIndex();
+          if (!index.cartridges?.[moduleName]) {
+            throw new Error(
+              `Module "${moduleName}" is absent from the canonical project index.`,
+            );
+          }
         // 清除 pendingChanges + staleness
         index.cartridges[moduleName].pendingChanges = [];
         index.cartridges[moduleName].staleness = 0;
@@ -1446,11 +1457,16 @@ export async function handleMemoryCommit(
         } catch {
           /* 依賴重算失敗不應阻止核心索引同步 */
         }
-
-        await fs.writeFile(indexPath, JSON.stringify(index, null, 2), "utf-8");
-      }
-    } catch {
-      // 索引檔不存在或讀寫失敗 — 靜默忽略
+          manager.markDirty();
+        },
+      });
+      indexSynchronized = true;
+    } catch (error) {
+      warnings.push(
+        `⚠️ [INDEX_SYNC_PARTIAL] 記憶主檔已更新，但 canonical index 同步失敗：${
+          error instanceof Error ? error.message : String(error)
+        }。請執行 memory_reindex 收斂狀態。`,
+      );
     }
 
     // 6. 回傳結構化報告
@@ -1458,6 +1474,7 @@ export async function handleMemoryCommit(
       status: "success",
       module: moduleName,
       trackedFilesCount,
+      indexSynchronized,
       warnings,
     };
 
@@ -1535,15 +1552,23 @@ export async function handleMemoryReindex(
     });
     const hasConflicts = result.summary.conflicts.length > 0;
     const hasMigrationWork = result.summary.migrationRequired > 0;
+    const hasExclusionWarnings = result.exclusionDiagnostics.length > 0;
+    const hasIndexRepair = (result.indexDiagnostics?.length ?? 0) > 0;
     return toMcpTextResult(
       createToolEnvelope({
         tool: "memory_reindex",
         readOnly: false,
         projectRoot,
-        status: hasConflicts ? "error" : hasMigrationWork ? "warning" : "ready",
+        status: hasConflicts
+          ? "error"
+          : hasMigrationWork || hasExclusionWarnings || hasIndexRepair
+            ? "warning"
+            : "ready",
         summary: {
           ...result.summary,
           lastScanned: result.index.lastScanned,
+          exclusionMode: result.exclusionMode,
+          exclusionDiagnostics: result.exclusionDiagnostics,
         },
         findings: [
           ...result.summary.conflicts.map((conflict) => ({
@@ -1561,6 +1586,16 @@ export async function handleMemoryReindex(
                 },
               ]
             : []),
+          ...result.exclusionDiagnostics.map((diagnostic) => ({
+            severity: "warning" as const,
+            code: `git_exclusion_${diagnostic.code}`,
+            message: diagnostic.message,
+          })),
+          ...(result.indexDiagnostics ?? []).map((diagnostic) => ({
+            severity: "warning" as const,
+            code: diagnostic.code,
+            message: diagnostic.message,
+          })),
         ],
         legacy: {
           text:

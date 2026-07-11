@@ -1,6 +1,7 @@
 import path from "node:path";
 import { createVisibleCartridgeIndex } from "../visible-index.js";
 import { classifyMemoryWarnings } from "../staleness.js";
+import { projectCanonicalHealth } from "../project-health.js";
 import type { MemoryCompactionMetrics } from "../memory-compaction.js";
 import type {
   MemoryContentQualityStatus,
@@ -66,6 +67,7 @@ export interface DesktopProjectSnapshot {
   enabled: boolean;
   lastScanned: string;
   error: string | null;
+  syncWarning?: string | null;
   counts: {
     cartridges: number;
     blocking: number;
@@ -94,6 +96,7 @@ export function buildDesktopProjectSnapshot(args: {
   index: CartridgeIndex;
   enabled: boolean;
   error?: string | null;
+  syncWarning?: string | null;
 }): DesktopProjectSnapshot {
   const index = createVisibleCartridgeIndex(args.index);
   const warnings = classifyMemoryWarnings(index);
@@ -117,11 +120,11 @@ export function buildDesktopProjectSnapshot(args: {
   const qualityReview = cartridges.filter(
     (item) => item.contentQualityStatus !== "complete",
   ).length;
+  const health = projectCanonicalHealth(index, args.syncWarning ?? null);
   const status = getProjectStatus({
     enabled: args.enabled,
     error: args.error,
-    blocking: warnings.blocking.length,
-    review: warnings.review.length + warnings.advisory.length,
+    canonical: health.status,
   });
 
   return {
@@ -132,6 +135,7 @@ export function buildDesktopProjectSnapshot(args: {
     enabled: args.enabled,
     lastScanned: index.lastScanned,
     error: args.error ?? null,
+    syncWarning: args.syncWarning ?? null,
     counts: {
       cartridges: cartridges.length,
       blocking: warnings.blocking.length,
@@ -276,12 +280,11 @@ function getEventLabel(eventType: FileEventType): string {
 function getProjectStatus(args: {
   enabled: boolean;
   error?: string | null;
-  blocking: number;
-  review: number;
+  canonical: "ready" | "warning" | "blocked";
 }): DesktopProjectStatus {
   if (!args.enabled) return "paused";
   if (args.error) return "error";
-  if (args.blocking > 0) return "blocked";
-  if (args.review > 0) return "warning";
-  return "ready";
+  if (args.canonical === "blocked") return "blocked";
+  if (args.canonical === "warning") return "warning";
+  return args.canonical;
 }

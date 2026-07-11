@@ -1,13 +1,20 @@
+import { execFile as execFileCallback } from "node:child_process";
 import fs from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
-import { afterEach, describe, expect, it } from "vitest";
+import { promisify } from "node:util";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { createConfig } from "../config.js";
 import { GitignoreFilter } from "../gitignore-filter.js";
 import { CartridgeIndexManager } from "../index-manager.js";
 import { StalenessAnalyzer } from "../analyzer.js";
 import { MemoryWriter } from "../writer.js";
-import { handleProjectFileEvent } from "../monitoring/project-event-handler.js";
+import {
+  handleProjectFileEvent,
+  isGitExclusionControlPath,
+} from "../monitoring/project-event-handler.js";
+
+const execFile = promisify(execFileCallback);
 
 let tempRoots: string[] = [];
 
@@ -130,11 +137,140 @@ describe("handleProjectFileEvent", () => {
 
     expect(indexManager.getIndex().cartridges.core.mainFileType).toBe("MEMORY.md");
   });
+
+  it("removes ignored files from the untracked pool on normal events", async () => {
+    const root = await createProjectFixture();
+    await fs.writeFile(path.join(root, ".gitignore"), "src/ignored.ts\n");
+    await fs.writeFile(path.join(root, "src", "ignored.ts"), "ignored\n");
+    const config = createConfig(root);
+    const gitignoreFilter = new GitignoreFilter(root);
+    const indexManager = new CartridgeIndexManager(config);
+    const writer = new MemoryWriter(config);
+    const analyzer = new StalenessAnalyzer(config, indexManager, writer);
+    await indexManager.scan();
+    indexManager.addUntrackedFile("src/ignored.ts", "add");
+
+    await handleProjectFileEvent({
+      config,
+      indexManager,
+      analyzer,
+      gitignoreFilter,
+      writer,
+      absFilePath: path.join(root, "src", "ignored.ts"),
+      eventType: "change",
+    });
+
+    expect(indexManager.getUntrackedFiles()).toEqual([]);
+  });
+
+  it("reconciles the full candidate set when a nested .gitignore changes", async () => {
+    const root = await createProjectFixture();
+    await fs.mkdir(path.join(root, "nested"), { recursive: true });
+    await fs.writeFile(path.join(root, "nested", "drop.tmp"), "ignored\n");
+    await fs.writeFile(path.join(root, "nested", "keep.ts"), "kept\n");
+    const config = createConfig(root);
+    const gitignoreFilter = new GitignoreFilter(root);
+    const indexManager = new CartridgeIndexManager(config);
+    const writer = new MemoryWriter(config);
+    const analyzer = new StalenessAnalyzer(config, indexManager, writer);
+    await indexManager.scan();
+    indexManager.addUntrackedFile("nested/drop.tmp", "add");
+    await fs.writeFile(path.join(root, "nested", ".gitignore"), "*.tmp\n");
+
+    await handleProjectFileEvent({
+      config,
+      indexManager,
+      analyzer,
+      gitignoreFilter,
+      writer,
+      absFilePath: path.join(root, "nested", ".gitignore"),
+      eventType: "change",
+    });
+
+    const files = indexManager.getUntrackedFiles().map((entry) => entry.filePath);
+    expect(files).not.toContain("nested/drop.tmp");
+    expect(files).toContain("nested/keep.ts");
+  });
+
+  it("serializes a raced add behind reconciliation without nested deadlock", async () => {
+    const root = await createProjectFixture();
+    const config = createConfig(root);
+    const indexManager = new CartridgeIndexManager(config);
+    const writer = new MemoryWriter(config);
+    const analyzer = new StalenessAnalyzer(config, indexManager, writer);
+    await indexManager.scan();
+    const discoveryStarted = createDeferred();
+    const releaseDiscovery = createDeferred();
+    const gitignoreFilter = {
+      reload: vi.fn(),
+      discoverProjectFiles: vi.fn(async () => {
+        discoveryStarted.resolve();
+        await releaseDiscovery.promise;
+        return {
+          files: ["src/index.ts"],
+          mode: "git-standard" as const,
+          diagnostics: [],
+        };
+      }),
+      checkIgnored: vi.fn(async () => ({
+        ignored: false,
+        mode: "git-standard" as const,
+        diagnostics: [],
+      })),
+    } as unknown as GitignoreFilter;
+
+    const reconciliation = handleProjectFileEvent({
+      config,
+      indexManager,
+      analyzer,
+      gitignoreFilter,
+      writer,
+      absFilePath: path.join(root, "nested", ".gitignore"),
+      eventType: "change",
+    });
+    await discoveryStarted.promise;
+
+    const racedPath = path.join(root, "src", "raced.ts");
+    await fs.writeFile(racedPath, "export {};\n");
+    let addSettled = false;
+    const racedAdd = handleProjectFileEvent({
+      config,
+      indexManager,
+      analyzer,
+      gitignoreFilter,
+      writer,
+      absFilePath: racedPath,
+      eventType: "add",
+    }).then(() => {
+      addSettled = true;
+    });
+
+    await Promise.resolve();
+    expect(addSettled).toBe(false);
+    releaseDiscovery.resolve();
+    await Promise.all([reconciliation, racedAdd]);
+
+    expect(indexManager.getUntrackedFiles()).toEqual([
+      expect.objectContaining({ filePath: "src/raced.ts" }),
+    ]);
+  });
+
+  it("recognizes all Git exclusion control paths", () => {
+    expect(isGitExclusionControlPath(".gitignore")).toBe(true);
+    expect(isGitExclusionControlPath("nested/.gitignore")).toBe(true);
+    expect(isGitExclusionControlPath(".git/info/exclude")).toBe(true);
+    expect(isGitExclusionControlPath(".git/index")).toBe(true);
+    expect(isGitExclusionControlPath(".git/config")).toBe(true);
+    expect(isGitExclusionControlPath("src/index.ts")).toBe(false);
+  });
 });
 
 async function createProjectFixture(): Promise<string> {
   const root = await fs.mkdtemp(path.join(os.tmpdir(), "cartridge-monitor-"));
   tempRoots.push(root);
+  await execFile("git", ["-C", root, "init", "--quiet"], {
+    windowsHide: true,
+  });
   await fs.mkdir(path.join(root, ".agents", "memory", "core"), {
     recursive: true,
   });
@@ -164,4 +300,12 @@ async function createProjectFixture(): Promise<string> {
     ].join("\n"),
   );
   return root;
+}
+
+function createDeferred(): { promise: Promise<void>; resolve: () => void } {
+  let resolve!: () => void;
+  const promise = new Promise<void>((resolvePromise) => {
+    resolve = resolvePromise;
+  });
+  return { promise, resolve };
 }

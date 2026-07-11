@@ -9,10 +9,12 @@ import {
   handleMemoryRead,
   handleMemoryStatus,
   handleMemoryCommit as handleMemoryCommitRaw,
+  handleMemoryReindex,
   handleMemoryDeps,
   updateFrontmatterFields,
 } from "../mcp-handlers.js";
 import { stalenessToLevel } from "../staleness.js";
+import type { CartridgeIndex } from "../types.js";
 
 // 模擬 fs/promises，隔離所有磁碟操作
 vi.mock("fs/promises", () => ({
@@ -22,7 +24,19 @@ vi.mock("fs/promises", () => ({
   access: vi.fn(),
 }));
 
+vi.mock("../memory-reindex.js", () => ({
+  refreshMemoryIndex: vi.fn(),
+}));
+
+vi.mock("../project-index-transaction.js", () => ({
+  fingerprintContent: vi.fn(() => "test-fingerprint"),
+  persistProjectIndexManager: vi.fn(async () => true),
+  runProjectIndexTransaction: vi.fn(),
+}));
+
 import * as fs from "fs/promises";
+import { refreshMemoryIndex } from "../memory-reindex.js";
+import { runProjectIndexTransaction } from "../project-index-transaction.js";
 
 const PROJECT_ROOT = "/mock/other-project";
 
@@ -78,6 +92,39 @@ function handleMemoryCommit(args: unknown) {
 
 beforeEach(() => {
   vi.resetAllMocks();
+  vi.mocked(runProjectIndexTransaction).mockImplementation(async (options) => {
+    try {
+      const raw = await fs.readFile(
+        `${options.projectRoot}/.cartridge/index.json`,
+        "utf8",
+      );
+      const parsed = JSON.parse(String(raw)) as Partial<CartridgeIndex>;
+      if (parsed.cartridges && parsed.fileMap) {
+        options.indexManager.replaceCommittedIndex(
+          {
+            version: parsed.version ?? 1,
+            lastScanned: parsed.lastScanned ?? "test",
+            cartridges: parsed.cartridges,
+            fileMap: parsed.fileMap,
+            untrackedFiles: parsed.untrackedFiles ?? [],
+          },
+          "test-fingerprint",
+          false,
+        );
+      }
+    } catch {
+      // Missing/invalid canonical state is surfaced by the real mutation contract.
+    }
+    const value = await options.mutation();
+    if (options.indexManager.hasDirtyChanges()) {
+      options.indexManager.acceptCommittedPersistence("test-fingerprint");
+    }
+    return {
+      value,
+      repairedInvalidIndex: false,
+      fingerprint: "test-fingerprint",
+    };
+  });
   // 預設模擬相容期：只有 legacy SKILL.md 存在，MEMORY.md 需由個別測試明確開啟。
   vi.mocked(fs.access).mockImplementation(async (target) => {
     const filePath = String(target).replace(/\\/g, "/");
@@ -939,13 +986,7 @@ describe("handleMemoryCommit", () => {
       return existing as unknown as Awaited<ReturnType<typeof fs.readFile>>;
     });
 
-    let writtenIndex = "";
-    vi.mocked(fs.writeFile).mockImplementation(async (filePath, data) => {
-      const fp = filePath as string;
-      if (fp.includes("index.json") && fp.includes(".cartridge")) {
-        writtenIndex = data as string;
-      }
-    });
+    vi.mocked(fs.writeFile).mockResolvedValue(undefined);
 
     const result = await handleMemoryCommit({
       moduleName: "mem-test",
@@ -955,8 +996,11 @@ describe("handleMemoryCommit", () => {
 
     expect(report.status).toBe("success");
     expect(report.trackedFilesCount).toBe(2);
+    expect(report.indexSynchronized).toBe(true);
 
-    const parsed = JSON.parse(writtenIndex);
+    const transactionOptions = vi.mocked(runProjectIndexTransaction).mock
+      .calls[0][0];
+    const parsed = transactionOptions.indexManager.getIndex();
     expect(parsed.cartridges["mem-test"].pendingChanges).toEqual([]);
     expect(parsed.cartridges["mem-test"].staleness).toBe(0);
     expect(parsed.cartridges["mem-test"].indirectStaleness).toBe(0);
@@ -968,6 +1012,11 @@ describe("handleMemoryCommit", () => {
     expect(parsed.fileMap["src/foo.ts"]).toEqual(["mem-test"]);
     expect(parsed.fileMap["src/bar.ts"]).toEqual(["mem-test"]);
     expect(parsed.untrackedFiles).toEqual([{ filePath: "src/other.ts" }]);
+    expect(fs.writeFile).not.toHaveBeenCalledWith(
+      expect.stringContaining(".cartridge"),
+      expect.anything(),
+      expect.anything(),
+    );
   });
 
   it("模組不存在時應回傳錯誤", async () => {
@@ -1234,6 +1283,12 @@ ${events}
     const report = parseEnvelope(result).summary;
 
     expect(report.status).toBe("success");
+    expect(report.indexSynchronized).toBe(false);
+    expect(
+      report.warnings.some((warning: string) =>
+        warning.includes("INDEX_SYNC_PARTIAL"),
+      ),
+    ).toBe(true);
     expect(result.isError).toBeUndefined();
   });
 
@@ -1430,5 +1485,77 @@ describe("moduleName schema — MCP path segment 防線", () => {
 
     expect(result.isError).toBe(true);
     expect(result.content[0].text).toContain("Validation Error");
+  });
+});
+
+describe("handleMemoryReindex — Git exclusion diagnostics", () => {
+  it("將 Git fallback 診斷映射為 warning finding", async () => {
+    vi.mocked(refreshMemoryIndex).mockResolvedValue({
+      index: {
+        version: 1,
+        lastScanned: "2026-07-11T00:00:00+08:00",
+        cartridges: {},
+        fileMap: {},
+        untrackedFiles: [],
+      },
+      summary: {
+        cartridgeCount: 0,
+        untrackedFiles: 0,
+        ghostFiles: 0,
+        pendingChanges: 0,
+        migrationRequired: 0,
+        legacyCompatibility: 0,
+        mainFileTypes: {
+          "MEMORY.md": 0,
+          "legacy SKILL.md": 0,
+          conflict: 0,
+          missing: 0,
+        },
+        contentQualityStatuses: {
+          complete: 0,
+          missing_fields: 0,
+          missing_sections: 0,
+          pending_review: 0,
+          conflict: 0,
+          superseded: 0,
+        },
+        conflicts: [],
+      },
+      exclusionMode: "root-gitignore-fallback",
+      exclusionDiagnostics: [
+        {
+          code: "git_unavailable",
+          operation: "discover-files",
+          mode: "root-gitignore-fallback",
+          message: "Git unavailable; using root .gitignore fallback.",
+        },
+      ],
+    });
+
+    const result = await handleMemoryReindex({
+      projectRoot: PROJECT_ROOT,
+      confirm: true,
+    });
+    const envelope = parseEnvelope(result);
+
+    expect(refreshMemoryIndex).toHaveBeenCalledWith({
+      projectRoot: PROJECT_ROOT,
+      detectMissedChanges: true,
+      includeProjectFiles: true,
+      persist: true,
+    });
+    expect(vi.mocked(refreshMemoryIndex).mock.calls[0][0]).not.toHaveProperty(
+      "indexManager",
+    );
+    expect(envelope.status).toBe("warning");
+    expect(envelope.summary.exclusionMode).toBe("root-gitignore-fallback");
+    expect(envelope.findings).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          severity: "warning",
+          code: "git_exclusion_git_unavailable",
+        }),
+      ]),
+    );
   });
 });

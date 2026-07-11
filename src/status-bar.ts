@@ -6,6 +6,7 @@
 import * as vscode from "vscode";
 import type { CartridgeIndex } from "./types";
 import { createVisibleCartridgeIndex } from "./visible-index";
+import { projectCanonicalHealth } from "./project-health";
 
 /**
  * 狀態列燈號元件
@@ -34,7 +35,7 @@ export class CartridgeStatusBar {
   /**
    * 根據索引資料更新燈號（五層等級總分制 + 未歸屬檔案提示）
    */
-  update(index?: CartridgeIndex): void {
+  update(index?: CartridgeIndex, syncWarning: string | null = null): void {
     if (!index) {
       this.item.text = "$(shield) 記憶卡匣 ⚠️ 未初始化";
       this.item.show();
@@ -44,10 +45,13 @@ export class CartridgeStatusBar {
     const visibleIndex = createVisibleCartridgeIndex(index);
     const cartridges = Object.values(visibleIndex.cartridges);
     const totalScore = cartridges.reduce((sum, c) => sum + c.staleness, 0);
-    const { icon, label, codicon, background } = getScoreTier(totalScore);
+    const scoreTier = getScoreTier(totalScore);
+    const health = projectCanonicalHealth(visibleIndex, syncWarning);
+    const presentation = getHealthPresentation(health.status);
 
-    // 基礎燈號
-    let text = `$(${codicon}) 記憶卡匣 ${icon} ${label}`;
+    // Desktop 與 VS Code 共用 canonical health；總分等級只作次要提示。
+    let text = `$(${presentation.codicon}) 記憶卡匣 ${presentation.icon} ${presentation.label}`;
+    if (scoreTier.label !== "全部同步") text += ` (${scoreTier.label})`;
 
     // 未歸屬檔案提示
     const untrackedCount = visibleIndex.untrackedFiles?.length ?? 0;
@@ -56,8 +60,8 @@ export class CartridgeStatusBar {
     }
 
     this.item.text = text;
-    this.item.backgroundColor = background
-      ? new vscode.ThemeColor(background)
+    this.item.backgroundColor = presentation.background
+      ? new vscode.ThemeColor(presentation.background)
       : undefined;
 
     // 動態提示文字
@@ -135,6 +139,36 @@ export class CartridgeStatusBar {
   dispose(): void {
     this.item.dispose();
   }
+}
+
+function getHealthPresentation(status: "ready" | "warning" | "blocked"): {
+  icon: string;
+  label: string;
+  codicon: string;
+  background: string | undefined;
+} {
+  if (status === "blocked") {
+    return {
+      icon: "🔴",
+      label: "需要處理",
+      codicon: "error",
+      background: "statusBarItem.errorBackground",
+    };
+  }
+  if (status === "warning") {
+    return {
+      icon: "🟡",
+      label: "需要複審",
+      codicon: "warning",
+      background: "statusBarItem.warningBackground",
+    };
+  }
+  return {
+    icon: "🟢",
+    label: "全部同步",
+    codicon: "shield",
+    background: undefined,
+  };
 }
 
 /**

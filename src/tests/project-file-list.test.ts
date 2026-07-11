@@ -26,4 +26,18 @@ describe("listProjectFiles", () => {
 
     await expect(listProjectFiles(root)).resolves.toEqual(["src/index.ts"]);
   });
+
+  it("does not follow directory symlinks during fallback traversal", async () => {
+    const root = await fs.mkdtemp(path.join(os.tmpdir(), "cartridge-files-"));
+    const outside = await fs.mkdtemp(path.join(os.tmpdir(), "cartridge-outside-"));
+    tempRoots.push(root, outside);
+    await fs.writeFile(path.join(outside, "outside.txt"), "outside");
+    try {
+      await fs.symlink(outside, path.join(root, "linked"), "junction");
+    } catch {
+      return;
+    }
+
+    await expect(listProjectFiles(root)).resolves.toEqual([]);
+  });
 });

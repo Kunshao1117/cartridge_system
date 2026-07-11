@@ -13,6 +13,8 @@ const DEFAULT_SKIP_DIRS = new Set([
 ]);
 
 export async function listProjectFiles(projectRoot: string): Promise<string[]> {
+  // 非 Git workspace 或 Git CLI 失敗時的安全 fallback；Git repository 的
+  // canonical candidate set 由 GitignoreFilter.discoverProjectFiles() 提供。
   const files: string[] = [];
   await walk(projectRoot, projectRoot, files);
   return files.sort();

@@ -6,6 +6,7 @@ export interface NodeProjectWatcherOptions {
   projectRoot: string;
   debounceMs?: number;
   onEvent: (absPath: string, eventType: FileEventType) => void;
+  onIndexChanged?: (eventType: FileEventType) => void;
   onRescan: () => void;
   onError?: (error: Error) => void;
 }
@@ -34,6 +35,11 @@ export class NodeProjectWatcher {
           }
           const relPath = normalizeFilename(filename);
           const absPath = path.resolve(this.options.projectRoot, relPath);
+          if (relPath.toLowerCase() === ".cartridge/index.json") {
+            this.debounceIndex(mapNodeEvent(absPath, eventType));
+            return;
+          }
+          if (isProjectIndexArtifact(relPath)) return;
           this.debounce(absPath, mapNodeEvent(absPath, eventType));
         },
       );
@@ -62,6 +68,17 @@ export class NodeProjectWatcher {
     }, this.debounceMs);
     this.debounceMap.set(absPath, timer);
   }
+
+  private debounceIndex(eventType: FileEventType): void {
+    const key = "<project-index>";
+    const existing = this.debounceMap.get(key);
+    if (existing) clearTimeout(existing);
+    const timer = setTimeout(() => {
+      this.debounceMap.delete(key);
+      this.options.onIndexChanged?.(eventType);
+    }, 150);
+    this.debounceMap.set(key, timer);
+  }
 }
 
 function mapNodeEvent(absPath: string, eventType: string): FileEventType {
@@ -71,6 +88,16 @@ function mapNodeEvent(absPath: string, eventType: string): FileEventType {
 
 function normalizeFilename(filename: string | Buffer): string {
   return filename.toString().replace(/\\/g, "/");
+}
+
+function isProjectIndexArtifact(relPath: string): boolean {
+  const normalized = relPath.replace(/\\/g, "/").toLowerCase();
+  return (
+    normalized === ".cartridge/index.lock" ||
+    normalized.startsWith(".cartridge/index.lock/") ||
+    /^\.cartridge\/index\.\d+\.[0-9a-f-]+\.tmp$/i.test(normalized) ||
+    normalized.startsWith(".cartridge/index.lock.stale-")
+  );
 }
 
 function asError(error: unknown): Error {

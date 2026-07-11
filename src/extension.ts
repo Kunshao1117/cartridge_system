@@ -20,13 +20,21 @@ import { StalenessAnalyzer } from "./analyzer";
 import { MemoryWriter } from "./writer";
 import { CartridgeWatcher } from "./watcher";
 import { CartridgeStatusBar } from "./status-bar";
-import { GitignoreFilter } from "./gitignore-filter";
-import { refreshMemoryIndex } from "./memory-reindex";
+import {
+  GitignoreFilter,
+  getGitExclusionWarningKey,
+  type GitExclusionDiagnostic,
+} from "./gitignore-filter";
+import {
+  refreshMemoryIndex,
+  refreshProjectUntrackedFiles,
+} from "./memory-reindex";
 import { CartridgeCodeLensProvider } from "./codelens-provider";
 import { registerGovernanceViews } from "./governance-views";
 import type { GovernanceViewsController } from "./governance-views";
 import { suggestOwner } from "./smart-owner";
 import { checkForExtensionUpdate } from "./update-checker";
+import { projectCanonicalHealth } from "./project-health";
 
 let watcher: CartridgeWatcher | undefined;
 let indexManager: CartridgeIndexManager | undefined;
@@ -36,6 +44,10 @@ let config: ReturnType<typeof createConfig> | undefined;
 let governanceViews: GovernanceViewsController | undefined;
 let codeLensProvider: CartridgeCodeLensProvider | undefined;
 let heartbeatTimer: NodeJS.Timeout | undefined;
+let untrackedRescanTimer: NodeJS.Timeout | undefined;
+let untrackedRescanPromise: Promise<void> | undefined;
+const shownExclusionWarnings = new Set<string>();
+const shownIndexSyncWarnings = new Set<string>();
 
 const SUPPRESSED_UPDATE_VERSION_KEY = "cartridge.updateCheck.suppressedVersion";
 
@@ -61,11 +73,10 @@ export async function activate(
         gitignoreFilter,
         detectMissedChanges: true,
         includeProjectFiles: true,
-        persist: false,
+        persist: true,
       });
-      await indexManager.flushIfDirty();
-      await indexManager.persist();
-      statusBar?.update(indexManager.getVisibleIndex());
+      showExclusionWarnings(result.exclusionDiagnostics);
+      statusBar?.update(result.index, indexManager?.getSyncWarning());
       governanceViews?.refresh();
       const count = result.summary.cartridgeCount;
       vscode.window.showInformationMessage(
@@ -77,25 +88,21 @@ export async function activate(
   // 命令：重新掃描未歸屬檔案
   context.subscriptions.push(
     vscode.commands.registerCommand("cartridge.scanGhosts", async () => {
-      if (!indexManager || !gitignoreFilter) {
+      if (!indexManager || !gitignoreFilter || !config) {
         vscode.window.showWarningMessage("記憶卡匣：系統尚未初始化完成");
         return;
       }
-      gitignoreFilter.reload();
-      indexManager.clearUntrackedFiles();
-
-      // v2.0: 使用 findFiles 取代 scanDirectory
-      const projectRoot =
-        vscode.workspace.workspaceFolders?.[0]?.uri.fsPath ?? "";
-      const uris = await vscode.workspace.findFiles("**/*", "**/.git/**");
-      const allFiles = uris.map((u) =>
-        path.relative(projectRoot, u.fsPath).replace(/\\/g, "/"),
-      );
-      indexManager.detectUntrackedFiles(allFiles, gitignoreFilter);
-
-      indexManager.markDirty();
-      await indexManager.flushIfDirty();
-      statusBar?.update(indexManager.getVisibleIndex());
+      const result = await refreshMemoryIndex({
+        projectRoot: config.projectRoot,
+        config,
+        indexManager,
+        gitignoreFilter,
+        detectMissedChanges: false,
+        includeProjectFiles: true,
+        persist: true,
+      });
+      showExclusionWarnings(result.exclusionDiagnostics);
+      statusBar?.update(result.index, indexManager?.getSyncWarning());
       governanceViews?.refresh();
       const count = indexManager.getUntrackedFiles().length;
       vscode.window.showInformationMessage(
@@ -114,7 +121,11 @@ export async function activate(
       }
       const entries = Object.entries(idx.cartridges);
       const totalScore = entries.reduce((sum, [, v]) => sum + v.staleness, 0);
-      if (totalScore === 0) {
+      const health = projectCanonicalHealth(
+        idx,
+        indexManager?.getSyncWarning(),
+      );
+      if (health.status === "ready") {
         vscode.window.showInformationMessage(
           "記憶卡匣 🟢 全部健康，無過期卡匣",
         );
@@ -331,7 +342,7 @@ export async function activate(
       gitignoreFilter,
       detectMissedChanges: true,
       includeProjectFiles: false,
-      persist: false,
+      persist: true,
     });
 
     // v2.0: 啟動時將過期警報寫入 SKILL.md（修復 #3：原本只更新 RAM 沒有寫入檔案）
@@ -350,7 +361,10 @@ export async function activate(
     }
 
     // v2.0: 立即顯示基礎燈號（不等待幽靈掃描）
-    statusBar.update(indexManager.getVisibleIndex());
+    statusBar.update(
+      indexManager.getVisibleIndex(),
+      indexManager.getSyncWarning(),
+    );
 
     // v5.0: 獨立 Activity Bar 治理側邊欄
     governanceViews = registerGovernanceViews({
@@ -367,7 +381,10 @@ export async function activate(
 
     // v2.0: 記憶體變動通知 hook（連動 UI 三兄弟）
     indexManager.onChanged = () => {
-      statusBar?.update(indexManager?.getVisibleIndex());
+      statusBar?.update(
+        indexManager?.getVisibleIndex(),
+        indexManager?.getSyncWarning(),
+      );
       governanceViews?.refresh();
       codeLensProvider?.refresh();
     };
@@ -379,33 +396,34 @@ export async function activate(
       analyzer,
       gitignoreFilter,
       writer,
+      undefined,
+      showIndexSyncWarning,
     );
     await watcher.start();
 
-    // v2.0: 背景化幽靈掃描（不阻塞啟動流程）
-    setTimeout(async () => {
-      try {
-        const uris = await vscode.workspace.findFiles("**/*", "**/.git/**");
-        const allFiles = uris.map((u) =>
-          path.relative(projectRoot, u.fsPath).replace(/\\/g, "/"),
-        );
-        indexManager?.detectUntrackedFiles(allFiles, gitignoreFilter!);
-        indexManager?.markDirty();
-        statusBar?.update(indexManager?.getVisibleIndex());
-        governanceViews?.refresh();
-      } catch (err) {
-        console.error("[記憶卡匣] 背景幽靈掃描失敗：", err);
-      }
-    }, 3000);
+    // 背景未歸屬掃描與桌面/MCP 共用同一 Git canonical candidate set。
+    setTimeout(() => void runBackgroundUntrackedRefresh(), 3000);
+    untrackedRescanTimer = setInterval(
+      () => void runBackgroundUntrackedRefresh(),
+      60_000,
+    );
 
     // v2.0: 安全心跳（每 5 分鐘落地一次）
     heartbeatTimer = setInterval(() => indexManager?.flushIfDirty(), 300_000);
 
     context.subscriptions.push(
       vscode.workspace.onDidChangeWorkspaceFolders(async () => {
-        if (!indexManager) return;
-        await indexManager.scan();
-        statusBar?.update(indexManager.getVisibleIndex());
+        if (!indexManager || !config || !gitignoreFilter) return;
+        const result = await refreshMemoryIndex({
+          projectRoot: config.projectRoot,
+          config,
+          indexManager,
+          gitignoreFilter,
+          detectMissedChanges: true,
+          includeProjectFiles: true,
+          persist: true,
+        });
+        statusBar?.update(result.index, indexManager.getSyncWarning());
       }),
     );
   } catch (error: unknown) {
@@ -421,6 +439,7 @@ export async function activate(
 export async function deactivate(): Promise<void> {
   watcher?.stop();
   if (heartbeatTimer) clearInterval(heartbeatTimer);
+  if (untrackedRescanTimer) clearInterval(untrackedRescanTimer);
   await indexManager?.flushIfDirty();
   statusBar?.dispose();
   governanceViews?.dispose();
@@ -485,4 +504,53 @@ function isAutomaticUpdateCheckEnabled(): boolean {
   return vscode.workspace
     .getConfiguration("cartridge")
     .get<boolean>("updateCheck.enabled", true);
+}
+
+async function runBackgroundUntrackedRefresh(): Promise<void> {
+  if (untrackedRescanPromise) return untrackedRescanPromise;
+  if (!config || !indexManager || !gitignoreFilter) return;
+
+  untrackedRescanPromise = (async () => {
+    try {
+      const result = await refreshProjectUntrackedFiles({
+        projectRoot: config!.projectRoot,
+        indexManager: indexManager!,
+        gitignoreFilter: gitignoreFilter!,
+      });
+      showExclusionWarnings(result.diagnostics);
+      statusBar?.update(
+        indexManager?.getVisibleIndex(),
+        indexManager?.getSyncWarning(),
+      );
+      governanceViews?.refresh();
+    } catch (err) {
+      console.error("[記憶卡匣] 背景未歸屬掃描失敗：", err);
+    } finally {
+      untrackedRescanPromise = undefined;
+    }
+  })();
+  return untrackedRescanPromise;
+}
+
+function showExclusionWarnings(
+  diagnostics: GitExclusionDiagnostic[],
+): void {
+  for (const diagnostic of diagnostics) {
+    const key = getGitExclusionWarningKey(
+      config?.projectRoot ?? "",
+      diagnostic.operation,
+    );
+    if (shownExclusionWarnings.has(key)) continue;
+    shownExclusionWarnings.add(key);
+    vscode.window.showWarningMessage(
+      `記憶卡匣：Git 排除判定已降級為根 .gitignore（${diagnostic.code}）`,
+    );
+  }
+}
+
+function showIndexSyncWarning(message: string): void {
+  const key = `${config?.projectRoot ?? ""}:${message}`;
+  if (shownIndexSyncWarnings.has(key)) return;
+  shownIndexSyncWarnings.add(key);
+  vscode.window.showWarningMessage(`記憶卡匣索引同步警告：${message}`);
 }

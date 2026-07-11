@@ -1,16 +1,26 @@
 ---
 name: mcp-tools.handlers
+scopePath: null
+dependencies:
+  - index-manager
+  - core-types
+  - index-manager.dep-engine
 description: >
-  專案記憶：底層 memory_* MCP handlers。Use when: 處理 mcp-handlers.ts、 底層
-  memory_list/read/status/commit/deps 行為或 handler 測試時載入。
-last_updated: '2026-06-15T00:47:16+08:00'
-status: stale
+  專案記憶：底層 memory_* MCP handlers 與共用重建索引契約。Use when: 修改
+  memory_list/read/status/commit/deps/reindex 行為或 handler 測試時載入。
+last_updated: '2026-07-11T14:52:53+08:00'
+status: stable
 staleness: 0
 memory_schema_version: 2
+memory_quality_version: 1
+memory_kind: source_fact
+verification_status: verified
+last_verified: '2026-07-11T14:40:20+08:00'
+valid_scope: current-project
 content_language: en
 human_language: zh-TW
-cycle_id: 2026-06-04-001
-cycle_event_count: 6
+cycle_id: 2026-07-11-001
+cycle_event_count: 1
 cycle_event_limit: 30
 size_limit_bytes: 16384
 line_limit: 120
@@ -18,53 +28,34 @@ archive_policy: volume
 compaction_status: ready
 metadata:
   author: antigravity
-  version: '1.0'
+  version: '1.1'
   origin: project
   memory_awareness: full
   tool_scope:
     - 'filesystem:read'
     - 'filesystem:write'
-memory_quality_version: 1
-memory_kind: implementation
-verification_status: verified
-last_verified: '2026-06-15T00:47:16+08:00'
-valid_scope:
-  - src/mcp-handlers.ts
-  - src/tests/mcp-handlers.test.ts
-  - src/tests/memory-deps-output.test.ts
-scopePath: null
 ---
 # mcp-tools.handlers — Module Memory
 
 ## Current Truth
 
-- This card is the schema v2 memory owner for mcp-tools.handlers.
-- Its implementation boundary is the tracked file list below.
-- Legacy decisions, lessons, and repair notes were preserved in archive-001.md.
-- Frontmatter dependencies are retained as staleness propagation dependencies and must not be used for navigation-only links.
-- Directory nesting is navigation; parent-child placement is not a dependency by itself.
-- Current behavior must still be verified against source before edits.
-- `memory_commit` and `memory_list` exclude managed memory internals from untracked file output.
-- `memory_list` now consumes the shared visible index view rather than duplicating archive path filtering.
-- `memory_read`, `memory_status`, and `memory_commit` re-check the active memory main file on disk before trusting stale conflict or missing entries in the persisted index.
-- `memory_commit` reports Evidence Base quality warnings and writes back to the actual active main file discovered by the shared resolver.
+- This card owns the low-level memory MCP handler contracts and their tests.
+- `memory_reindex` uses the same Git-standard discovery, memory processing, authoritative untracked reconciliation, and project index transaction as Desktop and VS Code.
+- Exclusion mode and fallback diagnostics are additive response fields; degraded exclusion becomes a warning finding without changing authorization or confirmation contracts.
+- Only a full persisted reindex may repair an invalid canonical index; ordinary handler mutations fail closed and retain the last committed state.
+- `memory_list` and commit cleanup use the shared visible projection so managed memory artifacts cannot leak into product untracked output.
+- Read, status, and commit operations re-check the active memory main file on disk before trusting a stale missing or conflict entry.
+- Dependency semantics remain warning-only and are provided by `index-manager.dep-engine`.
 
 ## Active Constraints
 
-- Keep the main card under 16 KB and 120 lines; move history into archive volumes.
-- Keep the technical body in English; use Traditional Chinese only in description and Chinese summary.
-- Use dependencies only for true staleness propagation; use Relations for navigation.
-- Do not rewrite archive volumes during active-card standardization.
-- Treat missing evidence as pending review, not as complete quality.
+- Preserve existing MCP confirmation and authorization boundaries for write-capable tools.
+- Keep exclusion diagnostics additive and nonfatal; do not return an empty scan solely because Git degraded.
+- Handler state changes must use the shared project transaction and persisted-index validation.
 
 ## Cycle Events
 
-- 01: Migrated the legacy card into schema v2 and preserved old content in archive volumes.
-- 02: Applied the managed memory artifact guard to memory_commit cleanup and memory_list output so archive volumes cannot remain as untracked product files.
-- 03: Consolidated memory_list and memory_commit archive filtering through shared visible-untracked helpers.
-- 04: Repaired stale-index main-file resolution so read, status, and commit follow current disk state.
-- 05: Standardized active memory main file to MEMORY.md with quality metadata and evidence sections.
-- 06: Standardized memory ownership and YAML valid_scope for the 5.5.1 governance repair.
+- 01: Compacted the card around shared Git discovery, authoritative reconciliation, and transactional `memory_reindex` for 5.5.3.
 
 ## Archive Index
 
@@ -73,27 +64,26 @@ scopePath: null
 ## Evidence Base
 
 - source:src/mcp-handlers.ts
+- source:src/memory-reindex.ts
 - source:src/tests/mcp-handlers.test.ts
 - source:src/tests/memory-deps-output.test.ts
+- validation:VD-03 — 5.5.3 MCP and cross-runtime parity validation provenance.
+- review:RD-03 — independent 5.5.3 review provenance.
 
 ## Read Contract
 
-- Read this card before editing mcp-tools.handlers tracked files or changing their ownership boundaries.
-- Do not use this card for temporary task notes, design DNA, or unrelated platform rules.
+- Read this card before changing low-level memory MCP behavior, response warnings, or reindex authorization semantics.
+- Do not use this card as the owner of the tool registry, server transport, or dependency engine internals.
 
 ## Conflicts and Supersession
 
-- None recorded.
+- None.
 
 ## 中文摘要
 
-- mcp-tools.handlers 已升級為 schema v2 主卡。
-- 舊版決策與課題已完整保存到 archive-001.md。
-- 主卡只保留目前有效真相、限制、週期事件與追蹤檔案。
-- 目前沒有硬性拆分阻擋。
-- memory_commit 與 memory_list 都會排除記憶歸檔卷殘留的未歸屬項目。
-- MCP handler 不再維護自己的 archive 排除條件，改用 index-manager 共用 helper。
-- 後續修改此卡時應先讀最新原始碼。
+- MCP 重建索引與桌面、外掛共用 Git 候選、未歸屬收斂及索引交易。
+- 排除降級只增加 warning finding，不改寫授權與確認契約，也不會讓掃描失敗。
+- 只有完整持久化重建可修復無效索引；一般操作採封閉式保護。
 
 ## Tracked Files
 
@@ -103,8 +93,10 @@ scopePath: null
 
 ## Relations
 
-- mcp-tools（父卡：MCP 工具介面總覽）
-- mcp-tools.dispatcher（消費：底層 handler 與 MCP 回傳型別）
-- index-manager（依賴：索引解析與 trackedFiles 解析）
-- core-types（依賴：共用型別與設定）
-- index-manager.dep-engine（依賴：dependency-semantics warning-only 檢查器）
+- mcp-tools（parent overview）
+- mcp-tools.dispatcher（handler and response consumer）
+- mcp-tools.tool-registry（public tool metadata）
+
+## Applicable Skills
+
+- memory-ops — Use for governed updates and staleness repair of this card.

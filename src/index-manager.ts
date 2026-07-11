@@ -34,6 +34,10 @@ import {
   filterVisibleUntrackedFiles,
   isManagedMemoryArtifactPath,
 } from "./visible-index.js";
+import {
+  fingerprintContent,
+  persistProjectIndexManager,
+} from "./project-index-transaction.js";
 
 export {
   createVisibleCartridgeIndex,
@@ -102,7 +106,10 @@ export function shouldWarnEmptyTrackedFiles(content: string): boolean {
 export class CartridgeIndexManager {
   private config: CartridgeConfig;
   private index: CartridgeIndex;
+  private committedIndex: CartridgeIndex;
   private isDirty = false;
+  private committedFingerprint: string | null = null;
+  private syncWarning: string | null = null;
 
   /** 記憶體變動通知 hook（由 extension.ts 注入，MCP Server 可忽略） */
   onChanged?: () => void;
@@ -116,6 +123,7 @@ export class CartridgeIndexManager {
       fileMap: {},
       untrackedFiles: [],
     };
+    this.committedIndex = cloneIndex(this.index);
   }
 
   /**
@@ -123,7 +131,6 @@ export class CartridgeIndexManager {
    */
   markDirty(): void {
     this.isDirty = true;
-    this.onChanged?.();
   }
 
   /**
@@ -133,7 +140,6 @@ export class CartridgeIndexManager {
   async flushIfDirty(): Promise<void> {
     if (this.isDirty) {
       await this.persist();
-      this.isDirty = false;
     }
   }
 
@@ -647,11 +653,13 @@ export class CartridgeIndexManager {
   /**
    * 從未歸屬池移除指定檔案（歸屬至記憶卡後呼叫）
    */
-  removeUntrackedFile(filePath: string): void {
-    if (!this.index.untrackedFiles) return;
+  removeUntrackedFile(filePath: string): boolean {
+    if (!this.index.untrackedFiles) return false;
+    const beforeCount = this.index.untrackedFiles.length;
     this.index.untrackedFiles = this.index.untrackedFiles.filter(
       (f) => f.filePath !== filePath,
     );
+    return this.index.untrackedFiles.length !== beforeCount;
   }
 
   /**
@@ -669,6 +677,45 @@ export class CartridgeIndexManager {
   }
 
   /**
+   * 以 canonical project file set 收斂未歸屬池。
+   * 保留仍有效項目的偵測 metadata，並移除 ignored、missing、owned 與 managed artifacts。
+   */
+  reconcileUntrackedFiles(candidateFiles: string[]): boolean {
+    const existingByPath = new Map(
+      filterVisibleUntrackedFiles(this.index.untrackedFiles).map((entry) => [
+        entry.filePath.replace(/\\/g, "/"),
+        entry,
+      ]),
+    );
+    const next: UntrackedFileEntry[] = [];
+    const seen = new Set<string>();
+
+    for (const candidate of candidateFiles) {
+      const filePath = candidate.replace(/\\/g, "/");
+      if (!filePath || seen.has(filePath) || !this.isUntrackedCandidate(filePath)) {
+        continue;
+      }
+      seen.add(filePath);
+      const existing = existingByPath.get(filePath);
+      next.push(
+        existing
+          ? { ...existing, filePath }
+          : {
+              filePath,
+              suggestedOwner: suggestOwner(filePath, this.index),
+              detectedAt: getTaiwanISO(),
+              lastEvent: "add",
+            },
+      );
+    }
+
+    const changed = !sameUntrackedFiles(this.index.untrackedFiles ?? [], next);
+    this.index.untrackedFiles = next;
+    if (changed) this.markDirty();
+    return changed;
+  }
+
+  /**
    * 從外部傳入的檔案清單中，找出未被任何記憶卡追蹤的檔案
    * @param allFiles - 由 vscode.workspace.findFiles 或其他來源產出的相對路徑清單
    * @param gitignoreFilter - 用於二次過濾 .gitignore 規則
@@ -677,29 +724,10 @@ export class CartridgeIndexManager {
     allFiles: string[],
     gitignoreFilter: GitignoreFilter,
   ): void {
-    const allTracked = new Set(this.getAllTrackedFiles());
-
     for (const file of allFiles) {
-      // 排除記憶系統內部產物
-      if (isManagedMemoryArtifactPath(file)) continue;
       // .gitignore 二次過濾
       if (gitignoreFilter.isIgnored(file)) continue;
-      // 排除系統安全網目錄
-      if (this.config.excludeDirs.some((d) => file.startsWith(d))) continue;
-      // 排除系統產物
-      if (this.config.ignoreFiles.some((f) => file.endsWith(f))) continue;
-      // 排除 .agents/ 內但非記憶卡的檔案
-      if (file.startsWith(".agents/") && !file.includes(".agents/memory/"))
-        continue;
-      // 排除已追蹤檔案
-      if (allTracked.has(file)) continue;
-      // 排除記憶卡主檔與歸檔治理產物
-      if (isMemoryArchiveArtifactPath(file)) continue;
-      if (
-        (file.endsWith("SKILL.md") || file.endsWith("MEMORY.md")) &&
-        file.includes(".agents/memory/")
-      )
-        continue;
+      if (!this.isUntrackedCandidate(file.replace(/\\/g, "/"))) continue;
 
       // 加入未歸屬檔案池
       this.addUntrackedFile(file, "add");
@@ -729,39 +757,293 @@ export class CartridgeIndexManager {
     }
   }
 
+  private isUntrackedCandidate(filePath: string): boolean {
+    if (isProjectIndexArtifactPath(filePath)) return false;
+    if (isManagedMemoryArtifactPath(filePath)) return false;
+    if (this.config.excludeDirs.some((dir) => filePath.startsWith(dir))) {
+      return false;
+    }
+    if (this.config.ignoreFiles.some((file) => filePath.endsWith(file))) {
+      return false;
+    }
+    if (filePath.startsWith(".agents/") && !filePath.includes(".agents/memory/")) {
+      return false;
+    }
+    if (this.getAffectedCartridges(filePath).length > 0) return false;
+    if (isMemoryArchiveArtifactPath(filePath)) return false;
+    if (
+      (filePath.endsWith("SKILL.md") || filePath.endsWith("MEMORY.md")) &&
+      filePath.includes(".agents/memory/")
+    ) {
+      return false;
+    }
+    return true;
+  }
+
   /**
    * 持久化索引至 JSON 檔案
    */
   async persist(): Promise<void> {
-    const indexPath = path.resolve(this.config.projectRoot, INDEX_FILENAME);
-    this.index.untrackedFiles = filterVisibleUntrackedFiles(
-      this.index.untrackedFiles,
+    await persistProjectIndexManager(
+      this.config.projectRoot,
+      this,
     );
-    // 確保 .cartridge/ 目錄存在
-    const dir = path.dirname(indexPath);
-    if (!fs.existsSync(dir)) {
-      fs.mkdirSync(dir, { recursive: true });
-    }
-    const content = JSON.stringify(this.index, null, 2);
-    fs.writeFileSync(indexPath, content, "utf-8");
   }
 
   /**
    * 從 JSON 檔案載入索引
    */
   async load(): Promise<boolean> {
-    const indexPath = path.resolve(this.config.projectRoot, INDEX_FILENAME);
-    if (!fs.existsSync(indexPath)) return false;
+    const loaded = await this.readPersistedIndex();
+    if (loaded.status !== "loaded") return false;
+    this.replaceCommittedIndex(loaded.index, loaded.fingerprint, false);
+    return true;
+  }
 
+  /** Internal transaction adapter: read and validate the canonical durable state. */
+  async readPersistedIndex(): Promise<PersistedIndexReadResult> {
+    const indexPath = path.resolve(this.config.projectRoot, INDEX_FILENAME);
+    if (!fs.existsSync(indexPath)) return { status: "missing" };
     try {
       const raw = fs.readFileSync(indexPath, "utf-8");
-      this.index = JSON.parse(raw) as CartridgeIndex;
-      this.index.untrackedFiles = filterVisibleUntrackedFiles(
-        this.index.untrackedFiles,
-      );
-      return true;
+      const normalized = normalizePersistedIndex(JSON.parse(raw) as unknown);
+      if (!normalized) return { status: "invalid" };
+      return {
+        status: "loaded",
+        index: normalized,
+        fingerprint: fingerprintContent(raw),
+      };
     } catch {
-      return false;
+      return { status: "invalid" };
     }
   }
+
+  /** Internal transaction adapter: replace RAM only with a committed snapshot. */
+  replaceCommittedIndex(
+    index: CartridgeIndex,
+    fingerprint: string,
+    notify: boolean,
+  ): void {
+    this.index = cloneIndex(index);
+    this.committedIndex = cloneIndex(index);
+    this.committedFingerprint = fingerprint;
+    this.isDirty = false;
+    this.syncWarning = null;
+    if (notify) this.notifyCommittedChange();
+  }
+
+  serializeForPersistence(): string {
+    this.index.untrackedFiles = filterVisibleUntrackedFiles(
+      this.index.untrackedFiles,
+    );
+    return JSON.stringify(this.index, null, 2);
+  }
+
+  acceptCommittedPersistence(fingerprint: string): void {
+    this.committedIndex = cloneIndex(this.index);
+    this.committedFingerprint = fingerprint;
+    this.isDirty = false;
+  }
+
+  /** Capture working and durable cache metadata before a transaction mutates RAM. */
+  captureTransactionState(): ProjectIndexManagerStateSnapshot {
+    return {
+      index: cloneIndex(this.index),
+      committedIndex: cloneIndex(this.committedIndex),
+      isDirty: this.isDirty,
+      committedFingerprint: this.committedFingerprint,
+      syncWarning: this.syncWarning,
+    };
+  }
+
+  /** Capture the last committed cache for rollback of an already-dirty flush. */
+  captureCommittedState(): ProjectIndexManagerStateSnapshot {
+    return {
+      index: cloneIndex(this.committedIndex),
+      committedIndex: cloneIndex(this.committedIndex),
+      isDirty: false,
+      committedFingerprint: this.committedFingerprint,
+      syncWarning: this.syncWarning,
+    };
+  }
+
+  /** Restore a pre-mutation checkpoint without retaining speculative mutations. */
+  restoreTransactionState(
+    snapshot: ProjectIndexManagerStateSnapshot,
+    syncWarning: string = snapshot.syncWarning ?? "",
+  ): void {
+    this.index = cloneIndex(snapshot.index);
+    this.committedIndex = cloneIndex(snapshot.committedIndex);
+    this.isDirty = snapshot.isDirty;
+    this.committedFingerprint = snapshot.committedFingerprint;
+    this.syncWarning = syncWarning || null;
+  }
+
+  hasDirtyChanges(): boolean {
+    return this.isDirty;
+  }
+
+  getCommittedFingerprint(): string | null {
+    return this.committedFingerprint;
+  }
+
+  setCommittedFingerprint(fingerprint: string | null): void {
+    this.committedFingerprint = fingerprint;
+  }
+
+  setSyncWarning(message: string): void {
+    this.syncWarning = message;
+  }
+
+  clearSyncWarning(): void {
+    this.syncWarning = null;
+  }
+
+  getSyncWarning(): string | null {
+    return this.syncWarning;
+  }
+
+  notifyCommittedChange(): void {
+    this.onChanged?.();
+  }
+}
+
+export interface ProjectIndexManagerStateSnapshot {
+  index: CartridgeIndex;
+  committedIndex: CartridgeIndex;
+  isDirty: boolean;
+  committedFingerprint: string | null;
+  syncWarning: string | null;
+}
+
+export type PersistedIndexReadResult =
+  | { status: "loaded"; index: CartridgeIndex; fingerprint: string }
+  | { status: "missing" | "invalid" };
+
+function isProjectIndexArtifactPath(filePath: string): boolean {
+  const normalized = filePath.replace(/\\/g, "/").toLowerCase();
+  return (
+    normalized === ".cartridge/index.json" ||
+    normalized === ".cartridge/index.lock" ||
+    normalized.startsWith(".cartridge/index.lock/") ||
+    normalized.startsWith(".cartridge/index.lock.stale-") ||
+    /^\.cartridge\/index\.\d+\.[0-9a-f-]+\.tmp$/i.test(normalized)
+  );
+}
+
+function sameUntrackedFiles(
+  left: UntrackedFileEntry[],
+  right: UntrackedFileEntry[],
+): boolean {
+  if (left.length !== right.length) return false;
+  return left.every((entry, index) => {
+    const candidate = right[index];
+    return (
+      entry.filePath === candidate.filePath &&
+      entry.suggestedOwner === candidate.suggestedOwner &&
+      entry.detectedAt === candidate.detectedAt &&
+      entry.lastEvent === candidate.lastEvent
+    );
+  });
+}
+
+function cloneIndex(index: CartridgeIndex): CartridgeIndex {
+  return JSON.parse(JSON.stringify(index)) as CartridgeIndex;
+}
+
+function normalizePersistedIndex(value: unknown): CartridgeIndex | null {
+  if (!isRecord(value)) return null;
+  if (typeof value.version !== "number" || !Number.isFinite(value.version)) {
+    return null;
+  }
+  if (typeof value.lastScanned !== "string") return null;
+  if (!isRecord(value.cartridges)) return null;
+  if (!Object.values(value.cartridges).every(isPersistedCartridgeEntry)) {
+    return null;
+  }
+  if (!isRecord(value.fileMap)) return null;
+  if (
+    !Object.values(value.fileMap).every(
+      (modules) =>
+        Array.isArray(modules) &&
+        modules.every((moduleName) => typeof moduleName === "string"),
+    )
+  ) {
+    return null;
+  }
+
+  const untrackedFiles =
+    value.untrackedFiles === undefined ? [] : value.untrackedFiles;
+  if (
+    !Array.isArray(untrackedFiles) ||
+    !untrackedFiles.every(isUntrackedFileEntry)
+  ) {
+    return null;
+  }
+
+  return {
+    version: value.version,
+    lastScanned: value.lastScanned,
+    cartridges: value.cartridges as unknown as Record<string, CartridgeEntry>,
+    fileMap: value.fileMap as unknown as Record<string, string[]>,
+    untrackedFiles: filterVisibleUntrackedFiles(
+      untrackedFiles as UntrackedFileEntry[],
+    ),
+  };
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+function isUntrackedFileEntry(value: unknown): value is UntrackedFileEntry {
+  if (!isRecord(value)) return false;
+  return (
+    typeof value.filePath === "string" &&
+    (value.suggestedOwner === null ||
+      typeof value.suggestedOwner === "string") &&
+    typeof value.detectedAt === "string" &&
+    (value.lastEvent === "add" ||
+      value.lastEvent === "change" ||
+      value.lastEvent === "unlink")
+  );
+}
+
+function isPersistedCartridgeEntry(value: unknown): value is CartridgeEntry {
+  if (!isRecord(value)) return false;
+  return (
+    typeof value.skillPath === "string" &&
+    typeof value.description === "string" &&
+    isStringArray(value.trackedFiles) &&
+    typeof value.staleness === "number" &&
+    Number.isFinite(value.staleness) &&
+    typeof value.lastUpdated === "string" &&
+    Array.isArray(value.pendingChanges) &&
+    value.pendingChanges.every(isPendingChange) &&
+    typeof value.depth === "number" &&
+    Number.isFinite(value.depth) &&
+    (value.parent === null || typeof value.parent === "string") &&
+    isStringArray(value.ghostFiles) &&
+    isStringArray(value.dependencies) &&
+    typeof value.indirectStaleness === "number" &&
+    Number.isFinite(value.indirectStaleness)
+  );
+}
+
+function isPendingChange(value: unknown): boolean {
+  if (!isRecord(value)) return false;
+  return (
+    typeof value.filePath === "string" &&
+    (value.eventType === "add" ||
+      value.eventType === "change" ||
+      value.eventType === "unlink") &&
+    typeof value.timestamp === "string"
+  );
+}
+
+function isStringArray(value: unknown): value is string[] {
+  return (
+    Array.isArray(value) &&
+    value.every((item) => typeof item === "string")
+  );
 }

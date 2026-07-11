@@ -1,16 +1,24 @@
 ---
 name: tool-registry
+scopePath: null
+dependencies:
+  - core-types
 description: >
-  專案記憶：MCP 工具名冊與統一回傳契約。Use when: 處理工具風險分級、MCP tools 清單生成、治理 envelope
-  或高階工具回傳格式時載入。
-last_updated: '2026-06-15T01:57:03+08:00'
+  專案記憶：MCP 工具名冊、風險分級與統一回傳 envelope。Use when: 修改工具清單、確認契約、response metadata 或
+  manifest 版本斷言時載入。
+last_updated: '2026-07-11T14:53:08+08:00'
 status: stable
 staleness: 0
 memory_schema_version: 2
+memory_quality_version: 1
+memory_kind: source_fact
+verification_status: verified
+last_verified: '2026-07-11T14:40:20+08:00'
+valid_scope: current-project
 content_language: en
 human_language: zh-TW
-cycle_id: 2026-06-04-001
-cycle_event_count: 6
+cycle_id: 2026-07-11-001
+cycle_event_count: 1
 cycle_event_limit: 30
 size_limit_bytes: 16384
 line_limit: 120
@@ -18,53 +26,34 @@ archive_policy: volume
 compaction_status: ready
 metadata:
   author: antigravity
-  version: '1.0'
+  version: '1.1'
   origin: project
   memory_awareness: full
   tool_scope:
     - 'filesystem:read'
     - 'filesystem:write'
-memory_quality_version: 1
-memory_kind: implementation
-verification_status: verified
-last_verified: '2026-06-15T01:55:53+08:00'
-valid_scope:
-  - src/tool-registry.ts
-  - src/mcp-response.ts
-  - src/tests/tool-registry.test.ts
-  - src/tests/mcp-response.test.ts
-scopePath: null
 ---
 # tool-registry — Module Memory
 
 ## Current Truth
 
-- This card is the schema v2 memory owner for mcp-tools.tool-registry.
-- Its implementation boundary is the tracked file list below.
-- Legacy decisions, lessons, and repair notes were preserved in archive-001.md.
-- Frontmatter dependencies are retained as staleness propagation dependencies and must not be used for navigation-only links.
-- Directory nesting is navigation; parent-child placement is not a dependency by itself.
-- Current behavior must still be verified against source before edits.
-- The registry currently exposes 17 MCP tools across memory, context, and project context groups.
-- The package manifest contract is pinned to version 5.5.2 with MCP bin entries limited to built dist files.
-- Project context tools remain read-only and separate from memory commit workflows.
+- The registry exposes 18 MCP tools across memory, context, and project-context groups.
+- `memory_reindex` is a confirmed-write tool and keeps the existing explicit confirmation boundary.
+- Registry metadata drives list-tools output, dispatch safety, and the common governed response envelope.
+- Tools accept optional `projectRoot` where supported so callers can target an explicit workspace without creating a second state store.
+- Project-context tools remain read-only and separate from memory write and commit workflows.
+- Manifest-version tests assert release version 5.5.3 and built MCP bin coverage.
+- Response envelope time and shared result contracts depend on `core-types`.
 
 ## Active Constraints
 
-- Keep the main card under 16 KB and 120 lines; move history into archive volumes.
-- Keep the technical body in English; use Traditional Chinese only in description and Chinese summary.
-- Use dependencies only for true staleness propagation; use Relations for navigation.
-- Do not rewrite archive volumes during active-card standardization.
-- Treat missing evidence as pending review, not as complete quality.
+- Tool safety level, confirmation requirement, and handler authorization must remain aligned.
+- Adding or removing a tool requires registry, dispatch, manifest, and contract-test updates together.
+- Do not weaken `memory_reindex` from confirmed-write to an implicit mutation.
 
 ## Cycle Events
 
-- 01: Migrated the legacy card into schema v2 and preserved old content in archive volumes.
-- 02: Synced the 5.5.0 registry contract and package manifest coverage after release.
-- 03: Standardized active memory main file to MEMORY.md with quality metadata and evidence sections.
-- 04: Standardized memory ownership and YAML valid_scope for the 5.5.1 governance repair.
-- 05: Synced package manifest version assertions to 5.5.1 after the security patch release.
-- 06: Synced package manifest version assertions to 5.5.2 after the build security patch.
+- 01: Compacted the card around the 18-tool registry, confirmed `memory_reindex`, and 5.5.3 manifest contract.
 
 ## Archive Index
 
@@ -76,25 +65,24 @@ scopePath: null
 - source:src/mcp-response.ts
 - source:src/tests/tool-registry.test.ts
 - source:src/tests/mcp-response.test.ts
+- source:package.json
+- validation:VD-03 — 5.5.3 registry and manifest validation provenance.
+- review:RD-03 — independent 5.5.3 review provenance.
 
 ## Read Contract
 
-- Read this card before editing tool-registry tracked files or changing their ownership boundaries.
-- Do not use this card for temporary task notes, design DNA, or unrelated platform rules.
+- Read this card before changing MCP tool metadata, safety classification, common envelopes, or package manifest assertions.
+- Do not use this card as the owner of handler implementation or server transport lifecycle.
 
 ## Conflicts and Supersession
 
-- None recorded.
+- None.
 
 ## 中文摘要
 
-- mcp-tools.tool-registry 已升級為 schema v2 主卡。
-- 舊版決策與課題已完整保存到 archive-001.md。
-- 主卡只保留目前有效真相、限制、週期事件與追蹤檔案。
-- 目前沒有硬性拆分阻擋。
-- MCP 工具名冊目前公開 17 個工具，並維持 project context 工具只讀。
-- npm manifest 版本、MCP bin 與打包範圍已對齊 5.5.2 發布契約。
-- 後續修改此卡時應先讀最新原始碼。
+- MCP 名冊目前有 18 個工具，`memory_reindex` 維持需明確確認的寫入工具。
+- 工具清單、分派安全與統一 envelope 都由同一份 registry metadata 驅動。
+- manifest 版本斷言已同步到 5.5.3，支援可選的 `projectRoot`。
 
 ## Tracked Files
 
@@ -105,12 +93,13 @@ scopePath: null
 
 ## Relations
 
-- mcp-tools（父卡：MCP 工具註冊、路由與工具契約）
-- core-types（依賴：MCP response envelope metadata 時間戳）
-- mcp-tools.workspace-brief（消費 envelope 的高階治理工具）
-- mcp-tools.commit-preflight（消費 envelope 的高階治理工具）
-- mcp-tools.memory-audit（消費 envelope 的完整健檢工具）
-- mcp-tools.dispatcher（消費工具 metadata 並執行明確確認防線）
-- mcp-tools.context-governance（消費工具 metadata 並提供 v5 context tools）
-- mcp-tools.memory-graph（消費 envelope 契約並提供 memory_graph 工具）
-- mcp-tools.project-context（消費 envelope 契約並提供 project_context 工具）
+- mcp-tools（parent overview）
+- mcp-tools.dispatcher（metadata and confirmation consumer）
+- mcp-tools.server（list-tools and call-tool transport consumer）
+- mcp-tools.context-governance（read-only context tools）
+- mcp-tools.memory-graph（governed envelope consumer）
+- mcp-tools.project-context（read-only project-context tools）
+
+## Applicable Skills
+
+- memory-ops — Use for governed updates and staleness repair of this card.

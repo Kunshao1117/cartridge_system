@@ -11,6 +11,7 @@ import type { StalenessAnalyzer } from "./analyzer.js";
 import type { GitignoreFilter } from "./gitignore-filter.js";
 import type { MemoryWriter } from "./writer.js";
 import { handleProjectFileEvent } from "./monitoring/project-event-handler.js";
+import { reloadProjectIndexFromDisk } from "./project-index-transaction.js";
 
 /**
  * 檔案監聽引擎（v2.0 VS Code 原生監聽模式）
@@ -24,6 +25,7 @@ export class CartridgeWatcher {
   private watchers: vscode.Disposable[] = [];
   private debounceMap = new Map<string, NodeJS.Timeout>();
   private onUpdate?: () => void;
+  private onSyncWarning?: (message: string) => void;
 
   /** 穩定等待毫秒數（取代 chokidar awaitWriteFinish） */
   private static DEBOUNCE_MS = 300;
@@ -35,6 +37,7 @@ export class CartridgeWatcher {
     gitignoreFilter: GitignoreFilter,
     writer: MemoryWriter,
     onUpdate?: () => void,
+    onSyncWarning?: (message: string) => void,
   ) {
     this.config = config;
     this.indexManager = indexManager;
@@ -42,6 +45,7 @@ export class CartridgeWatcher {
     this.gitignoreFilter = gitignoreFilter;
     this.writer = writer;
     this.onUpdate = onUpdate;
+    this.onSyncWarning = onSyncWarning;
   }
 
   /**
@@ -86,6 +90,14 @@ export class CartridgeWatcher {
    * 同一檔案在 300ms 內的多次事件只處理最後一次
    */
   private debounceEvent(absPath: string, eventType: FileEventType): void {
+    const relPath = path
+      .relative(this.config.projectRoot, absPath)
+      .replace(/\\/g, "/");
+    if (relPath.toLowerCase() === ".cartridge/index.json") {
+      this.debounceIndexEvent();
+      return;
+    }
+    if (isProjectIndexArtifact(relPath)) return;
     const existing = this.debounceMap.get(absPath);
     if (existing) clearTimeout(existing);
 
@@ -97,6 +109,33 @@ export class CartridgeWatcher {
           console.error(`[監聽引擎] 事件處理失敗: ${absPath}`, err),
         );
       }, CartridgeWatcher.DEBOUNCE_MS),
+    );
+  }
+
+  private debounceIndexEvent(): void {
+    const key = "<project-index>";
+    const existing = this.debounceMap.get(key);
+    if (existing) clearTimeout(existing);
+    this.debounceMap.set(
+      key,
+      setTimeout(() => {
+        this.debounceMap.delete(key);
+        void reloadProjectIndexFromDisk(
+          this.config.projectRoot,
+          this.indexManager,
+        )
+          .then((result) => {
+            if (result.status === "missing" || result.status === "invalid") {
+              this.onSyncWarning?.(result.warning);
+            }
+            if (result.status !== "self-write") this.onUpdate?.();
+          })
+          .catch((error) =>
+            this.onSyncWarning?.(
+              error instanceof Error ? error.message : String(error),
+            ),
+          );
+      }, 150),
     );
   }
 
@@ -136,4 +175,14 @@ export class CartridgeWatcher {
       onRefresh: () => this.refresh(),
     });
   }
+}
+
+function isProjectIndexArtifact(relPath: string): boolean {
+  const normalized = relPath.replace(/\\/g, "/").toLowerCase();
+  return (
+    normalized === ".cartridge/index.lock" ||
+    normalized.startsWith(".cartridge/index.lock/") ||
+    /^\.cartridge\/index\.\d+\.[0-9a-f-]+\.tmp$/i.test(normalized) ||
+    normalized.startsWith(".cartridge/index.lock.stale-")
+  );
 }

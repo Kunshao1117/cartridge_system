@@ -8,6 +8,7 @@ import { MemoryWriter } from "../writer.js";
 import type { CartridgeConfig, CartridgeIndex } from "../types.js";
 import { handleProjectFileEvent } from "./project-event-handler.js";
 import { NodeProjectWatcher } from "./node-project-watcher.js";
+import { reloadProjectIndexFromDisk } from "../project-index-transaction.js";
 import {
   buildDesktopProjectSnapshot,
   createProjectId,
@@ -32,6 +33,7 @@ export class CartridgeProjectMonitor {
   private listeners = new Set<ProjectMonitorListener>();
   private enabled = true;
   private error: string | null = null;
+  private syncWarning: string | null = null;
 
   constructor(projectRoot: string) {
     this.projectRoot = path.resolve(projectRoot);
@@ -81,12 +83,11 @@ export class CartridgeProjectMonitor {
         gitignoreFilter: this.gitignoreFilter,
         detectMissedChanges: true,
         includeProjectFiles: true,
-        persist: false,
+        persist: true,
       });
       await this.injectStartupWarnings(index);
-      this.indexManager.markDirty();
-      await this.indexManager.flushIfDirty();
       this.error = null;
+      this.syncWarning = null;
     } catch (error) {
       this.setError(error);
     }
@@ -100,6 +101,7 @@ export class CartridgeProjectMonitor {
       index: this.indexManager.getVisibleIndex(),
       enabled: this.enabled,
       error: this.error,
+      syncWarning: this.syncWarning ?? this.indexManager.getSyncWarning(),
     });
   }
 
@@ -127,6 +129,21 @@ export class CartridgeProjectMonitor {
       },
       onRescan: () => {
         void this.rescan().catch((error) => this.setError(error));
+      },
+      onIndexChanged: () => {
+        void reloadProjectIndexFromDisk(
+          this.projectRoot,
+          this.indexManager,
+        )
+          .then((result) => {
+            if (result.status === "self-write") return;
+            this.syncWarning =
+              result.status === "missing" || result.status === "invalid"
+                ? result.warning
+                : null;
+            this.notify();
+          })
+          .catch((error) => this.setError(error));
       },
       onError: (error) => this.setError(error),
     });

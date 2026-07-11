@@ -16,6 +16,11 @@ import { CartridgeIndexManager } from "../index-manager.js";
 import { createConfig } from "../config.js";
 import type { GitignoreFilter } from "../gitignore-filter.js";
 import type { CartridgeIndex } from "../types.js";
+import { refreshMemoryIndex } from "../memory-reindex.js";
+import {
+  fingerprintContent,
+  ProjectIndexInvalidError,
+} from "../project-index-transaction.js";
 
 const tempRoots: string[] = [];
 
@@ -656,3 +661,572 @@ describe("CartridgeIndexManager — refilterUntrackedFiles 自動清理", () => 
     ]);
   });
 });
+
+describe("CartridgeIndexManager — authoritative untracked reconciliation", () => {
+  it("保留有效項目 metadata 並移除 missing、owned 與 managed artifacts", () => {
+    const manager = new CartridgeIndexManager(createConfig("d:/test-project"));
+    manager["index"] = {
+      version: 1,
+      lastScanned: "",
+      cartridges: {
+        core: {
+          skillPath: ".agents/memory/core/MEMORY.md",
+          description: "",
+          trackedFiles: ["src/owned.ts"],
+          staleness: 0,
+          lastUpdated: "",
+          pendingChanges: [],
+          ghostFiles: [],
+          dependencies: [],
+          indirectStaleness: 0,
+          depth: 1,
+          parent: null,
+        },
+      },
+      fileMap: { "src/owned.ts": ["core"] },
+      untrackedFiles: [
+        {
+          filePath: "src/keep.ts",
+          suggestedOwner: "core",
+          detectedAt: "preserved-time",
+          lastEvent: "change",
+        },
+        {
+          filePath: "src/missing.ts",
+          suggestedOwner: null,
+          detectedAt: "old",
+          lastEvent: "add",
+        },
+        {
+          filePath: "src/owned.ts",
+          suggestedOwner: "core",
+          detectedAt: "old",
+          lastEvent: "add",
+        },
+      ],
+    };
+
+    const changed = manager.reconcileUntrackedFiles([
+      "src/keep.ts",
+      "src/new.ts",
+      "src/owned.ts",
+      ".agents/memory/core/archive-001.md",
+    ]);
+
+    expect(changed).toBe(true);
+    expect(manager.getUntrackedFiles()).toEqual([
+      {
+        filePath: "src/keep.ts",
+        suggestedOwner: "core",
+        detectedAt: "preserved-time",
+        lastEvent: "change",
+      },
+      expect.objectContaining({ filePath: "src/new.ts", lastEvent: "add" }),
+    ]);
+  });
+
+  it("移除不存在項目時 removeUntrackedFile 只在實際變更時回傳 true", () => {
+    const manager = new CartridgeIndexManager(createConfig("d:/test-project"));
+    manager.addUntrackedFile("src/one.ts", "add");
+
+    expect(manager.removeUntrackedFile("src/missing.ts")).toBe(false);
+    expect(manager.removeUntrackedFile("src/one.ts")).toBe(true);
+    expect(manager.removeUntrackedFile("src/one.ts")).toBe(false);
+  });
+});
+
+describe("refreshMemoryIndex — persisted untracked metadata", () => {
+  it("internally created fresh manager loads persisted metadata", async () => {
+    const root = await createPersistedReindexFixture("disk-time");
+
+    const result = await refreshMemoryIndex({
+      projectRoot: root,
+      detectMissedChanges: false,
+      includeProjectFiles: true,
+      persist: false,
+    });
+
+    expect(result.index.untrackedFiles).toEqual([
+      expect.objectContaining({
+        filePath: "src/orphan.ts",
+        detectedAt: "disk-time",
+        lastEvent: "change",
+        suggestedOwner: "disk-owner",
+      }),
+    ]);
+  });
+
+  it("supplied fresh manager also loads persisted metadata", async () => {
+    const root = await createPersistedReindexFixture("disk-supplied-time");
+    const manager = new CartridgeIndexManager(createConfig(root));
+
+    const result = await refreshMemoryIndex({
+      projectRoot: root,
+      indexManager: manager,
+      detectMissedChanges: false,
+      includeProjectFiles: true,
+      persist: false,
+    });
+
+    expect(result.index.untrackedFiles[0]).toEqual(
+      expect.objectContaining({
+        detectedAt: "disk-supplied-time",
+        lastEvent: "change",
+        suggestedOwner: "disk-owner",
+      }),
+    );
+  });
+
+  it("canonical persisted state replaces a supplied stale RAM cache", async () => {
+    const root = await createPersistedReindexFixture("disk-time");
+    const manager = new CartridgeIndexManager(createConfig(root));
+    manager["index"] = {
+      version: 1,
+      lastScanned: "active-scan",
+      cartridges: {},
+      fileMap: {},
+      untrackedFiles: [
+        {
+          filePath: "src/orphan.ts",
+          detectedAt: "active-time",
+          lastEvent: "add",
+          suggestedOwner: "active-owner",
+        },
+      ],
+    };
+
+    const result = await refreshMemoryIndex({
+      projectRoot: root,
+      indexManager: manager,
+      detectMissedChanges: false,
+      includeProjectFiles: true,
+      persist: false,
+    });
+
+    expect(result.index.untrackedFiles[0]).toEqual(
+      expect.objectContaining({
+        detectedAt: "disk-time",
+        lastEvent: "change",
+        suggestedOwner: "disk-owner",
+      }),
+    );
+  });
+});
+
+describe("CartridgeIndexManager.load — persisted shape safety", () => {
+  it("malformed canonical + non-authoritative persist:false fails closed", async () => {
+    const root = await createPersistedReindexFixture("disk-time");
+    const indexPath = path.join(root, ".cartridge", "index.json");
+    await fs.writeFile(indexPath, "{}");
+    const manager = new CartridgeIndexManager(createConfig(root));
+    const fresh = manager.getIndex();
+
+    await expect(manager.load()).resolves.toBe(false);
+    expect(manager.getIndex()).toBe(fresh);
+    await expectInvalidNonAuthoritativeRefresh(root, manager);
+  });
+
+  it("invalid JSON leaves prior RAM state unchanged and fails closed", async () => {
+    const root = await createPersistedReindexFixture("disk-time");
+    const indexPath = path.join(root, ".cartridge", "index.json");
+    await fs.writeFile(indexPath, "{ invalid json");
+    const manager = new CartridgeIndexManager(createConfig(root));
+    const active = createActiveIndex();
+    manager["index"] = active;
+
+    await expect(manager.load()).resolves.toBe(false);
+    expect(manager.getIndex()).toBe(active);
+    await expectInvalidNonAuthoritativeRefresh(root, manager);
+  });
+
+  it.each([
+    ["null", null],
+    ["array", []],
+    ["empty object", {}],
+    [
+      "wrong version",
+      { version: "1", lastScanned: "", cartridges: {}, fileMap: {} },
+    ],
+    [
+      "wrong lastScanned",
+      { version: 1, lastScanned: 0, cartridges: {}, fileMap: {} },
+    ],
+    [
+      "array cartridges",
+      { version: 1, lastScanned: "", cartridges: [], fileMap: {} },
+    ],
+    [
+      "array fileMap",
+      { version: 1, lastScanned: "", cartridges: {}, fileMap: [] },
+    ],
+    [
+      "wrong fileMap values",
+      {
+        version: 1,
+        lastScanned: "",
+        cartridges: {},
+        fileMap: { "src/file.ts": "core" },
+      },
+    ],
+    [
+      "null cartridge entry",
+      {
+        version: 1,
+        lastScanned: "",
+        cartridges: { core: null },
+        fileMap: {},
+      },
+    ],
+    [
+      "null untrackedFiles",
+      {
+        version: 1,
+        lastScanned: "",
+        cartridges: {},
+        fileMap: {},
+        untrackedFiles: null,
+      },
+    ],
+    [
+      "wrong untracked entry",
+      {
+        version: 1,
+        lastScanned: "",
+        cartridges: {},
+        fileMap: {},
+        untrackedFiles: [{ filePath: 123 }],
+      },
+    ],
+  ])("rejects malformed %s without replacing RAM", async (_name, value) => {
+    const root = await createPersistedReindexFixture("disk-time");
+    await fs.writeFile(
+      path.join(root, ".cartridge", "index.json"),
+      JSON.stringify(value),
+    );
+    const manager = new CartridgeIndexManager(createConfig(root));
+    const active = createActiveIndex();
+    manager["index"] = active;
+
+    await expect(manager.load()).resolves.toBe(false);
+    expect(manager.getIndex()).toBe(active);
+    await expectInvalidNonAuthoritativeRefresh(root, manager);
+  });
+
+  it("loads valid legacy shape without untrackedFiles and valid normal shape", async () => {
+    const legacyRoot = await createPersistedReindexFixture("unused");
+    await fs.writeFile(
+      path.join(legacyRoot, ".cartridge", "index.json"),
+      JSON.stringify({
+        version: 1,
+        lastScanned: "legacy-scan",
+        cartridges: {},
+        fileMap: {},
+      }),
+    );
+    const legacyManager = new CartridgeIndexManager(createConfig(legacyRoot));
+
+    await expect(legacyManager.load()).resolves.toBe(true);
+    expect(legacyManager.getIndex().untrackedFiles).toEqual([]);
+    await expect(
+      refreshMemoryIndex({
+        projectRoot: legacyRoot,
+        indexManager: legacyManager,
+        detectMissedChanges: false,
+        includeProjectFiles: false,
+        persist: false,
+      }),
+    ).resolves.toBeDefined();
+
+    const normalRoot = await createPersistedReindexFixture("normal-time");
+    const normalManager = new CartridgeIndexManager(createConfig(normalRoot));
+    await expect(normalManager.load()).resolves.toBe(true);
+    expect(normalManager.getIndex().untrackedFiles).toEqual([
+      expect.objectContaining({
+        filePath: "src/orphan.ts",
+        detectedAt: "normal-time",
+      }),
+    ]);
+    await expect(
+      refreshMemoryIndex({
+        projectRoot: normalRoot,
+        indexManager: normalManager,
+        detectMissedChanges: false,
+        includeProjectFiles: false,
+        persist: false,
+      }),
+    ).resolves.toBeDefined();
+  });
+
+  it("rejects malformed pendingChanges and ghostFiles without replacing RAM", async () => {
+    const valid = createValidPersistedCartridgeEntry();
+    const invalidEntries: Array<[string, Record<string, unknown>]> = [
+      ["missing pendingChanges", { ...valid, pendingChanges: undefined }],
+      ["wrong pendingChanges", { ...valid, pendingChanges: "change" }],
+      ["null pending element", { ...valid, pendingChanges: [null] }],
+      [
+        "missing pending filePath",
+        {
+          ...valid,
+          pendingChanges: [{ eventType: "change", timestamp: "now" }],
+        },
+      ],
+      [
+        "wrong pending filePath",
+        {
+          ...valid,
+          pendingChanges: [
+            { filePath: 1, eventType: "change", timestamp: "now" },
+          ],
+        },
+      ],
+      [
+        "wrong pending eventType",
+        {
+          ...valid,
+          pendingChanges: [
+            { filePath: "src/file.ts", eventType: "rename", timestamp: "now" },
+          ],
+        },
+      ],
+      [
+        "wrong pending timestamp",
+        {
+          ...valid,
+          pendingChanges: [
+            { filePath: "src/file.ts", eventType: "change", timestamp: 1 },
+          ],
+        },
+      ],
+      ["missing ghostFiles", { ...valid, ghostFiles: undefined }],
+      ["wrong ghostFiles", { ...valid, ghostFiles: "src/ghost.ts" }],
+      ["wrong ghost element", { ...valid, ghostFiles: [1] }],
+    ];
+
+    for (const [, entry] of invalidEntries) {
+      const root = await createPersistedReindexFixture("disk-time");
+      await writePersistedCartridgeIndex(root, { core: entry });
+      const manager = new CartridgeIndexManager(createConfig(root));
+      const active = createActiveIndex();
+      manager["index"] = active;
+
+      await expect(manager.load()).resolves.toBe(false);
+      expect(manager.getIndex()).toBe(active);
+      await expectInvalidNonAuthoritativeRefresh(root, manager);
+    }
+  });
+
+  it("rejects malformed immediately consumed cartridge fields", async () => {
+    const valid = createValidPersistedCartridgeEntry();
+    const invalidEntries: Array<Record<string, unknown>> = [
+      { ...valid, skillPath: undefined },
+      { ...valid, description: 1 },
+      { ...valid, trackedFiles: [1] },
+      { ...valid, staleness: "0" },
+      { ...valid, lastUpdated: 1 },
+      { ...valid, depth: "1" },
+      { ...valid, parent: 1 },
+      { ...valid, dependencies: [1] },
+      { ...valid, indirectStaleness: "0" },
+    ];
+
+    for (const entry of invalidEntries) {
+      const root = await createPersistedReindexFixture("disk-time");
+      await writePersistedCartridgeIndex(root, { core: entry });
+      const manager = new CartridgeIndexManager(createConfig(root));
+      const active = createActiveIndex();
+      manager["index"] = active;
+
+      await expect(manager.load()).resolves.toBe(false);
+      expect(manager.getIndex()).toBe(active);
+      await expectInvalidNonAuthoritativeRefresh(root, manager);
+    }
+  });
+
+  it("authoritative full refresh repairs a malformed canonical index", async () => {
+    const root = await createPersistedReindexFixture("disk-time");
+    const indexPath = path.join(root, ".cartridge", "index.json");
+    const manager = new CartridgeIndexManager(createConfig(root));
+    await expect(manager.load()).resolves.toBe(true);
+    const previousFingerprint = manager.getCommittedFingerprint();
+    await fs.writeFile(indexPath, "{ invalid json");
+
+    const result = await refreshMemoryIndex({
+      projectRoot: root,
+      indexManager: manager,
+      detectMissedChanges: false,
+      includeProjectFiles: true,
+      persist: true,
+    });
+
+    expect(result.indexDiagnostics).toEqual([
+      expect.objectContaining({ code: "index_repaired" }),
+    ]);
+    const repairedBytes = await fs.readFile(indexPath, "utf8");
+    expect(() => JSON.parse(repairedBytes)).not.toThrow();
+    expect(manager.hasDirtyChanges()).toBe(false);
+    expect(manager.getCommittedFingerprint()).toBe(
+      fingerprintContent(repairedBytes),
+    );
+    expect(manager.getCommittedFingerprint()).not.toBe(previousFingerprint);
+    expect(manager.getSyncWarning()).toBeNull();
+  });
+
+  it("loads current and legitimate legacy entries while preserving extra fields", async () => {
+    const root = await createPersistedReindexFixture("disk-time");
+    const current = {
+      ...createValidPersistedCartridgeEntry(),
+      mainFileType: "MEMORY.md",
+      contentQualityStatus: "complete",
+      currentExtra: { retained: true },
+    };
+    const legacy = {
+      ...createValidPersistedCartridgeEntry(),
+      skillPath: ".agents/skills/mem-legacy/SKILL.md",
+      legacyCompatibility: true,
+      legacyExtra: "retained",
+    };
+    await writePersistedCartridgeIndex(root, { current, legacy });
+    const manager = new CartridgeIndexManager(createConfig(root));
+
+    await expect(manager.load()).resolves.toBe(true);
+    expect(
+      (manager.getIndex().cartridges.current as unknown as Record<string, unknown>)
+        .currentExtra,
+    ).toEqual({ retained: true });
+    expect(
+      (manager.getIndex().cartridges.legacy as unknown as Record<string, unknown>)
+        .legacyExtra,
+    ).toBe("retained");
+  });
+});
+
+async function expectInvalidNonAuthoritativeRefresh(
+  root: string,
+  manager: CartridgeIndexManager,
+): Promise<void> {
+  const indexPath = path.join(root, ".cartridge", "index.json");
+  const diskBefore = await fs.readFile(indexPath, "utf8");
+  const ramBefore = manager.getIndex();
+  const visibleBefore = manager.getVisibleIndex();
+  const committedBefore = manager.captureCommittedState().index;
+  const fingerprintBefore = manager.getCommittedFingerprint();
+
+  await expect(
+    refreshMemoryIndex({
+      projectRoot: root,
+      indexManager: manager,
+      detectMissedChanges: false,
+      includeProjectFiles: false,
+      persist: false,
+    }),
+  ).rejects.toBeInstanceOf(ProjectIndexInvalidError);
+
+  expect(await fs.readFile(indexPath, "utf8")).toBe(diskBefore);
+  expect(manager.getIndex()).toBe(ramBefore);
+  expect(manager.getVisibleIndex()).toEqual(visibleBefore);
+  expect(manager.captureCommittedState().index).toEqual(committedBefore);
+  expect(manager.hasDirtyChanges()).toBe(false);
+  expect(manager.getCommittedFingerprint()).toBe(fingerprintBefore);
+  expect(manager.getSyncWarning()).toMatch(/invalid/);
+}
+
+async function createPersistedReindexFixture(
+  detectedAt: string,
+): Promise<string> {
+  const root = await fs.mkdtemp(path.join(os.tmpdir(), "cartridge-reindex-"));
+  tempRoots.push(root);
+  await fs.mkdir(path.join(root, ".agents", "memory", "core"), {
+    recursive: true,
+  });
+  await fs.mkdir(path.join(root, ".cartridge"), { recursive: true });
+  await fs.mkdir(path.join(root, "src"), { recursive: true });
+  await fs.writeFile(path.join(root, "src", "owned.ts"), "export {};\n");
+  await fs.writeFile(path.join(root, "src", "orphan.ts"), "export {};\n");
+  await fs.writeFile(
+    path.join(root, ".agents", "memory", "core", "MEMORY.md"),
+    [
+      "---",
+      "name: core",
+      "description: fixture",
+      "---",
+      "",
+      "## Tracked Files",
+      "- src/owned.ts",
+      "",
+    ].join("\n"),
+  );
+  const persisted: CartridgeIndex = {
+    version: 1,
+    lastScanned: "disk-scan",
+    cartridges: {},
+    fileMap: {},
+    untrackedFiles: [
+      {
+        filePath: "src/orphan.ts",
+        detectedAt,
+        lastEvent: "change",
+        suggestedOwner: "disk-owner",
+      },
+    ],
+  };
+  await fs.writeFile(
+    path.join(root, ".cartridge", "index.json"),
+    JSON.stringify(persisted, null, 2),
+  );
+  return root;
+}
+
+function createActiveIndex(): CartridgeIndex {
+  return {
+    version: 1,
+    lastScanned: "active-scan",
+    cartridges: {},
+    fileMap: {},
+    untrackedFiles: [
+      {
+        filePath: "src/active.ts",
+        detectedAt: "active-time",
+        lastEvent: "add",
+        suggestedOwner: "active-owner",
+      },
+    ],
+  };
+}
+
+function createValidPersistedCartridgeEntry(): Record<string, unknown> {
+  return {
+    skillPath: ".agents/memory/core/MEMORY.md",
+    description: "persisted fixture",
+    trackedFiles: ["src/owned.ts"],
+    staleness: 0,
+    lastUpdated: "2026-07-11T00:00:00+08:00",
+    pendingChanges: [
+      {
+        filePath: "src/owned.ts",
+        eventType: "change",
+        timestamp: "2026-07-11T00:00:00+08:00",
+      },
+    ],
+    depth: 1,
+    parent: null,
+    ghostFiles: ["src/missing.ts"],
+    dependencies: [],
+    indirectStaleness: 0,
+  };
+}
+
+async function writePersistedCartridgeIndex(
+  root: string,
+  cartridges: Record<string, Record<string, unknown>>,
+): Promise<void> {
+  await fs.writeFile(
+    path.join(root, ".cartridge", "index.json"),
+    JSON.stringify({
+      version: 1,
+      lastScanned: "persisted-scan",
+      cartridges,
+      fileMap: {},
+      untrackedFiles: [],
+    }),
+  );
+}

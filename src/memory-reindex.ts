@@ -1,5 +1,10 @@
 import { createConfig } from "./config.js";
-import { GitignoreFilter } from "./gitignore-filter.js";
+import {
+  GitignoreFilter,
+  type GitExclusionDiagnostic,
+  type GitExclusionMode,
+  type ProjectFileDiscoveryResult,
+} from "./gitignore-filter.js";
 import { CartridgeIndexManager } from "./index-manager.js";
 import { createVisibleCartridgeIndex } from "./visible-index.js";
 import { validateProjectRoot } from "./path-guard.js";
@@ -8,7 +13,11 @@ import type {
   MemoryContentQualityStatus,
   MemoryMainFileType,
 } from "./memory-main-file.js";
-import { listProjectFiles } from "./project-file-list.js";
+import {
+  runProjectIndexTransaction,
+} from "./project-index-transaction.js";
+
+export { serializeProjectIndexMutation } from "./project-index-transaction.js";
 
 export interface MemoryIndexSummary {
   cartridgeCount: number;
@@ -28,6 +37,12 @@ export interface MemoryIndexSummary {
 export interface MemoryReindexResult {
   index: CartridgeIndex;
   summary: MemoryIndexSummary;
+  exclusionMode: GitExclusionMode | null;
+  exclusionDiagnostics: GitExclusionDiagnostic[];
+  indexDiagnostics?: Array<{
+    code: "index_repaired";
+    message: string;
+  }>;
 }
 
 export interface MemoryReindexOptions {
@@ -39,6 +54,12 @@ export interface MemoryReindexOptions {
   includeProjectFiles?: boolean;
   clearUntrackedFiles?: boolean;
   persist?: boolean;
+}
+
+export interface ProjectUntrackedRefreshOptions {
+  projectRoot: string;
+  indexManager: CartridgeIndexManager;
+  gitignoreFilter: GitignoreFilter;
 }
 
 function emptyMainFileTypeCounts(): Record<MemoryMainFileType, number> {
@@ -102,7 +123,65 @@ export function summarizeMemoryIndex(index: CartridgeIndex): MemoryIndexSummary 
   };
 }
 
+/**
+ * 取得 canonical project file set，並以它 authoritative 地收斂未歸屬池。
+ * Desktop、VS Code 與 MCP 都必須使用此入口，避免各自產生不同候選集合。
+ */
+export async function refreshProjectUntrackedFiles(
+  options: ProjectUntrackedRefreshOptions,
+): Promise<ProjectFileDiscoveryResult> {
+  const transaction = await runProjectIndexTransaction({
+    projectRoot: validateProjectRoot(options.projectRoot),
+    indexManager: options.indexManager,
+    mutation: async () => {
+      options.gitignoreFilter.reload();
+      const discovery = await options.gitignoreFilter.discoverProjectFiles();
+      options.indexManager.reconcileUntrackedFiles(discovery.files);
+      return discovery;
+    },
+  });
+  return transaction.value;
+}
+
 export async function refreshMemoryIndex(
+  options: MemoryReindexOptions,
+): Promise<MemoryReindexResult> {
+  const projectRoot = validateProjectRoot(options.projectRoot);
+  const config = options.config ?? createConfig(projectRoot);
+  const indexManager =
+    options.indexManager ?? new CartridgeIndexManager(config);
+  const includeProjectFiles = options.includeProjectFiles ?? true;
+  const persist = options.persist ?? true;
+  const transaction = await runProjectIndexTransaction({
+    projectRoot,
+    indexManager,
+    allowInvalidRepair: includeProjectFiles && persist,
+    persist,
+    mutation: () =>
+      refreshMemoryIndexUnlocked({
+        ...options,
+        projectRoot,
+        config,
+        indexManager,
+        includeProjectFiles,
+        persist,
+      }),
+  });
+  return {
+    ...transaction.value,
+    indexDiagnostics: transaction.repairedInvalidIndex
+      ? [
+          {
+            code: "index_repaired",
+            message:
+              "The invalid canonical project index was repaired by an authoritative full reindex.",
+          },
+        ]
+      : [],
+  };
+}
+
+async function refreshMemoryIndexUnlocked(
   options: MemoryReindexOptions,
 ): Promise<MemoryReindexResult> {
   const projectRoot = validateProjectRoot(options.projectRoot);
@@ -120,19 +199,21 @@ export async function refreshMemoryIndex(
   if (options.detectMissedChanges ?? true) {
     indexManager.detectMissedChanges(config.scoring);
   }
+  let discovery: ProjectFileDiscoveryResult | null = null;
   if (options.includeProjectFiles ?? true) {
-    const files = await listProjectFiles(projectRoot);
-    indexManager.detectUntrackedFiles(files, gitignoreFilter);
+    discovery = await refreshProjectUntrackedFiles({
+      projectRoot,
+      indexManager,
+      gitignoreFilter,
+    });
   }
   indexManager.validateTrackedFiles();
-  indexManager.refilterUntrackedFiles(gitignoreFilter);
   indexManager.markDirty();
-  if (options.persist ?? true) {
-    await indexManager.flushIfDirty();
-  }
 
   return {
     index: indexManager.getVisibleIndex(),
     summary: summarizeMemoryIndex(indexManager.getVisibleIndex()),
+    exclusionMode: discovery?.mode ?? null,
+    exclusionDiagnostics: discovery?.diagnostics ?? [],
   };
 }

@@ -2,6 +2,34 @@
 
 ## [Unreleased]
 
+## [5.5.3] — 2026-07-11
+
+### feat
+
+- Git 標準排除服務 — Desktop Console、VSIX 與 `memory_reindex` 共用 Git CLI canonical candidate set，支援根／巢狀 `.gitignore`、否定規則、`.git/info/exclude` 與 `core.excludesFile`，並保留已追蹤檔案。
+- 跨程序狀態協調 — 同一專案的 Desktop、VSIX 與 MCP 以 `.cartridge/index.json` 為 canonical 持久化狀態，共用 health/sync warning 判定，並新增跨程序鎖、原子取代、修改前重載與外部索引變動重載。
+
+### fix
+
+- 未歸屬資料收斂 — 完整重掃會清除已忽略、已刪除、已歸屬或屬於 memory artifact 的舊項目，並保留仍有效項目的 `detectedAt`、`lastEvent` 與 `suggestedOwner` metadata。
+- Git 降級透明度 — 非 Git workspace、Git 不可用、timeout 或命令失敗時，批次與即時路徑都回退到遞迴列舉＋根 `.gitignore`，並以非阻塞 warning 揭露巢狀、info 與 global excludes 可能的暫時差異。
+- 多入口寫入競態 — 修正 Desktop 與 VSIX 同時開啟同一專案時，舊記憶體狀態可能覆蓋新索引、導致顯示分叉的問題。
+
+### test
+
+- 回歸覆蓋 — 新增真實 temporary Git repository、Git fallback、metadata reconciliation、跨程序鎖、原子取代、reload-before-mutate 與 external index reload 測試；全套 370 個案例通過，另有 1 個 Windows 作業系統限制案例略過。
+
+## [desktop-v5.5.3] — 2026-07-11
+
+### fix
+
+- Desktop／VSIX 狀態一致 — Desktop 5.5.3 與 VSIX 5.5.3 必須由同一原始碼 revision 打包，並共用 `.cartridge/index.json`、Git 標準候選集、跨程序持久化保護與 canonical health/sync warning。
+
+### note
+
+- Windows 安裝檔目前未簽章，可能顯示 SmartScreen 提示；請從本倉庫正式 Release 取得安裝檔。
+- 實機剩餘驗收 — 同時開啟 Desktop 與 VSIX 監控同一專案、並觀察外部索引變動的雙 host 操作者驗證仍列為手動驗收；本版本不宣稱已通過特定秒數的實機收斂承諾。
+
 ## [5.5.2] — 2026-06-15
 
 ### fix

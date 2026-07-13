@@ -2,6 +2,30 @@
 
 ## [Unreleased]
 
+## [desktop-v5.5.4] — 2026-07-13
+
+### fix
+
+- Desktop 監控器生命週期 — 停止流程會等待舊 generation 的完整掃描結束後才 flush 並返回；舊 watcher、timer 與通知仍由 generation guard 隔離。
+- Desktop 重掃收斂 — 同一 lifecycle generation 的 single-flight 週期最多執行初始掃描加一次 trailing rescan；舊 generation 的 trailing 完成後，較新的 lifecycle generation 仍可排入其必要的 startup scan，已排隊請求仍會 OR 合併啟動警告意圖。
+- Desktop 訂閱隔離 — 首次同步快照回呼若失敗，該 listener 會立即移除，不會讓 `subscribe` 拋出或遺留 poisoned listener。
+
+### runtime evidence
+
+- Runtime soak 已取得正式證據：15 分鐘、31 個 samples，監控 roots 持續存活；Working Set 峰值 408.47 MiB、最終 361.61 MiB，Private 峰值 519.22 MiB、最終 489.07 MiB，未見持續上升趨勢。此結果不排除更長時間或特定工作負載下的洩漏。
+
+## [5.5.4] — 2026-07-13
+
+### fix
+
+- Desktop 監控器生命週期 — 以 generation guard 隔離舊啟動、停止與監聽回呼，避免過期作業回寫目前狀態；啟動警告僅會在成功啟動生命週期的首次完整掃描植入。
+- Desktop 重掃收斂 — 同一 lifecycle generation 的同時請求改為 single-flight，每個週期最多保留一次 trailing rescan；舊 generation 的 trailing 完成後，較新的 lifecycle generation 可排入其必要的 startup scan，並維持警告植入意圖；背景完整重掃調整為每 15 分鐘一次。
+- Desktop 事件隔離 — 單一 listener 失敗不再中斷其他 listener 或改變監控器狀態。
+
+### test
+
+- 回歸覆蓋 — 新增 Desktop monitor 的生命週期、重掃佇列、警告植入與 listener 隔離回歸案例。
+
 ## [5.5.3] — 2026-07-11
 
 ### feat

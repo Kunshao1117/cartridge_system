@@ -9,7 +9,7 @@ import { CARTRIDGE_TOOLS } from "./tool-registry.js";
 import { dispatchToolCall } from "./tool-dispatcher.js";
 
 export const MCP_SERVER_NAME = "cartridge-system";
-export const MCP_SERVER_VERSION = "5.5.3";
+export const MCP_SERVER_VERSION = "5.5.4";
 
 export interface McpServerCliOptions {
   workspace?: string;

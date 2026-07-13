@@ -15,6 +15,8 @@ import {
   type DesktopProjectSnapshot,
 } from "./project-snapshot.js";
 
+const BACKGROUND_RESCAN_INTERVAL_MS = 900_000;
+
 export type ProjectMonitorListener = (
   snapshot: DesktopProjectSnapshot,
 ) => void;
@@ -30,6 +32,16 @@ export class CartridgeProjectMonitor {
   private watcher: NodeProjectWatcher | undefined;
   private heartbeat: NodeJS.Timeout | undefined;
   private rescanTimer: NodeJS.Timeout | undefined;
+  private startupPromise: Promise<DesktopProjectSnapshot> | undefined;
+  private activeRescan: Promise<DesktopProjectSnapshot> | undefined;
+  private trailingRescan:
+    | { generation: number; injectStartupWarnings: boolean }
+    | undefined;
+  private isRunningTrailingRescan = false;
+  private runningRescanGeneration: number | undefined;
+  private lifecycleGeneration = 0;
+  private started = false;
+  private stopped = false;
   private listeners = new Set<ProjectMonitorListener>();
   private enabled = true;
   private error: string | null = null;
@@ -49,32 +61,147 @@ export class CartridgeProjectMonitor {
     this.gitignoreFilter = new GitignoreFilter(this.projectRoot);
   }
 
-  async start(): Promise<DesktopProjectSnapshot> {
+  start(): Promise<DesktopProjectSnapshot> {
+    if (this.startupPromise) return this.startupPromise;
+    if (this.started && !this.stopped) return this.rescan();
+
+    const generation = ++this.lifecycleGeneration;
+    this.started = true;
+    this.stopped = false;
     this.enabled = true;
-    await this.rescan();
-    this.startWatcher();
-    this.heartbeat = setInterval(() => {
-      void this.indexManager.flushIfDirty().catch((error) =>
-        this.setError(error),
-      );
-    }, 300_000);
-    this.rescanTimer = setInterval(() => {
-      void this.rescan().catch((error) => this.setError(error));
-    }, 60_000);
-    return this.getSnapshot();
+    const startupPromise = this.startGeneration(generation);
+    this.startupPromise = startupPromise;
+
+    const releaseStartup = () => {
+      if (this.startupPromise === startupPromise) {
+        this.startupPromise = undefined;
+      }
+    };
+    void startupPromise.then(releaseStartup, releaseStartup);
+    return startupPromise;
   }
 
   async stop(): Promise<void> {
+    const generation = ++this.lifecycleGeneration;
+    this.started = false;
+    this.stopped = true;
     this.enabled = false;
-    this.watcher?.stop();
+    this.startupPromise = undefined;
+    this.trailingRescan = undefined;
+
+    const watcher = this.watcher;
     this.watcher = undefined;
-    if (this.heartbeat) clearInterval(this.heartbeat);
-    if (this.rescanTimer) clearInterval(this.rescanTimer);
+    try {
+      watcher?.stop();
+    } finally {
+      this.clearTimers();
+    }
+
+    await this.activeRescan?.catch(() => undefined);
     await this.indexManager.flushIfDirty();
+    if (generation !== this.lifecycleGeneration || !this.stopped) return;
     this.notify();
   }
 
-  async rescan(): Promise<DesktopProjectSnapshot> {
+  rescan(): Promise<DesktopProjectSnapshot> {
+    return this.requestRescan(this.lifecycleGeneration);
+  }
+
+  private async startGeneration(
+    generation: number,
+  ): Promise<DesktopProjectSnapshot> {
+    await this.requestRescan(generation, true);
+    if (!this.isActiveGeneration(generation)) return this.getSnapshot();
+
+    try {
+      this.startWatcher(generation);
+      this.startTimers(generation);
+    } catch (error) {
+      if (this.isActiveGeneration(generation)) {
+        this.started = false;
+        this.watcher?.stop();
+        this.watcher = undefined;
+        this.clearTimers();
+        this.setError(error, generation);
+      }
+      throw error;
+    }
+
+    return this.getSnapshot();
+  }
+
+  private requestRescan(
+    generation: number,
+    injectStartupWarnings = false,
+  ): Promise<DesktopProjectSnapshot> {
+    if (!this.isCurrentGeneration(generation)) {
+      return Promise.resolve(this.getSnapshot());
+    }
+
+    if (this.activeRescan) {
+      if (
+        this.isRunningTrailingRescan &&
+        generation <= (this.runningRescanGeneration ?? generation)
+      ) {
+        return this.activeRescan;
+      }
+
+      const trailingRescan = this.trailingRescan;
+      if (!trailingRescan || generation > trailingRescan.generation) {
+        this.trailingRescan = { generation, injectStartupWarnings };
+      } else if (generation === trailingRescan.generation) {
+        trailingRescan.injectStartupWarnings ||= injectStartupWarnings;
+      }
+      return this.activeRescan;
+    }
+
+    const activeRescan = this.runRescanQueue(
+      generation,
+      injectStartupWarnings,
+    );
+    this.activeRescan = activeRescan;
+    const releaseRescan = () => {
+      if (this.activeRescan === activeRescan) {
+        this.activeRescan = undefined;
+      }
+    };
+    void activeRescan.then(releaseRescan, releaseRescan);
+    return activeRescan;
+  }
+
+  private async runRescanQueue(
+    initialGeneration: number,
+    injectStartupWarnings: boolean,
+  ): Promise<DesktopProjectSnapshot> {
+    let generation = initialGeneration;
+    let shouldInjectStartupWarnings = injectStartupWarnings;
+
+    this.trailingRescan = undefined;
+    await this.performRescan(generation, shouldInjectStartupWarnings);
+
+    while (true) {
+      const trailingRescan = this.takeTrailingRescan();
+      if (!trailingRescan) break;
+
+      this.isRunningTrailingRescan = true;
+      generation = trailingRescan.generation;
+      shouldInjectStartupWarnings = trailingRescan.injectStartupWarnings;
+      this.runningRescanGeneration = generation;
+      try {
+        await this.performRescan(generation, shouldInjectStartupWarnings);
+      } finally {
+        this.isRunningTrailingRescan = false;
+      }
+    }
+
+    this.runningRescanGeneration = undefined;
+    return this.getSnapshot();
+  }
+
+  private async performRescan(
+    generation: number,
+    injectStartupWarnings: boolean,
+  ): Promise<void> {
     try {
       const { index } = await refreshMemoryIndex({
         projectRoot: this.projectRoot,
@@ -85,14 +212,27 @@ export class CartridgeProjectMonitor {
         includeProjectFiles: true,
         persist: true,
       });
-      await this.injectStartupWarnings(index);
+      if (!this.isCurrentGeneration(generation)) return;
+
+      if (injectStartupWarnings) {
+        await this.injectStartupWarnings(index, generation);
+        if (!this.isCurrentGeneration(generation)) return;
+      }
+
       this.error = null;
       this.syncWarning = null;
+      this.notify();
     } catch (error) {
-      this.setError(error);
+      this.setError(error, generation);
     }
-    this.notify();
-    return this.getSnapshot();
+  }
+
+  private takeTrailingRescan():
+    | { generation: number; injectStartupWarnings: boolean }
+    | undefined {
+    const trailingRescan = this.trailingRescan;
+    this.trailingRescan = undefined;
+    return trailingRescan;
   }
 
   getSnapshot(): DesktopProjectSnapshot {
@@ -107,15 +247,23 @@ export class CartridgeProjectMonitor {
 
   subscribe(listener: ProjectMonitorListener): () => void {
     this.listeners.add(listener);
-    listener(this.getSnapshot());
+    try {
+      listener(this.getSnapshot());
+    } catch {
+      this.listeners.delete(listener);
+      return () => undefined;
+    }
     return () => this.listeners.delete(listener);
   }
 
-  private startWatcher(): void {
+  private startWatcher(generation: number): void {
+    if (!this.isActiveGeneration(generation)) return;
+
     this.watcher?.stop();
     this.watcher = new NodeProjectWatcher({
       projectRoot: this.projectRoot,
       onEvent: (absPath, eventType) => {
+        if (!this.isActiveGeneration(generation)) return;
         void handleProjectFileEvent({
           config: this.config,
           indexManager: this.indexManager,
@@ -124,18 +272,23 @@ export class CartridgeProjectMonitor {
           writer: this.writer,
           absFilePath: absPath,
           eventType,
-          onUpdate: () => this.notify(),
-        }).catch((error) => this.setError(error));
+          onUpdate: () => this.notifyIfCurrent(generation),
+        }).catch((error) => this.setError(error, generation));
       },
       onRescan: () => {
-        void this.rescan().catch((error) => this.setError(error));
+        if (!this.isActiveGeneration(generation)) return;
+        void this.requestRescan(generation).catch((error) =>
+          this.setError(error, generation),
+        );
       },
       onIndexChanged: () => {
+        if (!this.isActiveGeneration(generation)) return;
         void reloadProjectIndexFromDisk(
           this.projectRoot,
           this.indexManager,
         )
           .then((result) => {
+            if (!this.isActiveGeneration(generation)) return;
             if (result.status === "self-write") return;
             this.syncWarning =
               result.status === "missing" || result.status === "invalid"
@@ -143,15 +296,44 @@ export class CartridgeProjectMonitor {
                 : null;
             this.notify();
           })
-          .catch((error) => this.setError(error));
+          .catch((error) => this.setError(error, generation));
       },
-      onError: (error) => this.setError(error),
+      onError: (error) => this.setError(error, generation),
     });
     this.watcher.start();
   }
 
-  private async injectStartupWarnings(index: CartridgeIndex): Promise<void> {
+  private startTimers(generation: number): void {
+    this.clearTimers();
+    if (!this.isActiveGeneration(generation)) return;
+
+    this.heartbeat = setInterval(() => {
+      if (!this.isActiveGeneration(generation)) return;
+      void this.indexManager.flushIfDirty().catch((error) =>
+        this.setError(error, generation),
+      );
+    }, 300_000);
+    this.rescanTimer = setInterval(() => {
+      if (!this.isActiveGeneration(generation)) return;
+      void this.requestRescan(generation).catch((error) =>
+        this.setError(error, generation),
+      );
+    }, BACKGROUND_RESCAN_INTERVAL_MS);
+  }
+
+  private clearTimers(): void {
+    if (this.heartbeat) clearInterval(this.heartbeat);
+    if (this.rescanTimer) clearInterval(this.rescanTimer);
+    this.heartbeat = undefined;
+    this.rescanTimer = undefined;
+  }
+
+  private async injectStartupWarnings(
+    index: CartridgeIndex,
+    generation: number,
+  ): Promise<void> {
     for (const entry of Object.values(index.cartridges)) {
+      if (!this.isCurrentGeneration(generation)) return;
       if (
         entry.staleness >= this.config.thresholds.significant &&
         entry.pendingChanges.length > 0
@@ -165,13 +347,36 @@ export class CartridgeProjectMonitor {
     }
   }
 
-  private setError(error: unknown): void {
+  private isCurrentGeneration(generation: number): boolean {
+    return generation === this.lifecycleGeneration;
+  }
+
+  private isActiveGeneration(generation: number): boolean {
+    return (
+      !this.stopped &&
+      this.started &&
+      this.isCurrentGeneration(generation)
+    );
+  }
+
+  private setError(error: unknown, generation: number): void {
+    if (!this.isCurrentGeneration(generation)) return;
     this.error = error instanceof Error ? error.message : String(error);
     this.notify();
   }
 
+  private notifyIfCurrent(generation: number): void {
+    if (this.isCurrentGeneration(generation)) this.notify();
+  }
+
   private notify(): void {
     const snapshot = this.getSnapshot();
-    for (const listener of this.listeners) listener(snapshot);
+    for (const listener of this.listeners) {
+      try {
+        listener(snapshot);
+      } catch {
+        // Listener failures must not alter monitor state or block other listeners.
+      }
+    }
   }
 }

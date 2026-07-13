@@ -2,21 +2,21 @@
 name: _system
 scopePath: null
 description: >
-  專案記憶：套件版本、TypeScript 建置、測試、lint 與相依安全設定。Use when: 確認 5.5.3
+  專案記憶：5.5.4 套件版本、TypeScript 建置、測試、lint 與相依安全設定。Use when: 確認 5.5.4
   系統版本、建置工具鏈或發布前品質命令時載入。
-last_updated: '2026-07-11T14:51:35+08:00'
+last_updated: '2026-07-13T23:00:10+08:00'
 status: stable
 staleness: 0
 memory_schema_version: 2
 memory_quality_version: 1
 memory_kind: source_fact
 verification_status: verified
-last_verified: '2026-07-11T14:40:20+08:00'
+last_verified: '2026-07-13T22:55:00+08:00'
 valid_scope: current-project
 content_language: en
 human_language: zh-TW
 cycle_id: 2026-06-04-001
-cycle_event_count: 7
+cycle_event_count: 8
 cycle_event_limit: 30
 size_limit_bytes: 16384
 line_limit: 120
@@ -30,12 +30,13 @@ metadata:
   tool_scope:
     - 'filesystem:read'
 ---
+
 # _system — Module Memory
 
 ## Current Truth
 
 - This card owns the package and lockfile version, TypeScript configuration, bundling, lint, test, and dependency-audit constraints.
-- `package.json` and the root package identity in `package-lock.json` are synchronized to 5.5.3.
+- `package.json` and the root package identity in `package-lock.json` are synchronized to 5.5.4.
 - The release quality route includes targeted tests, full tests, lint, `tsc --noEmit`, extension build, and desktop build before packaging or publication.
 - Dependency audit and manifest assertions remain part of release readiness.
 - The package manifest retains the security override for `esbuild` and the supported MCP runtime dependency resolution.
@@ -56,6 +57,7 @@ metadata:
 - 05: Updated package and lockfile to 5.5.1 with dependency security verification.
 - 06: Updated package and lockfile to 5.5.2 with the `esbuild` security override.
 - 07: Synchronized package and lockfile identity to 5.5.3 and retained the full release quality route.
+- 08: 5.5.4 synchronized `package.json` and root `package-lock.json` identity while retaining quality-route constraints.
 
 ## Archive Index
 
@@ -71,8 +73,9 @@ metadata:
 - source:tsup.desktop.config.ts
 - source:eslint.config.js
 - source:vitest.config.ts
-- validation:VD-03 — 5.5.3 build, lint, test, typecheck, and audit validation provenance.
-- review:RD-03 — independent 5.5.3 review provenance.
+- validation:5.5.4 source suite — typecheck, lint, and full tests accepted.
+- validation:validation-artifact-5.5.4-20260713-r1 — packaged version consistency accepted.
+- review:hp-review-source-final-20260713-r3 — source review accepted with P0–P3 clear.
 
 ## Read Contract
 
@@ -85,9 +88,9 @@ metadata:
 
 ## 中文摘要
 
-- 套件與 lockfile 的根版本已同步為 5.5.3。
+- `package.json` 與 `package-lock.json` 的根套件身分已同步為 5.5.4。
 - 發布前保留測試、lint、型別檢查、兩條建置與相依稽核門檻。
-- 發布標籤與產物規則由 release-packaging 卡管理。
+- 發布標籤與產物規則仍由 release-packaging 卡管理。
 
 ## Tracked Files
 

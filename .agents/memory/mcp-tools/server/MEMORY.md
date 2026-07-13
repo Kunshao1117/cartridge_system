@@ -7,19 +7,19 @@ dependencies:
 description: >
   專案記憶：MCP SDK stdio server、CLI 入口與公開版本 metadata。Use when: 修改 server 啟動、工具公開、CLI
   參數或版本契約時載入。
-last_updated: '2026-07-11T14:53:17+08:00'
+last_updated: '2026-07-13T22:59:36+08:00'
 status: stable
 staleness: 0
 memory_schema_version: 2
 memory_quality_version: 1
 memory_kind: source_fact
 verification_status: verified
-last_verified: '2026-07-11T14:40:20+08:00'
+last_verified: '2026-07-13T22:55:00+08:00'
 valid_scope: current-project
 content_language: en
 human_language: zh-TW
 cycle_id: 2026-06-04-001
-cycle_event_count: 7
+cycle_event_count: 8
 cycle_event_limit: 30
 size_limit_bytes: 16384
 line_limit: 120
@@ -34,11 +34,12 @@ metadata:
     - 'filesystem:read'
     - 'filesystem:write'
 ---
+
 # mcp-tools.server — Module Memory
 
 ## Current Truth
 
-- `MCP_SERVER_VERSION`, SDK server metadata, CLI version output, and server tests are synchronized to 5.5.3.
+- `MCP_SERVER_VERSION`, SDK server metadata, CLI version output, and server tests are synchronized to 5.5.4.
 - The server is a thin stdio transport that obtains public tool definitions from `mcp-tools.tool-registry`.
 - Tool calls are delegated to `mcp-tools.dispatcher`; the server does not duplicate handler, safety, or confirmation logic.
 - The CLI keeps `--workspace` as an optional absolute default project root for downstream calls.
@@ -50,6 +51,11 @@ metadata:
 - Do not duplicate registry metadata or dispatcher authorization logic in the transport layer.
 - Keep stdio output protocol-safe; diagnostics belong on the supported error channel.
 
+## Key Decisions
+
+- `mcp-tools.dispatcher` is a staleness dependency because server call routing consumes its authorization boundary.
+- `mcp-tools.tool-registry` is a staleness dependency because server list-tools and metadata consume its public definitions.
+
 ## Cycle Events
 
 - 01: Migrated the legacy card into schema v2 and preserved old content in archive volumes.
@@ -59,6 +65,7 @@ metadata:
 - 05: Synchronized server metadata and CLI version to 5.5.1.
 - 06: Synchronized server metadata and CLI version to 5.5.2.
 - 07: Synchronized `MCP_SERVER_VERSION`, metadata, CLI, and tests to 5.5.3.
+- 08: 5.5.4 synchronized `MCP_SERVER_VERSION`, SDK metadata, CLI version output, and server tests.
 
 ## Archive Index
 
@@ -68,10 +75,9 @@ metadata:
 
 - source:src/mcp-server.ts
 - source:src/tests/mcp-server.test.ts
-- source:src/tool-registry.ts
-- source:src/mcp-dispatcher.ts
-- validation:VD-03 — 5.5.3 server and CLI validation provenance.
-- review:RD-03 — independent 5.5.3 review provenance.
+- validation:5.5.4 source suite — MCP/version tests accepted.
+- validation:validation-artifact-5.5.4-20260713-r1 — packaged MCP runtime reported 5.5.4.
+- review:hp-review-source-final-20260713-r3 — source review accepted with P0–P3 clear.
 
 ## Read Contract
 
@@ -84,8 +90,8 @@ metadata:
 
 ## 中文摘要
 
-- MCP server metadata、CLI 版本與測試已同步為 5.5.3。
-- Server 維持薄層設計，工具清單由 registry 提供，呼叫授權由 dispatcher 處理。
+- MCP server 的版本常數、SDK metadata、CLI 版本輸出與測試已同步為 5.5.4。
+- Server 維持薄層設計：工具定義來自 registry，呼叫分派與安全界線來自 dispatcher。
 - `--workspace` 仍可指定預設專案根目錄，不另建狀態來源。
 
 ## Tracked Files
@@ -96,6 +102,8 @@ metadata:
 ## Relations
 
 - mcp-tools（parent overview）
+- mcp-tools.dispatcher（call routing and authorization boundary consumer）
+- mcp-tools.tool-registry（public tool-definition and metadata source）
 - _system（package version source）
 - release-packaging（npm runtime release target）
 

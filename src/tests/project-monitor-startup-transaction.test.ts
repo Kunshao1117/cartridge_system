@@ -43,17 +43,57 @@ import { handleMemoryCommit } from "../mcp-handlers.js";
 let root: string | undefined;
 let monitor: CartridgeProjectMonitor | undefined;
 let releaseScan: (() => void) | undefined;
+let pendingStartup: Promise<unknown> | undefined;
+let fixtureLock: { lockPath: string; ownerPath: string } | undefined;
+
+async function holdFixtureLock(lockPath: string) {
+  await fs.mkdir(lockPath);
+  const token = randomUUID();
+  fixtureLock = { lockPath, ownerPath: path.join(lockPath, `owner-${token}.json`) };
+  await fs.writeFile(fixtureLock.ownerPath, JSON.stringify({
+    protocolVersion: 2, pid: process.pid, hostname: os.hostname(), token, createdAt: Date.now(),
+  }));
+  return fixtureLock;
+}
+
+async function releaseFixtureLock() {
+  if (!fixtureLock) return;
+  const { lockPath, ownerPath } = fixtureLock;
+  // Release only the fixture's UUID. A waiting transaction may already have
+  // replaced the empty canonical directory with its own complete lock.
+  await fs.unlink(ownerPath).catch(error => {
+    if (error.code !== "ENOENT") throw error;
+  });
+  await fs.rmdir(lockPath).catch(async error => {
+    if (["ENOENT", "ENOTEMPTY", "EEXIST"].includes(error.code)) return;
+    if (["EACCES", "EPERM"].includes(error.code)) {
+      try {
+        if ((await fs.readdir(lockPath)).length > 0) return;
+      } catch (readError) {
+        if ((readError as NodeJS.ErrnoException).code === "ENOENT") return;
+      }
+    }
+    throw error;
+  });
+  fixtureLock = undefined;
+}
 
 afterEach(async () => {
+  const stopping = monitor?.stop();
   releaseScan?.();
-  if (root) await fs.rm(path.join(root, ".cartridge/index.lock"), { recursive: true, force: true });
-  await monitor?.stop();
+  await releaseFixtureLock();
+  const settled = await Promise.allSettled([pendingStartup, stopping]);
+  // Recursive cleanup is safe only once every fixture operation has drained.
   if (root) await fs.rm(root, { recursive: true, force: true });
   root = undefined;
   monitor = undefined;
   releaseScan = undefined;
+  pendingStartup = undefined;
   barrier.reached = undefined;
   barrier.resume = undefined;
+  for (const result of settled) {
+    if (result.status === "rejected") throw result.reason;
+  }
 });
 
 async function prepareStaleStartup() {
@@ -76,6 +116,7 @@ async function prepareStaleStartup() {
   barrier.resume = new Promise<void>(resolve => { releaseScan = resolve; });
   monitor = new CartridgeProjectMonitor(root);
   const startup = monitor.start();
+  pendingStartup = startup;
   await reached;
   return { projectRoot: root, cardPath, indexPath, startup };
 }
@@ -109,24 +150,53 @@ describe("startup warnings use the locked canonical revision", () => {
     const lockPath = path.join(projectRoot, ".cartridge/index.lock");
     const initialCard = await fs.readFile(cardPath, "utf8");
     const initialIndex = await fs.readFile(indexPath, "utf8");
-    await fs.mkdir(lockPath);
-    const token = randomUUID();
-    await fs.writeFile(path.join(lockPath, `owner-${token}.json`), JSON.stringify({
-      protocolVersion: 2, pid: process.pid, hostname: os.hostname(), token, createdAt: Date.now(),
-    }));
+    await holdFixtureLock(lockPath);
     releaseScan!();
     await new Promise(resolve => setTimeout(resolve, 150));
     const stopping = monitor!.stop();
     try {
-      await fs.rm(lockPath, { recursive: true, force: true });
+      await releaseFixtureLock();
       await Promise.all([startup, stopping]);
       expect.soft(await fs.readFile(cardPath, "utf8")).toBe(initialCard);
       expect.soft(await fs.readFile(indexPath, "utf8")).toBe(initialIndex);
       expect(barrier.staleScore).toBeGreaterThanOrEqual(10);
       expect(barrier.pending).toBeGreaterThan(0);
     } finally {
-      await fs.rm(lockPath, { recursive: true, force: true });
-      await Promise.all([startup, stopping]);
+      await releaseFixtureLock();
+      await Promise.allSettled([startup, stopping]);
+    }
+  });
+
+  it("preserves a replacement owner published while the fixture releases its lock", async () => {
+    root = await fs.mkdtemp(path.join(os.tmpdir(), "startup-warning-transaction-"));
+    const lockPath = path.join(root, ".cartridge/index.lock");
+    await fs.mkdir(path.dirname(lockPath), { recursive: true });
+    const held = await holdFixtureLock(lockPath);
+    const replacementToken = randomUUID();
+    const candidatePath = `${lockPath}.candidate-${process.pid}-${replacementToken}`;
+    const replacementName = `owner-${replacementToken}.json`;
+    const replacementContent = JSON.stringify({
+      protocolVersion: 2, pid: process.pid, hostname: os.hostname(), token: replacementToken, createdAt: Date.now(),
+    });
+    await fs.mkdir(candidatePath);
+    await fs.writeFile(path.join(candidatePath, replacementName), replacementContent);
+    const unlink = fs.unlink.bind(fs);
+    const release = vi.spyOn(fs, "unlink").mockImplementationOnce(async ownerPath => {
+      expect(ownerPath).toBe(held.ownerPath);
+      await unlink(ownerPath);
+      // Force the valid interleaving: another contender reaps the now-empty
+      // directory and publishes its prepared owner before our delayed rmdir.
+      await fs.rmdir(lockPath);
+      await fs.rename(candidatePath, lockPath);
+    });
+    try {
+      await releaseFixtureLock();
+      await releaseFixtureLock();
+      expect(release).toHaveBeenCalledTimes(1);
+      expect(await fs.readdir(lockPath)).toEqual([replacementName]);
+      expect(await fs.readFile(path.join(lockPath, replacementName), "utf8")).toBe(replacementContent);
+    } finally {
+      release.mockRestore();
     }
   });
 });

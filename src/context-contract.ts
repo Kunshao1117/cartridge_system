@@ -1,6 +1,7 @@
+import { assertPathInsideProject } from "./file-containment.js";
 import * as fs from "fs/promises";
 import * as path from "path";
-import matter from "gray-matter";
+import matter from "./safe-frontmatter.js";
 import { parseTrackedFiles } from "./index-manager.js";
 import type {
   ContextAsset,
@@ -38,9 +39,9 @@ export const staticContextAssets: Array<{
   },
 ];
 
-export async function readContextText(filePath: string): Promise<string | null> {
+export async function readContextText(projectRoot: string, filePath: string): Promise<string | null> {
   try {
-    return await fs.readFile(filePath, "utf-8");
+    return await fs.readFile(assertPathInsideProject(projectRoot, filePath), "utf-8");
   } catch {
     return null;
   }

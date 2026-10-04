@@ -1,7 +1,8 @@
+import { assertPathInsideProject, tryProjectPath } from "./file-containment.js";
 import fs from "node:fs";
 import * as fsp from "node:fs/promises";
 import path from "node:path";
-import matter from "gray-matter";
+import matter from "./safe-frontmatter.js";
 
 export const MEMORY_MAIN_FILENAME = "MEMORY.md";
 export const LEGACY_MEMORY_MAIN_FILENAME = "SKILL.md";
@@ -161,6 +162,11 @@ export function resolveMemoryMainFileInDirectorySync(
   projectRoot: string,
   cardDir: string,
 ): MemoryMainFileResolution {
+  if (![cardDir, path.join(cardDir, MEMORY_MAIN_FILENAME), path.join(cardDir, LEGACY_MEMORY_MAIN_FILENAME)]
+    .every((candidate) => tryProjectPath(projectRoot, candidate))) {
+    return { directory: cardDir, relativeDirectory: normalizeRel(projectRoot, cardDir),
+      mainFile: buildMainFileInfo({ type: "missing", activePath: null }) };
+  }
   const memoryAbs = path.join(cardDir, MEMORY_MAIN_FILENAME);
   const legacyAbs = path.join(cardDir, LEGACY_MEMORY_MAIN_FILENAME);
   const listedNames = readDirectoryFileNamesSync(cardDir);
@@ -212,6 +218,11 @@ export async function resolveMemoryMainFileInDirectory(
   projectRoot: string,
   cardDir: string,
 ): Promise<MemoryMainFileResolution> {
+  if (![cardDir, path.join(cardDir, MEMORY_MAIN_FILENAME), path.join(cardDir, LEGACY_MEMORY_MAIN_FILENAME)]
+    .every((candidate) => tryProjectPath(projectRoot, candidate))) {
+    return { directory: cardDir, relativeDirectory: normalizeRel(projectRoot, cardDir),
+      mainFile: buildMainFileInfo({ type: "missing", activePath: null }) };
+  }
   const memoryAbs = path.join(cardDir, MEMORY_MAIN_FILENAME);
   const legacyAbs = path.join(cardDir, LEGACY_MEMORY_MAIN_FILENAME);
   const listedNames = await readDirectoryFileNames(cardDir);
@@ -315,7 +326,7 @@ export function hasChildMemoryCardDirectorySync(
 ): boolean {
   let entries: fs.Dirent[];
   try {
-    entries = fs.readdirSync(cardDir, { withFileTypes: true });
+    entries = fs.readdirSync(assertPathInsideProject(projectRoot, cardDir), { withFileTypes: true });
   } catch {
     return false;
   }
@@ -339,7 +350,7 @@ export async function hasChildMemoryCardDirectory(
     isDirectory: () => boolean;
   }>;
   try {
-    entries = await fsp.readdir(cardDir, { withFileTypes: true });
+    entries = await fsp.readdir(assertPathInsideProject(projectRoot, cardDir), { withFileTypes: true });
   } catch {
     return false;
   }

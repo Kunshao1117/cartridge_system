@@ -1,3 +1,4 @@
+import path from "node:path";
 /**
  * 記憶卡匣外掛系統 — MCP 工具商業邏輯單元測試
  * 使用 vi.mock 模擬 fs/promises，不觸及實際磁碟
@@ -38,7 +39,7 @@ import * as fs from "fs/promises";
 import { refreshMemoryIndex } from "../memory-reindex.js";
 import { runProjectIndexTransaction } from "../project-index-transaction.js";
 
-const PROJECT_ROOT = "/mock/other-project";
+const PROJECT_ROOT = path.resolve("/mock/other-project").replace(/\\/g, "/");
 
 function parseEnvelope(result: { content: Array<{ text: string }> }) {
   return JSON.parse(result.content[0].text);

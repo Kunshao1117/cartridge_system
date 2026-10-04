@@ -1,4 +1,4 @@
-import * as path from "node:path";
+import { projectFileOpenCommand } from "./project-file-command.js";
 import * as vscode from "vscode";
 import { auditContextInventory } from "./context-audit.js";
 import { scanContextRegistry } from "./context-registry.js";
@@ -117,11 +117,7 @@ export class ContextTreeProvider implements vscode.TreeDataProvider<ContextNode>
   }
 
   private setOpenCommand(item: vscode.TreeItem, relativePath: string): void {
-    item.command = {
-      command: "vscode.open",
-      title: "開啟上下文檔案",
-      arguments: [vscode.Uri.file(path.resolve(this.projectRoot, relativePath))],
-    };
+    item.command = projectFileOpenCommand(this.projectRoot, relativePath, "開啟上下文檔案");
   }
 
   private sectionLabel(

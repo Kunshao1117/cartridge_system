@@ -1,5 +1,4 @@
 import * as vscode from "vscode";
-import path from "node:path";
 import type { CartridgeIndexManager } from "./index-manager.js";
 import { buildCabinetWorkbenchHtml } from "./cabinet-workbench-html.js";
 import { buildCabinetWorkbenchModelForProject } from "./cabinet-workbench-model.js";
@@ -76,8 +75,9 @@ export class CabinetWorkbenchPanel {
     }
     const targetPath = entry.mainFile?.activePath ?? entry.skillPath;
     await vscode.commands.executeCommand(
-      "vscode.open",
-      vscode.Uri.file(path.resolve(this.args.projectRoot, targetPath)),
+      "cartridge.openProjectFile",
+      this.args.projectRoot,
+      targetPath,
     );
   }
 }

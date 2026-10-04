@@ -1,3 +1,4 @@
+import { assertPathInsideProject } from "./file-containment.js";
 import * as fs from "fs/promises";
 import * as path from "path";
 import {
@@ -22,7 +23,7 @@ async function scanSkillDir(args: {
     if (depth > args.maxDepth) return;
     let entries: Array<{ name: string; isDirectory: () => boolean }>;
     try {
-      entries = await fs.readdir(current, { withFileTypes: true });
+      entries = await fs.readdir(assertPathInsideProject(args.projectRoot, current), { withFileTypes: true });
     } catch {
       return;
     }
@@ -30,7 +31,7 @@ async function scanSkillDir(args: {
       if (!entry.isDirectory() || entry.name.startsWith(".")) continue;
       const dir = path.join(current, entry.name);
       const skillPath = path.join(dir, "SKILL.md");
-      const content = await readContextText(skillPath);
+      const content = await readContextText(args.projectRoot, skillPath);
       if (content) {
         const relativePath = path.relative(args.projectRoot, skillPath);
         const id = relativePath
@@ -59,7 +60,7 @@ async function scanClaudeAgents(projectRoot: string): Promise<ContextAsset[]> {
   const dir = path.join(projectRoot, ".claude", "agents");
   let entries: Array<{ name: string; isFile: () => boolean }>;
   try {
-    entries = await fs.readdir(dir, { withFileTypes: true });
+    entries = await fs.readdir(assertPathInsideProject(projectRoot, dir), { withFileTypes: true });
   } catch {
     return [];
   }
@@ -67,7 +68,7 @@ async function scanClaudeAgents(projectRoot: string): Promise<ContextAsset[]> {
   for (const entry of entries) {
     if (!entry.isFile() || !entry.name.endsWith(".md")) continue;
     const relativePath = path.join(".claude", "agents", entry.name);
-    const content = await readContextText(path.join(projectRoot, relativePath));
+    const content = await readContextText(projectRoot, path.join(projectRoot, relativePath));
     if (!content) continue;
     assets.push({
       id: `claude.agent.${entry.name.replace(/\.md$/i, "")}`,
@@ -91,7 +92,7 @@ async function scanClaudeAgents(projectRoot: string): Promise<ContextAsset[]> {
 export async function scanContextRegistry(projectRoot: string): Promise<ContextInventory> {
   const assets: ContextAsset[] = [];
   for (const item of staticContextAssets) {
-    const content = await readContextText(path.join(projectRoot, item.path));
+    const content = await readContextText(projectRoot, path.join(projectRoot, item.path));
     assets.push({
       id: item.id,
       type: "instruction",

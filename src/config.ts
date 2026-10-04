@@ -1,3 +1,4 @@
+import { assertPathInsideProject } from "./file-containment.js";
 /**
  * 記憶卡匣外掛系統 — 設定模組
  * 負責解析專案根目錄與預設參數
@@ -69,19 +70,19 @@ export function createConfig(
  * 取得操作技能目錄的絕對路徑
  */
 export function getSkillsAbsPath(config: CartridgeConfig): string {
-  return path.resolve(config.projectRoot, config.skillsDir);
+  return assertPathInsideProject(config.projectRoot, config.skillsDir);
 }
 
 /**
  * 取得記憶卡匣目錄的絕對路徑（v4.0 遷移後的新路徑）
  */
 export function getMemoryAbsPath(config: CartridgeConfig): string {
-  return path.resolve(config.projectRoot, config.memoryDir);
+  return assertPathInsideProject(config.projectRoot, config.memoryDir);
 }
 
 /**
  * 取得插件運行時狀態目錄的絕對路徑
  */
 export function getCartridgeDirAbsPath(config: CartridgeConfig): string {
-  return path.resolve(config.projectRoot, config.cartridgeDir);
+  return assertPathInsideProject(config.projectRoot, config.cartridgeDir);
 }

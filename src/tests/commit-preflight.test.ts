@@ -1,3 +1,4 @@
+import path from "node:path";
 import { describe, expect, it, vi, beforeEach, type Mock } from "vitest";
 import { handleCommitPreflight } from "../commit-preflight.js";
 
@@ -12,7 +13,7 @@ vi.mock("child_process", () => ({
 import * as fs from "fs/promises";
 import * as childProcess from "child_process";
 
-const PROJECT_ROOT = "/mock/other-project";
+const PROJECT_ROOT = path.resolve("/mock/other-project").replace(/\\/g, "/");
 
 beforeEach(() => {
   vi.clearAllMocks();
@@ -467,5 +468,25 @@ dependencies:
     expect(preflight.summary.compatibility.mode).toBe("compatibility");
     expect(preflight.blockers[0].type).toBe("memory_compatibility");
     expect(envelope.recommendedActions[0].action).toBe("run_memory_audit");
+  });
+});
+
+
+describe("commit preflight frontmatter safety", () => {
+  it.each(["js", "javascript"])("does not evaluate %s while reading a dirty card", async (language) => {
+    const sentinel = globalThis as typeof globalThis & { cartridgePreflightSentinel?: string };
+    delete sentinel.cartridgePreflightSentinel;
+    const mainPath = ".agents/memory/safe/MEMORY.md";
+    vi.mocked(fs.readFile).mockImplementation(async (target) => {
+      if (String(target).endsWith("index.json")) {
+        return JSON.stringify({ version: 1, cartridges: { safe: { skillPath: mainPath, trackedFiles: [], pendingChanges: [], ghostFiles: [], dependencies: [], staleness: 0, depth: 1, parent: null } }, fileMap: {}, untrackedFiles: [] });
+      }
+      return `---${language}\n({ name: (globalThis.cartridgePreflightSentinel = 'executed'), dependencies: [] })\n---\n`;
+    });
+    mockGitStatus(` M ${mainPath}\n`);
+    await handleCommitPreflight({ projectRoot: PROJECT_ROOT });
+    expect(vi.mocked(fs.readFile).mock.calls.some(([target]) => String(target).replace(/\\/g, "/").endsWith(mainPath))).toBe(true);
+    expect(sentinel.cartridgePreflightSentinel).toBeUndefined();
+    delete sentinel.cartridgePreflightSentinel;
   });
 });

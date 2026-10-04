@@ -1,8 +1,9 @@
+import { assertPathInsideProject } from "./file-containment.js";
 import { execFile } from "child_process";
 import * as fs from "fs/promises";
 import * as path from "path";
 import * as z from "zod";
-import matter from "gray-matter";
+import matter from "./safe-frontmatter.js";
 import { validateDependencySemantics } from "./dependency-semantics.js";
 import { validateProjectRoot } from "./path-guard.js";
 import {
@@ -78,7 +79,7 @@ async function readCartridgeIndex(projectRoot: string): Promise<{
 }> {
   try {
     const raw = await fs.readFile(
-      path.join(projectRoot, ".cartridge", "index.json"),
+      assertPathInsideProject(projectRoot, ".cartridge/index.json"),
       "utf-8",
     );
     const index = JSON.parse(raw) as PreflightIndex;
@@ -153,7 +154,7 @@ async function buildDependencySemanticSummary(
     const mainPath = entry.mainFile?.activePath ?? entry.skillPath;
 
     try {
-      const raw = await fs.readFile(path.join(projectRoot, mainPath), "utf-8");
+      const raw = await fs.readFile(assertPathInsideProject(projectRoot, mainPath), "utf-8");
       const { content: body, data } = matter(raw);
       const dependencies = Array.isArray(data.dependencies)
         ? data.dependencies.filter(

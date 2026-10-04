@@ -6,7 +6,8 @@
 import * as fs from "fs/promises";
 import * as path from "path";
 import * as z from "zod";
-import matter from "gray-matter";
+import matter from "./safe-frontmatter.js";
+import { assertPathInsideProject, tryProjectPath } from "./file-containment.js";
 import {
   formatDependencySemanticWarning,
   validateDependencySemantics,
@@ -186,7 +187,7 @@ export function updateFrontmatterFields(
     frontmatter[key] = value;
   }
 
-  return matter.stringify(content, frontmatter);
+  return matter.stringify(content, frontmatter, rawContent);
 }
 
 type MemoryMainFileLookup =
@@ -224,15 +225,7 @@ function mainFileInfoFromEntry(entry: CartridgeEntry): MemoryMainFileInfo | null
 }
 
 function resolvePathInsideRoot(projectRoot: string, relativePath: string): string | null {
-  const normalized = relativePath.replace(/\\/g, "/");
-  const absolute = path.isAbsolute(normalized)
-    ? path.resolve(normalized)
-    : path.resolve(projectRoot, normalized);
-  const relativeToRoot = path.relative(projectRoot, absolute);
-  if (relativeToRoot.startsWith("..") || path.isAbsolute(relativeToRoot)) {
-    return null;
-  }
-  return absolute;
+  return tryProjectPath(projectRoot, relativePath);
 }
 
 function directoryCandidatesFromEntry(
@@ -295,6 +288,7 @@ async function lookupFromDirectory(
   projectRoot: string,
   cardDir: string,
 ): Promise<MemoryMainFileLookup | null> {
+  if (!tryProjectPath(projectRoot, cardDir)) return null;
   const resolution = await resolveMemoryMainFileInDirectory(projectRoot, cardDir);
   const mainFile = resolution.mainFile;
   if (mainFile.type === "missing") return null;
@@ -314,9 +308,10 @@ async function lookupFromDirectory(
       message: "Memory main file is missing.",
     };
   }
-  const filePath = path.join(projectRoot, mainFile.activePath);
+  const filePath = tryProjectPath(projectRoot, mainFile.activePath);
+  if (!filePath) return null;
   try {
-    const raw = await fs.readFile(filePath, "utf-8");
+    const raw = await fs.readFile(assertPathInsideProject(projectRoot, filePath), "utf-8");
     return {
       status: "ready",
       filePath,
@@ -342,7 +337,7 @@ export async function resolveMemoryMainFileForModule(
   const indexPath = path.join(projectRoot, ".cartridge", "index.json");
   let staleIndexedMissing: MemoryMainFileLookup | null = null;
   try {
-    const raw = await fs.readFile(indexPath, "utf-8");
+    const raw = await fs.readFile(assertPathInsideProject(projectRoot, indexPath), "utf-8");
     const index = JSON.parse(raw) as CartridgeIndex;
     const entry = index.cartridges?.[moduleName];
     if (entry) {
@@ -357,17 +352,20 @@ export async function resolveMemoryMainFileForModule(
       if (mainFile?.type === "conflict" || mainFile?.type === "missing") {
         staleIndexedMissing = staleIndexAsMissingLookup(mainFile, entry);
       }
-      if (mainFile?.activePath) {
+      const safeActivePath = mainFile?.activePath
+        ? resolvePathInsideRoot(normalizedRoot, mainFile.activePath)
+        : null;
+      if (mainFile?.activePath && safeActivePath) {
         const directoryLookup = await lookupFromDirectory(
           normalizedRoot,
-          path.dirname(path.join(normalizedRoot, mainFile.activePath)),
+          path.dirname(safeActivePath),
         );
         if (directoryLookup) {
           return { ...directoryLookup, entry };
         }
-        const resolved = path.join(normalizedRoot, mainFile.activePath);
+        const resolved = safeActivePath;
         try {
-          const rawContent = await fs.readFile(resolved, "utf-8");
+          const rawContent = await fs.readFile(assertPathInsideProject(normalizedRoot, resolved), "utf-8");
           return {
             status: "ready",
             filePath: resolved,
@@ -453,7 +451,7 @@ async function findMemoryMainRecursive(
 ): Promise<MemoryMainFileLookup | null> {
   if (depth > 4) return null;
   try {
-    const entries = await fs.readdir(dir, { withFileTypes: true });
+    const entries = await fs.readdir(assertPathInsideProject(projectRoot, dir), { withFileTypes: true });
     for (const entry of entries) {
       if (!entry.isDirectory()) continue;
       if (entry.name.toLowerCase() === "archive") continue;
@@ -519,7 +517,7 @@ export async function handleMemoryList(args: unknown): Promise<McpToolResult> {
       "index.json",
     );
     try {
-      const indexRaw = await fs.readFile(indexPath, "utf-8");
+      const indexRaw = await fs.readFile(assertPathInsideProject(parsed.data.projectRoot, indexPath), "utf-8");
       const index = createVisibleCartridgeIndex(
         JSON.parse(indexRaw) as CartridgeIndex,
       );
@@ -603,7 +601,7 @@ export async function handleMemoryList(args: unknown): Promise<McpToolResult> {
       // 索引不存在 — 回退到目錄掃描（先掃 memory/，再掃 skills/mem-*）
       const modules: string[] = [];
       try {
-        const files = await fs.readdir(agentsDir, { withFileTypes: true });
+        const files = await fs.readdir(assertPathInsideProject(parsed.data.projectRoot, agentsDir), { withFileTypes: true });
         modules.push(
           ...files
             .filter((d) => d.isDirectory() && !d.name.startsWith("."))
@@ -619,7 +617,7 @@ export async function handleMemoryList(args: unknown): Promise<McpToolResult> {
           ".agents",
           "skills",
         );
-        const skillFiles = await fs.readdir(skillsDir, { withFileTypes: true });
+        const skillFiles = await fs.readdir(assertPathInsideProject(parsed.data.projectRoot, skillsDir), { withFileTypes: true });
         for (const d of skillFiles) {
           if (
             d.isDirectory() &&
@@ -757,7 +755,9 @@ export async function handleMemoryRead(args: unknown): Promise<McpToolResult> {
       });
     }
     const filePath = lookup.filePath;
-    const content = await fs.readFile(filePath, "utf-8");
+    const content = await fs.readFile(assertPathInsideProject(parsed.data.projectRoot, filePath), "utf-8");
+
+    matter(content); // Reject unsupported frontmatter even on the raw-read surface.
 
     // 嘗試從索引取得父子關係提示
     let parentHint = "";
@@ -767,7 +767,7 @@ export async function handleMemoryRead(args: unknown): Promise<McpToolResult> {
         ".cartridge",
         "index.json",
       );
-      const indexRaw = await fs.readFile(indexPath, "utf-8");
+      const indexRaw = await fs.readFile(assertPathInsideProject(parsed.data.projectRoot, indexPath), "utf-8");
       const index = JSON.parse(indexRaw);
       const entry = index.cartridges?.[parsed.data.moduleName];
       if (entry?.parent) {
@@ -863,7 +863,7 @@ export async function handleMemoryStatus(
 
   // 嘗試從索引檔讀取完整資訊
   try {
-    const indexRaw = await fs.readFile(indexPath, "utf-8");
+    const indexRaw = await fs.readFile(assertPathInsideProject(projectRoot, indexPath), "utf-8");
     const index = JSON.parse(indexRaw);
     const entry = index.cartridges?.[moduleName];
 
@@ -1043,7 +1043,7 @@ export async function handleMemoryStatus(
         });
       }
       const filePath = lookup.filePath;
-      const raw = await fs.readFile(filePath, "utf-8");
+      const raw = await fs.readFile(assertPathInsideProject(projectRoot, filePath), "utf-8");
       const fmMatch = raw.match(/^---\n([\s\S]*?)\n---/);
       let staleness = 0;
       let lastUpdated = "";
@@ -1266,7 +1266,7 @@ export async function handleMemoryCommit(
     const filePath = lookup.filePath;
 
     // 2. 讀取已寫入的作用中主檔
-    const rawContent = await fs.readFile(filePath, "utf-8");
+    const rawContent = await fs.readFile(assertPathInsideProject(projectRoot, filePath), "utf-8");
 
     // 3. 結構驗證
     const warnings: string[] = [];
@@ -1324,7 +1324,7 @@ export async function handleMemoryCommit(
     try {
       const indexPath = path.join(projectRoot, ".cartridge", "index.json");
       indexForCommit = JSON.parse(
-        await fs.readFile(indexPath, "utf-8"),
+        await fs.readFile(assertPathInsideProject(projectRoot, indexPath), "utf-8"),
       ) as CartridgeIndex;
     } catch {
       indexForCommit = null;
@@ -1368,7 +1368,7 @@ export async function handleMemoryCommit(
     });
     const { data: commitFm, content: commitBody } = matter(updatedContent);
     commitFm.status = "stable";
-    updatedContent = matter.stringify(stripWarningBlock(commitBody), commitFm);
+    updatedContent = matter.stringify(stripWarningBlock(commitBody), commitFm, rawContent);
     const postCommitCompaction = buildCompactionMetrics(updatedContent, commitFm, {
       cardPath: filePath,
     });
@@ -1377,7 +1377,7 @@ export async function handleMemoryCommit(
       lookup.mainFile,
     );
     warnings.push(...formatQualityWarnings(moduleName, postCommitQuality));
-    await fs.writeFile(filePath, updatedContent, "utf-8");
+    await fs.writeFile(assertPathInsideProject(projectRoot, filePath), updatedContent, "utf-8");
 
     // 5. 索引同步：主檔已成功寫入時，索引失敗需明確回報 partial warning。
     let trackedFilesCount = 0;
@@ -1691,7 +1691,7 @@ export async function handleMemoryDeps(args: unknown): Promise<McpToolResult> {
       }
       const dependencyMainPath = entry.mainFile?.activePath ?? entry.skillPath;
       const rawSkill = await fs.readFile(
-        path.join(normalizedPath, dependencyMainPath),
+        assertPathInsideProject(normalizedPath, dependencyMainPath),
         "utf-8",
       );
       const { data } = matter(rawSkill);

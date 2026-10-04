@@ -11,6 +11,8 @@ import { createConfig } from '../config.js'
 // 模擬同步 fs API（writer.ts 使用同步操作，非 fs/promises）
 vi.mock('node:fs', () => ({
   default: {
+    lstatSync: vi.fn(),
+    realpathSync: vi.fn(),
     existsSync: vi.fn(),
     readFileSync: vi.fn(),
     writeFileSync: vi.fn(),
@@ -63,6 +65,8 @@ const SKILL_PATH = '.agents/skills/mem-test/SKILL.md'
 
 beforeEach(() => {
   vi.resetAllMocks()
+  vi.mocked(fs.lstatSync).mockReturnValue({} as ReturnType<typeof fs.lstatSync>)
+  vi.mocked(fs.realpathSync).mockImplementation((value) => String(value))
 })
 
 // ---------------------------------------------------------------------------

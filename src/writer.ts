@@ -4,8 +4,8 @@
  */
 
 import fs from 'node:fs'
-import path from 'node:path'
-import matter from 'gray-matter'
+import { assertPathInsideProject } from './file-containment.js'
+import matter from './safe-frontmatter.js'
 import type { CartridgeConfig, StalenessLevel } from './types.js'
 import { getStalenessLevel } from './staleness.js'
 import { getTaiwanISO } from './timestamp.js'
@@ -62,10 +62,10 @@ export class MemoryWriter {
     changedFiles: string[],
     staleness: number,
   ): Promise<void> {
-    const absPath = path.resolve(this.config.projectRoot, skillRelPath)
+    const absPath = assertPathInsideProject(this.config.projectRoot, skillRelPath)
     if (!fs.existsSync(absPath)) return
 
-    const raw = fs.readFileSync(absPath, 'utf-8')
+    const raw = fs.readFileSync(assertPathInsideProject(this.config.projectRoot, absPath), 'utf-8')
     const { data: frontmatter, content } = matter(raw)
 
     // 先移除既有的警報（若有）
@@ -81,18 +81,18 @@ export class MemoryWriter {
     const newContent = warningBlock + cleanContent
 
     // 重組檔案
-    const output = matter.stringify(newContent, frontmatter)
-    fs.writeFileSync(absPath, output, 'utf-8')
+    const output = matter.stringify(newContent, frontmatter, raw)
+    fs.writeFileSync(assertPathInsideProject(this.config.projectRoot, absPath), output, 'utf-8')
   }
 
   /**
    * 移除記憶卡中的警報
    */
   async removeWarning(skillRelPath: string): Promise<void> {
-    const absPath = path.resolve(this.config.projectRoot, skillRelPath)
+    const absPath = assertPathInsideProject(this.config.projectRoot, skillRelPath)
     if (!fs.existsSync(absPath)) return
 
-    const raw = fs.readFileSync(absPath, 'utf-8')
+    const raw = fs.readFileSync(assertPathInsideProject(this.config.projectRoot, absPath), 'utf-8')
     const { data: frontmatter, content } = matter(raw)
 
     const cleanContent = this.stripWarning(content)
@@ -102,8 +102,8 @@ export class MemoryWriter {
       frontmatter.status = 'stable'
     }
 
-    const output = matter.stringify(cleanContent, frontmatter)
-    fs.writeFileSync(absPath, output, 'utf-8')
+    const output = matter.stringify(cleanContent, frontmatter, raw)
+    fs.writeFileSync(assertPathInsideProject(this.config.projectRoot, absPath), output, 'utf-8')
   }
 
   /**
@@ -111,10 +111,10 @@ export class MemoryWriter {
    * 當 staleness 被手動重設為 0 且仍有警報時觸發
    */
   async checkAndCleanWarning(skillRelPath: string): Promise<boolean> {
-    const absPath = path.resolve(this.config.projectRoot, skillRelPath)
+    const absPath = assertPathInsideProject(this.config.projectRoot, skillRelPath)
     if (!fs.existsSync(absPath)) return false
 
-    const raw = fs.readFileSync(absPath, 'utf-8')
+    const raw = fs.readFileSync(assertPathInsideProject(this.config.projectRoot, absPath), 'utf-8')
     const { data: frontmatter, content } = matter(raw)
 
     const hasWarning = content.includes(WARNING_START)

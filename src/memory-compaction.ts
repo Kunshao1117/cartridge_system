@@ -1,4 +1,4 @@
-import matter from "gray-matter";
+import matter from "./safe-frontmatter.js";
 
 export const MEMORY_SCHEMA_VERSION = 2;
 export const DEFAULT_MAIN_CARD_SIZE_LIMIT_BYTES = 16 * 1024;

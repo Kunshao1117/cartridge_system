@@ -1,6 +1,7 @@
+import { assertPathInsideProject } from "./file-containment.js";
 import * as fs from "fs/promises";
 import * as path from "path";
-import matter from "gray-matter";
+import matter from "./safe-frontmatter.js";
 import {
   PROJECT_CONTEXT_CARD_FILE,
   PROJECT_CONTEXT_ROOT,
@@ -93,13 +94,13 @@ export function parseProjectContextCard(args: {
   };
 }
 
-async function collectContextFiles(root: string): Promise<string[]> {
+async function collectContextFiles(projectRoot: string, root: string): Promise<string[]> {
   const results: string[] = [];
   async function walk(dir: string, depth: number): Promise<void> {
     if (depth > 6) return;
     let entries: Array<{ name: string; isDirectory: () => boolean; isFile: () => boolean }>;
     try {
-      entries = await fs.readdir(dir, { withFileTypes: true });
+      entries = await fs.readdir(assertPathInsideProject(projectRoot, dir), { withFileTypes: true });
     } catch {
       return;
     }
@@ -119,10 +120,10 @@ export async function scanProjectContextCards(
   projectRoot: string,
 ): Promise<ProjectContextCard[]> {
   const contextRoot = path.join(projectRoot, PROJECT_CONTEXT_ROOT);
-  const files = await collectContextFiles(contextRoot);
+  const files = await collectContextFiles(projectRoot, contextRoot);
   const cards: ProjectContextCard[] = [];
   for (const absolutePath of files) {
-    const raw = await fs.readFile(absolutePath, "utf-8");
+    const raw = await fs.readFile(assertPathInsideProject(projectRoot, absolutePath), "utf-8");
     cards.push(parseProjectContextCard({ projectRoot, absolutePath, raw }));
   }
   return cards;
@@ -132,7 +133,7 @@ export async function collectMisplacedProjectContextCards(
   projectRoot: string,
 ): Promise<string[]> {
   const memoryRoot = path.join(projectRoot, ".agents", "memory");
-  const files = await collectContextFiles(memoryRoot);
+  const files = await collectContextFiles(projectRoot, memoryRoot);
   return files.map((file) => normalizeRelative(projectRoot, file));
 }
 

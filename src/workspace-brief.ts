@@ -1,3 +1,4 @@
+import { assertPathInsideProject } from "./file-containment.js";
 import * as fs from "fs/promises";
 import * as path from "path";
 import * as z from "zod";
@@ -87,7 +88,7 @@ function contextToFindings(
 async function readPackageSummary(projectRoot: string) {
   try {
     const raw = await fs.readFile(
-      path.join(projectRoot, "package.json"),
+      assertPathInsideProject(projectRoot, "package.json"),
       "utf-8",
     );
     const pkg = JSON.parse(raw) as {
@@ -111,7 +112,7 @@ async function readCartridgeIndex(projectRoot: string): Promise<{
 }> {
   try {
     const raw = await fs.readFile(
-      path.join(projectRoot, ".cartridge", "index.json"),
+      assertPathInsideProject(projectRoot, ".cartridge/index.json"),
       "utf-8",
     );
     const index = JSON.parse(raw) as BriefIndex;

@@ -1,6 +1,6 @@
+import { assertPathInsideProject } from "./file-containment.js";
 import fs from "node:fs/promises";
-import path from "node:path";
-import matter from "gray-matter";
+import matter from "./safe-frontmatter.js";
 import type { CartridgeIndex } from "./types.js";
 
 export interface CabinetMemoryMetadata {
@@ -27,7 +27,7 @@ export async function loadCabinetMemoryMetadata(
           return;
         }
         const raw = await fs.readFile(
-          path.resolve(projectRoot, entry.mainFile?.activePath ?? entry.skillPath),
+          assertPathInsideProject(projectRoot, entry.mainFile?.activePath ?? entry.skillPath),
           "utf-8",
         );
         result[id] = parseCabinetMemoryMetadata(raw);

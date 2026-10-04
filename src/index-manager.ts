@@ -1,3 +1,4 @@
+import { assertPathInsideProject, tryProjectPath } from "./file-containment.js";
 /**
  * 記憶卡匣外掛系統 — 記憶索引管理器
  * 管理卡匣索引與檔案→卡匣反向映射
@@ -5,7 +6,7 @@
 
 import fs from "node:fs";
 import path from "node:path";
-import matter from "gray-matter";
+import matter from "./safe-frontmatter.js";
 import type {
   CartridgeConfig,
   CartridgeEntry,
@@ -211,7 +212,7 @@ export class CartridgeIndexManager {
 
     let entries: fs.Dirent[];
     try {
-      entries = fs.readdirSync(dir, { withFileTypes: true });
+      entries = fs.readdirSync(assertPathInsideProject(this.config.projectRoot, dir), { withFileTypes: true });
     } catch {
       return;
     }
@@ -248,7 +249,7 @@ export class CartridgeIndexManager {
 
       if (activeAbsPath) {
         try {
-          raw = fs.readFileSync(activeAbsPath, "utf-8");
+          raw = fs.readFileSync(assertPathInsideProject(this.config.projectRoot, activeAbsPath), "utf-8");
         } catch (err) {
           console.warn(`[記憶卡匣] 無法讀取記憶卡：${activeAbsPath}`, err);
         }
@@ -338,7 +339,7 @@ export class CartridgeIndexManager {
   private scanArchiveVolumes(cardDir: string): MemoryArchiveVolumeMetrics[] {
     let entries: fs.Dirent[];
     try {
-      entries = fs.readdirSync(cardDir, { withFileTypes: true });
+      entries = fs.readdirSync(assertPathInsideProject(this.config.projectRoot, cardDir), { withFileTypes: true });
     } catch {
       return [];
     }
@@ -352,7 +353,7 @@ export class CartridgeIndexManager {
           .replace(/\\/g, "/");
         try {
           return buildArchiveVolumeMetrics(
-            fs.readFileSync(archivePath, "utf-8"),
+            fs.readFileSync(assertPathInsideProject(this.config.projectRoot, archivePath), "utf-8"),
             relativePath,
           );
         } catch {
@@ -374,7 +375,7 @@ export class CartridgeIndexManager {
 
       let entries: fs.Dirent[];
       try {
-        entries = fs.readdirSync(current, { withFileTypes: true });
+        entries = fs.readdirSync(assertPathInsideProject(this.config.projectRoot, current), { withFileTypes: true });
       } catch {
         continue;
       }
@@ -525,8 +526,8 @@ export class CartridgeIndexManager {
       entry.ghostFiles = [];
       for (const trackedFile of entry.trackedFiles) {
         if (trackedFile.endsWith("/")) continue;
-        const absPath = path.resolve(this.config.projectRoot, trackedFile);
-        if (!fs.existsSync(absPath)) {
+        const absPath = tryProjectPath(this.config.projectRoot, trackedFile);
+        if (!absPath || !fs.existsSync(absPath)) {
           this.markGhostFile(cartridgeId, trackedFile);
           results.push({ cartridgeId, ghostFile: trackedFile });
         }
@@ -593,8 +594,9 @@ export class CartridgeIndexManager {
         // 跳過目錄型追蹤（如 src/templates/）
         if (trackedFile.endsWith("/")) continue;
 
-        const absPath = path.resolve(this.config.projectRoot, trackedFile);
+        const absPath = tryProjectPath(this.config.projectRoot, trackedFile);
         try {
+          if (!absPath) continue;
           const stat = fs.statSync(absPath);
           if (stat.mtimeMs > lastUpdatedMs) {
             this.addPendingChange(cartridgeId, trackedFile, "change");
@@ -805,7 +807,7 @@ export class CartridgeIndexManager {
     const indexPath = path.resolve(this.config.projectRoot, INDEX_FILENAME);
     if (!fs.existsSync(indexPath)) return { status: "missing" };
     try {
-      const raw = fs.readFileSync(indexPath, "utf-8");
+      const raw = fs.readFileSync(assertPathInsideProject(this.config.projectRoot, indexPath), "utf-8");
       const normalized = normalizePersistedIndex(JSON.parse(raw) as unknown);
       if (!normalized) return { status: "invalid" };
       return {

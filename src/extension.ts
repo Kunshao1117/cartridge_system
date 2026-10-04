@@ -1,3 +1,4 @@
+import { openProjectFile } from "./project-file-command.js";
 /**
  * 記憶卡匣外掛系統 v2.0 — VS Code 擴充套件入口
  * activate：開啟含 .agents 目錄的工作區時自動執行
@@ -202,6 +203,19 @@ export async function activate(
     }),
   );
 
+  context.subscriptions.push(
+    vscode.commands.registerCommand("cartridge.openProjectFile", async (root: string, target: string) => {
+      if (!config || root !== config.projectRoot) return;
+      try {
+        await openProjectFile(config.projectRoot, target, (filePath) =>
+          vscode.commands.executeCommand("vscode.open", vscode.Uri.file(filePath)),
+        );
+      } catch (error) {
+        vscode.window.showWarningMessage(`拒絕開啟不安全路徑：${String(error)}`);
+      }
+    }),
+  );
+
   // 命令：查看幽靈檔案詳情（由 TreeView 💀 項目點擊觸發）
   context.subscriptions.push(
     vscode.commands.registerCommand(
@@ -227,8 +241,9 @@ export async function activate(
         if (choice === "開啟記憶卡" && entry?.skillPath) {
           const targetPath = entry.mainFile?.activePath ?? entry.skillPath;
           await vscode.commands.executeCommand(
-            "vscode.open",
-            vscode.Uri.file(path.resolve(config.projectRoot, targetPath)),
+            "cartridge.openProjectFile",
+            config.projectRoot,
+            targetPath,
           );
         }
       },

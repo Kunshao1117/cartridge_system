@@ -1,7 +1,9 @@
+import { assertPathInsideProject } from "../file-containment.js";
 import path from "node:path";
 
 function canonicalPath(value: string): string {
-  return path.resolve(value).toLowerCase();
+  const resolved = path.resolve(value);
+  return process.platform === "win32" ? resolved.toLowerCase() : resolved;
 }
 
 export function isKnownProjectRoot(root: string, knownRoots: string[]): boolean {
@@ -13,11 +15,11 @@ export function resolveProjectFilePath(
   projectRoot: string,
   relativePath: string,
 ): string | null {
-  if (path.isAbsolute(relativePath)) return null;
-
-  const root = path.resolve(projectRoot);
-  const target = path.resolve(root, relativePath);
-  const rel = path.relative(root, target);
-  if (rel === "" || rel.startsWith("..") || path.isAbsolute(rel)) return null;
-  return target;
+  if (path.isAbsolute(relativePath) || path.win32.isAbsolute(relativePath)) return null;
+  try {
+    const target = assertPathInsideProject(projectRoot, relativePath);
+    return target === path.resolve(projectRoot) ? null : target;
+  } catch {
+    return null;
+  }
 }

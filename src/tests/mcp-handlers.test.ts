@@ -1,6 +1,8 @@
 import path from "node:path";
 import nativeFs from "node:fs";
 import os from "node:os";
+import type * as FsPromisesModule from "node:fs/promises";
+import type * as ProjectIndexTransactionModule from "../project-index-transaction.js";
 import { assertPathInsideProject } from "../file-containment.js";
 import { parseTrackedFiles } from "../index-manager.js";
 /**
@@ -20,11 +22,18 @@ import {
   memoryCommitSchema,
 } from "../mcp-handlers.js";
 import { stalenessToLevel } from "../staleness.js";
-import type { CartridgeIndex } from "../types.js";
+import type { CartridgeEntry, CartridgeIndex, PendingChange, UntrackedFileEntry } from "../types.js";
+
+type CommitFixtureIndex = Omit<Partial<CartridgeIndex>, "cartridges" | "untrackedFiles"> & {
+  cartridges?: Record<string, Omit<Partial<CartridgeEntry>, "pendingChanges"> & {
+    pendingChanges?: Partial<PendingChange>[];
+  }>;
+  untrackedFiles?: Partial<UntrackedFileEntry>[];
+};
 
 // Read-only format fixtures mock these reads; commit temporarily delegates to real temp-project I/O.
 vi.mock("fs/promises", async (importOriginal) => ({
-  ...await importOriginal<typeof import("fs/promises")>(),
+  ...await importOriginal<typeof FsPromisesModule>(),
   readdir: vi.fn(),
   readFile: vi.fn(),
   writeFile: vi.fn(),
@@ -123,7 +132,7 @@ async function handleMemoryCommit(args: unknown) {
     access: vi.mocked(fs.access).getMockImplementation(),
     writeFile: vi.mocked(fs.writeFile).getMockImplementation(),
   };
-  let fixtureIndex: Partial<CartridgeIndex> | undefined;
+  let fixtureIndex: CommitFixtureIndex | undefined;
   let rawIndex: string | undefined;
   try {
     rawIndex = String(await fs.readFile(path.join(PROJECT_ROOT, ".cartridge/index.json"), "utf8"));
@@ -178,8 +187,8 @@ async function handleMemoryCommit(args: unknown) {
       ? fixtureIndex.untrackedFiles.map(item => ({ suggestedOwner: null, detectedAt: "2026-01-01T00:00:00Z", lastEvent: "add", ...item })) : fixtureIndex.untrackedFiles;
     nativeFs.writeFileSync(path.join(PROJECT_ROOT, ".cartridge/index.json"), JSON.stringify({ version: 1, lastScanned: "fixture", fileMap: {}, ...fixtureIndex, untrackedFiles: untracked, cartridges: entries }));
   }
-  const realFs = await vi.importActual<typeof import("node:fs/promises")>("node:fs/promises");
-  const realTransactions = await vi.importActual<typeof import("../project-index-transaction.js")>("../project-index-transaction.js");
+  const realFs = await vi.importActual<typeof FsPromisesModule>("node:fs/promises");
+  const realTransactions = await vi.importActual<typeof ProjectIndexTransactionModule>("../project-index-transaction.js");
   vi.mocked(fs.readFile).mockImplementation(realFs.readFile);
   vi.mocked(fs.readdir).mockImplementation(realFs.readdir);
   vi.mocked(fs.access).mockImplementation(realFs.access);
@@ -1133,7 +1142,12 @@ describe("handleMemoryCommit", () => {
     ]);
     expect(parsed.fileMap["src/foo.ts"]).toEqual(["mem-test"]);
     expect(parsed.fileMap["src/bar.ts"]).toEqual(["mem-test"]);
-    expect(parsed.untrackedFiles).toEqual([{ filePath: "src/other.ts" }]);
+    expect(parsed.untrackedFiles).toEqual([{
+      filePath: "src/other.ts",
+      suggestedOwner: null,
+      detectedAt: "2026-01-01T00:00:00Z",
+      lastEvent: "add",
+    }]);
     expect(writeObserver).not.toHaveBeenCalledWith(
       expect.stringContaining(".cartridge"),
       expect.anything(),

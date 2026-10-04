@@ -287,8 +287,12 @@ describe("CORE-R1 generation-specific lock protocol", () => {
     const lockPath = path.join(root, ".cartridge/index.lock");
     await fs.writeFile(lockPath, "unknown lock artifact");
     const before = await contents(path.join(root, ".cartridge"));
-    await expect(transact(root)).rejects.toBeInstanceOf(ProjectIndexLockCompatibilityError);
-    expect(await contents(path.join(root, ".cartridge"))).toEqual(before);
+    const rename = vi.spyOn(fs, "rename");
+    const mutation = vi.fn(async () => undefined);
+    await expect.soft(transact(root, mutation)).rejects.toBeInstanceOf(ProjectIndexLockCompatibilityError);
+    expect.soft(rename).not.toHaveBeenCalled();
+    expect.soft(mutation).not.toHaveBeenCalled();
+    expect.soft(await contents(path.join(root, ".cartridge"))).toEqual(before);
   });
 
 });

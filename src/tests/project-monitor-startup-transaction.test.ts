@@ -4,6 +4,7 @@ import path from "node:path";
 import { randomUUID } from "node:crypto";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import type { MemoryReindexOptions } from "../memory-reindex.js";
+import type * as MemoryReindexModule from "../memory-reindex.js";
 
 const barrier = vi.hoisted(() => ({
   reached: undefined as (() => void) | undefined,
@@ -13,7 +14,7 @@ const barrier = vi.hoisted(() => ({
 }));
 
 vi.mock("../memory-reindex.js", async importOriginal => {
-  const actual = await importOriginal<typeof import("../memory-reindex.js")>();
+  const actual = await importOriginal<typeof MemoryReindexModule>();
   return {
     ...actual,
     refreshMemoryIndex: async (options: MemoryReindexOptions) => {

@@ -14,6 +14,8 @@ A v2 lock contains one ordinary file named `owner-<UUID>.json`. It records `prot
 
 Acquisition first creates a unique sibling `index.lock.candidate-<PID>-<UUID>` directory, writes and syncs the complete owner file, then renames the populated directory into the canonical location. Contenders cannot replace a populated directory. No empty canonical initialization window is published by v2.
 
+Before each publication attempt, the canonical location is inspected and existing non-directory or unrecognized lock artifacts are rejected without replacement. This check is necessary because Windows rename can replace an ordinary destination file with the candidate directory. It is not an ownership grant: competing v2 processes publish only nonempty directories, and rename still arbitrates their acquisition. Node's portable rename API provides no atomic no-replace guarantee against a noncooperating external process creating an ordinary file between inspection and rename; such external replacement is outside this protocol's safety assumptions.
+
 Heartbeat uses `utimes` on the existing, generation-specific owner file. It never recreates a removed owner marker. Ownership is checked again before canonical index replacement.
 
 ## Recovery and release

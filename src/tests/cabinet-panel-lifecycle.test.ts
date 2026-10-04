@@ -2,7 +2,19 @@ import { beforeEach, expect, it, vi } from "vitest";
 import { deferred } from "./surface-regression-fixtures.js";
 import type { CartridgeIndexManager } from "../index-manager.js";
 import type { CabinetWorkbenchModel } from "../cabinet-workbench-model.js";
-const mocks = vi.hoisted(() => ({ build: vi.fn(), panels: [] as Array<Record<string, any>>, warn: vi.fn() }));
+interface MockPanel {
+  reveal: () => void;
+  dispose: () => void;
+  onDidDispose: (callback: () => void) => void;
+  webview: {
+    cspSource: string;
+    asWebviewUri: () => { toString: () => string };
+    postMessage: (message: unknown) => Promise<boolean>;
+    onDidReceiveMessage: (callback: (message: unknown) => void) => void;
+  };
+  message: (message: unknown) => void;
+}
+const mocks = vi.hoisted(() => ({ build: vi.fn(), panels: [] as MockPanel[], warn: vi.fn() }));
 vi.mock("../cabinet-workbench-model.js", () => ({ buildCabinetWorkbenchModelForProject: mocks.build }));
 vi.mock("../cabinet-workbench-html.js", () => ({ buildCabinetWorkbenchHtml: () => "html" }));
 vi.mock("vscode", () => ({

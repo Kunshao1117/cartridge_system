@@ -1,4 +1,5 @@
 import * as fs from "fs/promises";
+import type * as FsPromisesModule from "fs/promises";
 import * as os from "os";
 import * as path from "path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
@@ -9,6 +10,26 @@ import { buildMemoryAuditReport, handleMemoryAudit } from "../memory-audit.js";
 import { scanContextRegistry } from "../context-registry.js";
 import { auditContextInventory } from "../context-audit.js";
 import { handleContextAudit, handleContextInventory } from "../context-tools.js";
+
+// Mock the module boundary rather than redefining a non-configurable ESM
+// namespace export. All operations still use real I/O except this exact read.
+const readFault = vi.hoisted(() => ({
+  target: undefined as string | undefined,
+  deniedReads: 0,
+}));
+vi.mock("fs/promises", async importOriginal => {
+  const actual = await importOriginal<typeof FsPromisesModule>();
+  return {
+    ...actual,
+    readFile: (...args: Parameters<typeof actual.readFile>) => {
+      if (readFault.target !== undefined && args[0] === readFault.target) {
+        readFault.deniedReads += 1;
+        return Promise.reject(Object.assign(new Error("fixture read denied"), { code: "EACCES" }));
+      }
+      return actual.readFile(...args);
+    },
+  };
+});
 
 let root: string;
 async function write(relative: string, raw: string) {
@@ -48,6 +69,8 @@ beforeEach(async () => {
 });
 
 afterEach(async () => {
+  readFault.target = undefined;
+  readFault.deniedReads = 0;
   vi.restoreAllMocks();
   await fs.rm(root, { recursive: true, force: true });
 });
@@ -153,15 +176,14 @@ describe("CORE audit diagnostic regressions", () => {
     await write(".agents/memory/unreadable/MEMORY.md", card("unreadable"));
     await write(".agents/memory/healthy/MEMORY.md", card("healthy"));
     const target = path.join(root, ".agents/memory/unreadable/MEMORY.md");
-    const readFile = fs.readFile;
-    vi.spyOn(fs, "readFile").mockImplementation((...args: Parameters<typeof fs.readFile>) => {
-      if (args[0] === target) return Promise.reject(Object.assign(new Error("fixture read denied"), { code: "EACCES" }));
-      return readFile(...args);
-    });
+    readFault.target = target;
     const inventory = await scanContextRegistry(root);
+    expect(readFault.deniedReads).toBeGreaterThan(0);
+    const inventoryDeniedReads = readFault.deniedReads;
     expect(inventory.assets.find(asset => asset.id === "agents.memory.unreadable")).toMatchObject({ exists: true, risk: "high", signals: ["context:read-error"], trackedFiles: [], contentQuality: { status: "pending_review" } });
     expect(inventory.assets.find(asset => asset.id === "agents.memory.healthy")?.contentQuality?.status).toBe("complete");
     const report = await buildMemoryAuditReport(root);
+    expect(readFault.deniedReads).toBeGreaterThan(inventoryDeniedReads);
     expect(report.summary.cards).toBe(2);
     expect(report.summary.pendingQualityReview).toBe(1);
     expect(report.findings).toContainEqual(expect.objectContaining({ code: "MEMORY_CARD_READ_ERROR", module: "unreadable", file: ".agents/memory/unreadable/MEMORY.md" }));

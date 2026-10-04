@@ -92,7 +92,10 @@ export function buildGovernanceActionItems(args: {
       const targetPaths = new Set([target?.skillPath, target?.skillPath.replace(/\/[^/]*$/, ""), ...(target?.mainFile?.candidatePaths ?? [])]);
       if (args.contextFindings.some(finding => finding.code === expectedCode && (
         finding.paths?.some(file => targetPaths.has(file)) ||
-        finding.assets.some(id => targetPaths.has(assetById.get(id)?.path))
+        finding.assets.some(id => {
+          const assetPath = assetById.get(id)?.path;
+          return assetPath !== undefined && targetPaths.has(assetPath);
+        })
       ))) continue;
     }
     const guidance = warningGuidance(item);

@@ -367,6 +367,10 @@ async function acquireLock(
     while (true) {
       if (attempted && timing.now() >= deadline) throw new ProjectIndexLockTimeoutError(projectRoot);
       attempted = true;
+      // Windows rename can replace an ordinary file with this directory. Reject
+      // existing non-protocol artifacts before publication. This observation does
+      // not grant ownership: rename still arbitrates between nonempty v2 locks.
+      await observeLock(projectRoot, lockPath);
       try {
         await fs.rename(assertPathInsideProject(projectRoot, candidatePath), assertPathInsideProject(projectRoot, lockPath));
         candidateCreated = false;

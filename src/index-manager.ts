@@ -5,6 +5,7 @@ import { assertPathInsideProject, tryProjectPath } from "./file-containment.js";
  */
 
 import fs from "node:fs";
+import { createHash } from "node:crypto";
 import path from "node:path";
 import matter from "./safe-frontmatter.js";
 import type {
@@ -28,6 +29,8 @@ import {
   isMemoryArchiveArtifactPath,
   resolveMemoryMainFileInDirectorySync,
 } from "./memory-main-file.js";
+import { recomputeDependencyState, normalizeDeclaredDependencies } from "./dependency-propagator.js";
+import { validateDependencySemantics } from "./dependency-semantics.js";
 import { getTaiwanISO } from "./timestamp.js";
 import { suggestOwner } from "./smart-owner.js";
 import {
@@ -49,7 +52,7 @@ export {
 const INDEX_FILENAME = ".cartridge/index.json";
 
 /** 巢狀目錄最大掃描深度 */
-const MAX_SCAN_DEPTH = 4;
+export const MAX_SCAN_DEPTH = 4;
 
 /**
  * 從記憶卡匣主檔解析追蹤檔案清單
@@ -147,7 +150,7 @@ export class CartridgeIndexManager {
   /**
    * 掃描所有記憶卡匣並建立索引（支援巢狀目錄，最大 4 層）
    */
-  async scan(): Promise<CartridgeIndex> {
+  async scan(options: { deriveDependencies?: boolean } = {}): Promise<CartridgeIndex> {
     const memoryDir = getMemoryAbsPath(this.config);
     const skillsDir = getSkillsAbsPath(this.config);
     const newCartridges: Record<string, CartridgeEntry> = {};
@@ -191,7 +194,11 @@ export class CartridgeIndexManager {
     };
 
     // 自動推導卡匣間依賴關係
-    this.buildAndMergeDependencies();
+    if (options.deriveDependencies ?? true) this.buildAndMergeDependencies(new Map(
+      Object.entries(this.index.cartridges)
+        .filter(([, entry]) => entry.declaredDependencies !== undefined)
+        .map(([id, entry]) => [id, entry.declaredDependencies!] as const),
+    ));
 
     return this.index;
   }
@@ -244,6 +251,7 @@ export class CartridgeIndexManager {
       let raw: string | null = null;
       let frontmatter: Record<string, unknown> = {};
       let content = "";
+      let parsedSuccessfully = false;
       let trackedFiles: string[] = [];
       let compaction: MemoryCompactionMetrics | undefined;
 
@@ -259,6 +267,7 @@ export class CartridgeIndexManager {
             const parsed = matter(raw);
             frontmatter = parsed.data as Record<string, unknown>;
             content = parsed.content;
+            parsedSuccessfully = true;
           } catch (err) {
             console.warn(
               `[記憶卡匣] YAML 格式錯誤，已以待審狀態保留：${activeAbsPath}`,
@@ -290,6 +299,18 @@ export class CartridgeIndexManager {
       // 保留既有的 pendingChanges（若有的話）
       const existingEntry = this.index.cartridges[cartridgeId];
 
+      if (!parsedSuccessfully && existingEntry) trackedFiles = existingEntry.trackedFiles;
+      let declaredDependencies: string[] | undefined;
+      let dependencyDeclarationError: string | undefined;
+      try {
+        if (parsedSuccessfully) declaredDependencies = normalizeDeclaredDependencies(frontmatter.dependencies);
+      } catch (error) {
+        dependencyDeclarationError = error instanceof Error ? error.message : String(error);
+      }
+
+      const rawFingerprint = parsedSuccessfully && raw !== null ? fingerprintContent(raw) : undefined;
+      const reconciliation = rawFingerprint && existingEntry?.trackingReconciliation?.fileFingerprint === rawFingerprint
+        ? existingEntry.trackingReconciliation : undefined;
       cartridges[cartridgeId] = {
         skillPath:
           mainResolution.mainFile.activePath ??
@@ -305,12 +326,27 @@ export class CartridgeIndexManager {
         legacyCompatibility: mainResolution.mainFile.legacyCompatibility,
         description: (frontmatter.description as string) ?? "",
         trackedFiles,
-        staleness: (frontmatter.staleness as number) ?? 0,
+        staleness: Math.max(
+          reconciliation?.staleness ?? (typeof frontmatter.staleness === "number" && Number.isFinite(frontmatter.staleness) ? frontmatter.staleness : 0),
+          existingEntry?.pendingChanges.length ? existingEntry.staleness : 0,
+        ),
         lastUpdated: (frontmatter.last_updated as string) ?? "",
         pendingChanges: existingEntry?.pendingChanges ?? [],
         ghostFiles: existingEntry?.ghostFiles ?? [],
-        dependencies: (frontmatter.dependencies as string[]) ?? [],
-        indirectStaleness: 0,
+        dependencies: existingEntry?.dependencies ?? declaredDependencies ?? [],
+        declaredDependencies,
+        engineeringDependencies: existingEntry?.engineeringDependencies,
+        dependencyDiagnostics: declaredDependencies
+          ? validateDependencySemantics({ moduleName: cartridgeId, dependencies: declaredDependencies, body: content, parent: parentId })
+          : existingEntry?.dependencyDiagnostics,
+        dependencySyncWarning: dependencyDeclarationError ?? existingEntry?.dependencySyncWarning,
+        indirectStaleness: existingEntry?.indirectStaleness ?? 0,
+        memoryContentFingerprint: parsedSuccessfully && raw !== null
+          ? memoryContentFingerprint(raw) : existingEntry?.memoryContentFingerprint,
+        sourceFingerprints: existingEntry?.sourceFingerprints,
+        memoryFileFingerprint: rawFingerprint,
+        trackingReconciliation: reconciliation,
+
         depth,
         parent: parentId,
         compaction,
@@ -469,19 +505,38 @@ export class CartridgeIndexManager {
     cartridgeId: string,
     filePath: string,
     eventType: "add" | "change" | "unlink",
-  ): void {
+  ): boolean {
     const entry = this.index.cartridges[cartridgeId];
-    if (!entry) return;
+    if (!entry) return false;
+    const normalized = filePath.replace(/\\/g, "/");
+    const existing = entry.pendingChanges.find((change) => change.filePath === normalized);
+    const fingerprint = this.sourceFingerprint(normalized);
+    const known = entry.sourceFingerprints?.[normalized];
+    // Fingerprints are canonical-index data, not a per-process suppression flag.
+    // Duplicated notifications (including a second monitor) must not refresh the
+    // event timestamp, warning bytes or score.
+    if (fingerprint !== undefined && fingerprint === known && ((!existing && eventType !== "unlink") || (existing && (existing.eventType === eventType || eventType !== "unlink")))) return false;
+    if (fingerprint !== undefined) {
+      entry.sourceFingerprints = { ...entry.sourceFingerprints, [normalized]: fingerprint };
+    }
+    if (existing) {
+      if (fingerprint === undefined && existing.eventType === eventType) return false;
+      existing.eventType = eventType;
+      existing.timestamp = getTaiwanISO();
+      return true;
+    }
+    entry.pendingChanges.push({ filePath: normalized, eventType, timestamp: getTaiwanISO() });
+    return true;
+  }
 
-    // 去重：同一檔案不重複記錄
-    const exists = entry.pendingChanges.some((c) => c.filePath === filePath);
-    if (exists) return;
-
-    entry.pendingChanges.push({
-      filePath,
-      eventType,
-      timestamp: getTaiwanISO(),
-    });
+  private sourceFingerprint(filePath: string): string | undefined {
+    const candidate = tryProjectPath(this.config.projectRoot, filePath);
+    if (!candidate) return undefined;
+    try {
+      return createHash("sha256").update(fs.readFileSync(candidate)).digest("hex");
+    } catch (error) {
+      return (error as NodeJS.ErrnoException).code === "ENOENT" ? "missing" : undefined;
+    }
   }
 
   /**
@@ -542,40 +597,62 @@ export class CartridgeIndexManager {
    * 2. 合併 frontmatter 中 AI 手動宣告的依賴
    * 3. 計算間接過期傳播
    */
-  buildAndMergeDependencies(): void {
+  buildAndMergeDependencies(declarations?: ReadonlyMap<string, readonly string[]>): boolean {
     try {
-      // 動態匯入避免頂層循環依賴
-      const { buildDependencyGraph, propagateStaleness } = require("./dependency-propagator.js") as {
-        buildDependencyGraph: (index: CartridgeIndex, projectRoot: string) => Map<string, string[]>;
-        propagateStaleness: (index: CartridgeIndex, graph: Map<string, string[]>, maxDepth: number) => Map<string, number>;
-      };
-
-      const graph = buildDependencyGraph(this.index, this.config.projectRoot);
-
-      // 合併自動推導 + 手動宣告的依賴
-      for (const [cartridgeId, autoDeps] of graph.entries()) {
-        const entry = this.index.cartridges[cartridgeId];
-        if (!entry) continue;
-        const manual = entry.dependencies ?? [];
-        entry.dependencies = [...new Set([...autoDeps, ...manual])];
+      recomputeDependencyState(this.index, this.config.projectRoot, this.config.dependencyDepth, declarations, this.config);
+      return true;
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      for (const entry of Object.values(this.index.cartridges)) {
+        entry.dependencySyncWarning = `DEPENDENCY_SYNC_PARTIAL: ${message}`;
       }
-
-      // 計算間接過期傳播
-      const indirectScores = propagateStaleness(
-        this.index,
-        graph,
-        this.config.dependencyDepth,
-      );
-
-      for (const [cartridgeId, score] of indirectScores.entries()) {
-        const entry = this.index.cartridges[cartridgeId];
-        if (entry) {
-          entry.indirectStaleness = score;
-        }
-      }
-    } catch (err) {
-      console.error("[記憶卡匣] 依賴圖建構失敗，跳過依賴傳播：", err);
+      console.error("[記憶卡匣] 依賴圖建構失敗，保留既有衍生狀態：", error);
+      return false;
     }
+  }
+
+  /** Reconcile tracking facts; prose/metadata edits are never proof of review. */
+  reconcileTrackedState(
+    cartridgeId?: string,
+    options: { resolvePresentPending?: boolean } = {},
+  ): void {
+    for (const [id, entry] of Object.entries(this.index.cartridges)) {
+      if (cartridgeId !== undefined && cartridgeId !== id) continue;
+      const tracked = new Set(entry.trackedFiles);
+      const missing = new Set(entry.trackedFiles.filter((file) => {
+        if (file.endsWith("/")) return false;
+        const candidate = tryProjectPath(this.config.projectRoot, file);
+        return !candidate || !fs.existsSync(candidate);
+      }));
+      const previousPendingCount = entry.pendingChanges.length;
+      const previousPendingScore = this.pendingScore(entry, this.config.scoring);
+      entry.pendingChanges = entry.pendingChanges.filter((change) =>
+        tracked.has(change.filePath) && (!options.resolvePresentPending || missing.has(change.filePath)),
+      );
+      entry.ghostFiles = [...missing];
+      for (const file of missing) {
+        // Missing files remain unresolved even when a commit or card edit has
+        // attempted to reset staleness or remove the system warning.
+        this.addPendingChange(id, file, "unlink");
+      }
+      if (entry.sourceFingerprints) {
+        entry.sourceFingerprints = Object.fromEntries(Object.entries(entry.sourceFingerprints).filter(([file]) => tracked.has(file)));
+      }
+      if (entry.pendingChanges.length > 0) {
+        entry.staleness = this.pendingScore(entry, this.config.scoring) + Math.max(0, entry.staleness - previousPendingScore);
+      } else if (previousPendingCount > 0) {
+        entry.staleness = 0;
+      }
+      if (previousPendingCount > entry.pendingChanges.length && entry.memoryFileFingerprint) {
+        entry.trackingReconciliation = { fileFingerprint: entry.memoryFileFingerprint, staleness: entry.staleness };
+      }
+    }
+  }
+
+  private pendingScore(entry: CartridgeEntry, scoring: CartridgeConfig["scoring"]): number {
+    return entry.pendingChanges.reduce((score, change) => score + (
+      change.eventType === "unlink" ? scoring.fileDeleted : change.eventType === "add" ? scoring.fileAdded : scoring.fileChanged
+    ), 0);
   }
 
   /**
@@ -1027,6 +1104,20 @@ function isPersistedCartridgeEntry(value: unknown): value is CartridgeEntry {
     (value.parent === null || typeof value.parent === "string") &&
     isStringArray(value.ghostFiles) &&
     isStringArray(value.dependencies) &&
+    (value.declaredDependencies === undefined || isStringArray(value.declaredDependencies)) &&
+    (value.engineeringDependencies === undefined || isStringArray(value.engineeringDependencies)) &&
+    (value.dependencySyncWarning === undefined || typeof value.dependencySyncWarning === "string") &&
+    (value.memoryContentFingerprint === undefined || typeof value.memoryContentFingerprint === "string") &&
+    (value.memoryFileFingerprint === undefined || typeof value.memoryFileFingerprint === "string") &&
+    (value.trackingReconciliation === undefined || (isRecord(value.trackingReconciliation) &&
+      typeof value.trackingReconciliation.fileFingerprint === "string" &&
+      typeof value.trackingReconciliation.staleness === "number" &&
+      Number.isFinite(value.trackingReconciliation.staleness))) &&
+    (value.sourceFingerprints === undefined || (isRecord(value.sourceFingerprints) &&
+      Object.values(value.sourceFingerprints).every((fingerprint) => typeof fingerprint === "string"))) &&
+    (value.dependencyDiagnostics === undefined || (Array.isArray(value.dependencyDiagnostics) &&
+      value.dependencyDiagnostics.every((diagnostic) => isRecord(diagnostic) &&
+        typeof diagnostic.code === "string" && typeof diagnostic.dependency === "string" && typeof diagnostic.message === "string"))) &&
     typeof value.indirectStaleness === "number" &&
     Number.isFinite(value.indirectStaleness)
   );
@@ -1048,4 +1139,27 @@ function isStringArray(value: unknown): value is string[] {
     Array.isArray(value) &&
     value.every((item) => typeof item === "string")
   );
+}
+
+/** Stable user-authored content identity: system warnings and derived flags do
+ * not count as a review. Persisted with the index for independent monitors. */
+export function memoryContentFingerprint(raw: string): string {
+  const parsed = matter(raw);
+  const data = { ...parsed.data };
+  delete data.staleness;
+  delete data.status;
+  const body = parsed.content.replace(
+    /<!-- CARTRIDGE_SYSTEM_WARNING_START -->[\s\S]*?<!-- CARTRIDGE_SYSTEM_WARNING_END -->/g,
+    "",
+  ).replace(/\r\n/g, "\n").trim();
+  return fingerprintContent(JSON.stringify({ data: stableData(data), body }));
+}
+
+function stableData(value: unknown): unknown {
+  if (Array.isArray(value)) return value.map(stableData);
+  if (value !== null && typeof value === "object" && !(value instanceof Date)) {
+    return Object.fromEntries(Object.entries(value).sort(([a], [b]) => a.localeCompare(b))
+      .map(([key, item]) => [key, stableData(item)]));
+  }
+  return value;
 }

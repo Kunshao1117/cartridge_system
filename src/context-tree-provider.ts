@@ -68,7 +68,7 @@ export class ContextTreeProvider implements vscode.TreeDataProvider<ContextNode>
         finding,
         targetPath: finding.assets
           .map((id) => assetById.get(id))
-          .find((asset) => asset?.exists)?.path,
+          .find((asset) => asset?.exists && (!asset.mainFile || Boolean(asset.mainFile.activePath)))?.path,
       }));
   }
 
@@ -112,7 +112,7 @@ export class ContextTreeProvider implements vscode.TreeDataProvider<ContextNode>
     const item = new vscode.TreeItem(asset.id, vscode.TreeItemCollapsibleState.None);
     item.description = asset.path;
     item.tooltip = `${asset.owner} / ${asset.type} / priority=${asset.priority}`;
-    if (asset.exists) this.setOpenCommand(item, asset.path);
+    if (asset.exists && (!asset.mainFile || asset.mainFile.activePath)) this.setOpenCommand(item, asset.path);
     return item;
   }
 

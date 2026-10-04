@@ -26,12 +26,12 @@ describe("buildDesktopProjectSnapshot", () => {
         },
       ],
       trackedFiles: ["src/index.ts"],
-      guidance: "開啟 core 記憶卡，依待處理檔案更新內容或確認變更已無影響。",
+      guidance: "比較 core 的來源與卡片版本、owner/scope 和主張；需調整且已獲授權才修改。no-write 不會自動清 stale 或同步索引。",
     });
     expect(snapshot.cartridges[1]).toMatchObject({
       id: "ui",
       ghostFilePaths: ["src/missing.ts"],
-      guidance: "開啟 ui 記憶卡，從 Tracked Files 移除已不存在的檔案路徑。",
+      guidance: "確認 ui 的缺失來源需恢復或經授權移除不再適用的 Tracked Files 路徑；仍追蹤且不存在的來源保留警告。",
     });
     expect(snapshot.untrackedFiles[0]).toMatchObject({
       filePath: "src/new.ts",

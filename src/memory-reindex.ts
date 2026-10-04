@@ -195,7 +195,7 @@ async function refreshMemoryIndexUnlocked(
   if (options.clearUntrackedFiles) {
     indexManager.clearUntrackedFiles();
   }
-  await indexManager.scan();
+  await indexManager.scan({ deriveDependencies: false });
   if (options.detectMissedChanges ?? true) {
     indexManager.detectMissedChanges(config.scoring);
   }
@@ -208,6 +208,10 @@ async function refreshMemoryIndexUnlocked(
     });
   }
   indexManager.validateTrackedFiles();
+  indexManager.reconcileTrackedState();
+  // Direct changes and ghosts must be complete before deriving the one snapshot
+  // published by this transaction. Never wait for a second watcher/reindex pass.
+  indexManager.buildAndMergeDependencies();
   indexManager.markDirty();
 
   return {

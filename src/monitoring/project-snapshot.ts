@@ -35,6 +35,8 @@ export interface DesktopCartridgeSnapshot {
   description: string;
   staleness: number;
   indirectStaleness: number;
+  dependencySyncWarning?: string;
+  dependencyDiagnostics?: CartridgeEntry["dependencyDiagnostics"];
   pendingChanges: number;
   ghostFiles: number;
   trackedFiles: string[];
@@ -168,7 +170,7 @@ function toCartridgeSnapshot(
     id,
     skillPath: entry.skillPath,
     mainFileType: entry.mainFile?.type ?? entry.mainFileType ?? "legacy SKILL.md",
-    mainFilePath: entry.mainFile?.activePath ?? entry.skillPath ?? null,
+    mainFilePath: entry.mainFile ? entry.mainFile.activePath : entry.skillPath ?? null,
     mainFileCandidates: entry.mainFile?.candidatePaths ?? [entry.skillPath],
     contentQualityStatus,
     contentQualityLabel:
@@ -178,6 +180,8 @@ function toCartridgeSnapshot(
     description: entry.description,
     staleness: entry.staleness,
     indirectStaleness: entry.indirectStaleness ?? 0,
+    dependencySyncWarning: entry.dependencySyncWarning,
+    dependencyDiagnostics: entry.dependencyDiagnostics,
     pendingChanges: entry.pendingChanges?.length ?? 0,
     ghostFiles: entry.ghostFiles?.length ?? 0,
     trackedFiles: [...(entry.trackedFiles ?? [])].sort(),
@@ -235,8 +239,14 @@ function buildCartridgeGuidance(id: string, entry: CartridgeEntry): string {
   if (entry.mainFile?.type === "missing" || entry.mainFileType === "missing") {
     return `${id} 缺少作用中記憶主檔，需先恢復 MEMORY.md 或 legacy SKILL.md。`;
   }
+  if (entry.dependencySyncWarning) {
+    return `${id} 的依賴同步未完成：${entry.dependencySyncWarning}。保留上一個可信衍生值，不能視為完整同步成功；修正後僅執行已授權的同步。`;
+  }
+  if ((entry.dependencyDiagnostics?.length ?? 0) > 0) {
+    return `${id} 的依賴宣告待複審：${entry.dependencyDiagnostics!.map(item => `${item.code}: ${item.message}`).join("; ")}。`;
+  }
   if (entry.legacyCompatibility) {
-    return `${id} 仍使用 legacy SKILL.md；相容期可讀寫，但需遷移到 MEMORY.md 後才算新版標準。`;
+    return `${id} 仍使用 legacy SKILL.md；仍可相容讀取並作已授權的最小修正；命名遷移或結構升級只在需要且已核准時進行。`;
   }
   if (
     entry.contentQuality?.status &&
@@ -251,19 +261,19 @@ function buildCartridgeGuidance(id: string, entry: CartridgeEntry): string {
     return `先彙整 ${id} 記憶卡；目前大小 ${compaction.sizeBytes}/${compaction.sizeLimitBytes} bytes，週期事件 ${compaction.cycleEventCount}/${compaction.cycleEventLimit}。`;
   }
   if (pending > 0 && ghosts > 0) {
-    return `先更新 ${id} 記憶卡內容，再清理已不存在的追蹤檔案。`;
+    return `先比較 ${id} 的最新來源與卡片，再確認缺失來源需恢復或經授權調整追蹤；不為清警告強制改卡。`;
   }
   if (pending > 0) {
-    return `開啟 ${id} 記憶卡，依待處理檔案更新內容或確認變更已無影響。`;
+    return `比較 ${id} 的來源與卡片版本、owner/scope 和主張；需調整且已獲授權才修改。no-write 不會自動清 stale 或同步索引。`;
   }
   if (ghosts > 0) {
-    return `開啟 ${id} 記憶卡，從 Tracked Files 移除已不存在的檔案路徑。`;
+    return `確認 ${id} 的缺失來源需恢復或經授權移除不再適用的 Tracked Files 路徑；仍追蹤且不存在的來源保留警告。`;
   }
   if (indirect > 0) {
-    return `檢查 ${id} 是否受上游記憶卡變更影響；若內容仍正確，可保留不改。`;
+    return `比較 ${id} 的最新上游來源與卡片；內容與追蹤仍正確可保留不改，但 no-write 不會自動清 stale 或同步索引。`;
   }
   if (compaction?.isLegacy) {
-    return `${id} 是舊格式記憶卡；下次修改時再懶升級為 schema v2。`;
+    return `${id} 是舊格式記憶卡；僅在需要且已核准結構標準化時升級，一般修正維持最小範圍。`;
   }
   if ((entry.trackedFiles?.length ?? 0) > 8) {
     return `${id} 追蹤檔案數偏高，這是拆分建議，不會單獨阻擋。`;

@@ -355,7 +355,7 @@ export function formatCompactionWarnings(
   const warnings: string[] = [];
   if (metrics.isLegacy) {
     warnings.push(
-      `⚠️ [MEMORY_LEGACY_SCHEMA] "${moduleName}" 使用舊記憶格式；可讀取，但下次更新前應懶升級為 memory_schema_version: 2。`,
+      `⚠️ [MEMORY_LEGACY_SCHEMA] "${moduleName}" 使用舊記憶格式；仍可讀取；僅在需要且已核准結構標準化時升級為 memory_schema_version: 2，一般內容或追蹤修正維持最小範圍。`,
     );
   }
   if (metrics.needsCompaction) {

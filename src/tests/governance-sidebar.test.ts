@@ -218,7 +218,7 @@ describe("governance sidebar models", () => {
       "context",
     ]);
     expect(items[3].targetPath).toBe("AGENTS.md");
-    expect(items[0].label).toBe("更新記憶卡：extension");
+    expect(items[0].label).toBe("複審來源與記憶卡：extension");
     expect(items[1].affectedPath).toBe("src/old-panel.ts");
     expect(items[2].affectedPath).toBe("src/new-panel.ts");
     expect(items[2].recommendedAction).toContain("歸到合適的記憶卡");

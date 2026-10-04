@@ -48,6 +48,8 @@ function readSection(body: string, heading: string): string {
 
 function hasDependencyReason(body: string, dependency: string): boolean {
   const rationale = [
+    readSection(body, "Current Truth"),
+    readSection(body, "Active Constraints"),
     readSection(body, "Key Decisions"),
     readSection(body, "Known Issues"),
   ].join("\n");
@@ -94,7 +96,7 @@ export function validateDependencySemantics(
         dependency,
         message:
           `"${dependency}" listed in dependencies but no dependency reason ` +
-          "was found in Key Decisions or Known Issues.",
+          "was found in Current Truth, Active Constraints, Key Decisions or Known Issues.",
       });
     }
 

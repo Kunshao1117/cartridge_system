@@ -17,6 +17,8 @@ export interface MemoryWarningEntry {
   staleness?: number;
   ghostFiles?: unknown[];
   indirectStaleness?: number;
+  dependencySyncWarning?: string;
+  dependencyDiagnostics?: Array<{ code: string; dependency: string; message: string }>;
   parent?: string | null;
   trackedFiles?: unknown[];
   compaction?: MemoryCompactionMetrics;
@@ -40,6 +42,8 @@ export interface MemoryWarningItem {
     | "memory_ghost_files"
     | "memory_untracked_files"
     | "memory_indirect_stale"
+    | "memory_dependency_sync_partial"
+    | "memory_dependency_diagnostic"
     | "memory_child_review"
     | "memory_relation_hint"
     | "memory_compaction_due"
@@ -132,7 +136,7 @@ export function classifyMemoryWarnings(
         code: "memory_main_file_legacy",
         target: module,
         reason: "mainFile=legacy SKILL.md",
-        label: `遷移舊版主檔：${module}`,
+        label: `舊版主檔相容提醒：${module}`,
         score: 1,
         blocking: false,
       });
@@ -198,7 +202,7 @@ export function classifyMemoryWarnings(
         code: "memory_stale",
         target: module,
         reason: `staleness=${staleness}`,
-        label: `更新記憶卡：${module}`,
+        label: `複審來源與記憶卡：${module}`,
         score: staleness,
         blocking: true,
       });
@@ -214,6 +218,29 @@ export function classifyMemoryWarnings(
         label: `清理幽靈檔案：${module}`,
         score: ghostFiles,
         blocking: true,
+      });
+    }
+
+    if (entry.dependencySyncWarning) {
+      review.push({
+        tier: "review",
+        code: "memory_dependency_sync_partial",
+        target: module,
+        reason: entry.dependencySyncWarning,
+        label: `複審依賴同步失敗：${module}`,
+        score: 1,
+        blocking: false,
+      });
+    }
+    for (const diagnostic of entry.dependencyDiagnostics ?? []) {
+      review.push({
+        tier: "review",
+        code: "memory_dependency_diagnostic",
+        target: module,
+        reason: `${diagnostic.code}: ${diagnostic.message}`,
+        label: `複審依賴宣告：${module} (${diagnostic.dependency})`,
+        score: 1,
+        blocking: false,
       });
     }
 
@@ -296,7 +323,7 @@ export function classifyMemoryWarnings(
         code: "memory_legacy_schema",
         target: module,
         reason: "memory_schema_version<2",
-        label: `懶升級舊記憶卡：${module}`,
+        label: `舊格式相容提醒：${module}`,
         score: 1,
         blocking: false,
       });

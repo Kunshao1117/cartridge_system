@@ -54,7 +54,7 @@ const memoryCommitSchema = {
     confirm: {
       type: "boolean",
       description:
-        "確認已完成作用中記憶主檔內容寫入，並允許同步記憶卡後設資料。",
+        "確認已完成必要且獲授權的內容或 tracking 修正，並允許同步記憶卡後設資料；no-write review 不需要此工具。",
     },
   },
   required: ["moduleName", "confirm"],
@@ -177,7 +177,7 @@ export const CARTRIDGE_TOOLS: CartridgeToolDefinition[] = [
   {
     name: "memory_commit",
     description:
-      "在 AI 已寫入作用中記憶主檔後同步後設資料：時間戳、staleness、索引與結構驗證。此工具會寫入檔案。",
+      "在已完成獲授權的內容或 tracking 修正後同步後設資料。分別回報卡片寫入、索引註冊、tracking 與依賴衍生同步；部分成功不是全部收斂。此工具會寫入檔案。",
     safetySummary: "會寫入記憶卡後設資料，必須在使用者或流程確認後帶 confirm:true。",
     risk: "high",
     capability: "write",
@@ -217,7 +217,7 @@ export const CARTRIDGE_TOOLS: CartridgeToolDefinition[] = [
   {
     name: "memory_graph",
     description: "輸出 AI 可讀的整體記憶卡匣關聯圖譜摘要。",
-    safetySummary: "只讀圖譜摘要，不讀完整 SKILL.md 原文，不修改記憶卡。",
+    safetySummary: "只讀圖譜摘要，不讀完整記憶主檔原文，不修改記憶卡。",
     risk: "low",
     capability: "analyze",
     readOnly: true,

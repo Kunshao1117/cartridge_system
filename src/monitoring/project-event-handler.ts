@@ -1,6 +1,8 @@
 import path from "node:path";
+import fs from "node:fs";
+import { assertPathInsideProject } from "../file-containment.js";
 import type { CartridgeConfig, FileEventType } from "../types.js";
-import type { CartridgeIndexManager } from "../index-manager.js";
+import { memoryContentFingerprint, type CartridgeIndexManager } from "../index-manager.js";
 import { isManagedMemoryArtifactPath } from "../visible-index.js";
 import type { StalenessAnalyzer } from "../analyzer.js";
 import type { GitignoreFilter } from "../gitignore-filter.js";
@@ -66,8 +68,8 @@ async function handleProjectFileEventUnlocked(
   }
 
   if (isMemorySkillPath(relPath)) {
-    await handleProjectSkillFileChange({ ...args, relPath });
-    return { updated: true, refresh: true };
+    const updated = await handleProjectSkillFileChange({ ...args, relPath });
+    return { updated, refresh: updated };
   }
 
   if (isManagedMemoryArtifactPath(relPath)) {
@@ -106,14 +108,26 @@ async function handleProjectFileEventUnlocked(
 
   const affected = args.indexManager.getAffectedCartridges(relPath);
   if (affected.length > 0) {
-    await args.analyzer.processFileEvent(relPath, args.eventType);
-    if (args.eventType === "unlink") {
+    // Watch notifications can arrive late or in a different order in another
+    // process. Reconcile their kind with the current filesystem state.
+    const exists = fs.existsSync(assertPathInsideProject(args.config.projectRoot, args.absFilePath));
+    const currentType = !exists ? "unlink" : args.eventType === "unlink" ? "change" : args.eventType;
+    const updated = await args.analyzer.processFileEvent(relPath, currentType);
+    if (currentType === "unlink") {
       for (const cartridgeId of affected) {
         args.indexManager.markGhostFile(cartridgeId, relPath);
       }
       args.indexManager.markDirty();
     }
-    return { updated: true, refresh: false };
+    if (updated) {
+      for (const id of affected) {
+        args.indexManager.reconcileTrackedState(id);
+        await args.analyzer.refreshWarnings(id);
+      }
+      args.indexManager.buildAndMergeDependencies();
+      args.indexManager.markDirty();
+    }
+    return { updated, refresh: false };
   }
 
   if (args.eventType === "unlink") {
@@ -129,25 +143,41 @@ async function handleProjectFileEventUnlocked(
 
 async function handleProjectSkillFileChange(
   args: ProjectFileEvent & { relPath: string },
-): Promise<void> {
+): Promise<boolean> {
   const normalizedRelPath = args.relPath.replace(/\\/g, "/");
-  const cartridgeEntry = Object.entries(
-    args.indexManager.getIndex().cartridges,
-  ).find(([, entry]) => entry.skillPath.replace(/\\/g, "/") === normalizedRelPath);
-
-  if (cartridgeEntry) {
-    args.indexManager.clearPendingChanges(cartridgeEntry[0]);
-    args.indexManager.clearGhostFiles(cartridgeEntry[0]);
+  const cartridgeEntry = Object.entries(args.indexManager.getIndex().cartridges)
+    .find(([, entry]) => (entry.mainFile?.activePath ?? entry.skillPath).replace(/\\/g, "/") === normalizedRelPath);
+  let fingerprint: string | undefined;
+  try {
+    fingerprint = memoryContentFingerprint(fs.readFileSync(
+      assertPathInsideProject(args.config.projectRoot, normalizedRelPath), "utf8",
+    ));
+  } catch {
+    // Missing/invalid cards still need a scan that exposes the diagnostic.
+  }
+  if (cartridgeEntry && fingerprint !== undefined &&
+      fingerprint === cartridgeEntry[1].memoryContentFingerprint) {
+    // A warning/status self-write is recognizable from durable content, even in
+    // a second process that never performed the write. Idempotent warning repair
+    // also handles an externally removed warning without a self-write loop.
+    await args.analyzer.refreshWarnings(cartridgeEntry[0]);
+    return false;
   }
 
-  await args.writer.checkAndCleanWarning(args.relPath);
-  await args.indexManager.scan();
+  await args.indexManager.scan({ deriveDependencies: false });
+  const changedEntry = Object.entries(args.indexManager.getIndex().cartridges)
+    .find(([id, entry]) => id === cartridgeEntry?.[0] ||
+      (entry.mainFile?.activePath ?? entry.skillPath).replace(/\\/g, "/") === normalizedRelPath);
+  if (changedEntry) args.indexManager.reconcileTrackedState(changedEntry[0]);
+  args.indexManager.buildAndMergeDependencies();
+  if (changedEntry) await args.analyzer.refreshWarnings(changedEntry[0]);
   await refreshProjectUntrackedFiles({
     projectRoot: args.config.projectRoot,
     indexManager: args.indexManager,
     gitignoreFilter: args.gitignoreFilter,
   });
   args.indexManager.markDirty();
+  return true;
 }
 
 export function isMemorySkillPath(relPath: string): boolean {

@@ -537,7 +537,7 @@ function auditMemoryMainFileAndQuality(card: MemoryCard): MemoryAuditFinding[] {
     findings.push({
       severity: "warning",
       code: "MEMORY_MAIN_FILE_LEGACY",
-      message: `${card.module} 仍使用 legacy SKILL.md；可讀但需要遷移到 MEMORY.md。`,
+      message: `${card.module} 仍使用 legacy SKILL.md；仍可讀取；只在需要且已核准命名遷移時改為 MEMORY.md，一般修正維持原主檔。`,
       module: card.module,
       file: card.skillPath,
     });
@@ -687,7 +687,7 @@ function auditCompaction(card: MemoryCard): MemoryAuditFinding[] {
     findings.push({
       severity: "warning",
       code: "MEMORY_LEGACY_SCHEMA",
-      message: `${card.module} 使用舊記憶格式；可讀取，但下次更新時應懶升級為新版格式。`,
+      message: `${card.module} 使用舊記憶格式；仍可讀取；僅在需要且已核准結構標準化時升級，一般內容或追蹤修正維持最小範圍。`,
       module: card.module,
       file: card.skillPath,
     });

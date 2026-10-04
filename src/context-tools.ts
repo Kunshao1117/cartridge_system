@@ -64,13 +64,17 @@ export async function handleContextInventory(args: unknown): Promise<McpToolResu
   try {
     const projectRoot = validateProjectRoot(parsed.data.projectRoot);
     const inventory = await scanContextRegistry(projectRoot);
+    const findings = auditContextInventory(inventory);
+    const readiness = summarizeContextReadiness(findings);
     return toMcpTextResult(
       createToolEnvelope({
         tool: "context_inventory",
         readOnly: true,
         projectRoot,
-        status: "ready",
-        summary: { ...inventory },
+        status: readiness.status,
+        summary: { ...inventory, readiness },
+        findings: toFindings(findings),
+        recommendedActions: toRecommendedActions(findings),
       }),
     );
   } catch (error) {
@@ -132,6 +136,21 @@ export async function handleContextDiff(args: unknown): Promise<McpToolResult> {
         message: "Context asset id not found.",
       }),
     );
+  }
+  const unresolved = [left, right].filter((asset) => asset.mainFile && !asset.mainFile.activePath);
+  if (unresolved.length > 0) {
+    return toMcpTextResult(createToolEnvelope({
+      tool: "context_diff",
+      readOnly: true,
+      projectRoot,
+      status: "blocked",
+      summary: { left, right },
+      findings: unresolved.map((asset) => ({
+        severity: "error" as const,
+        code: "context_memory_main_file_unresolved",
+        message: `${asset.id} has no active Memory main file (${asset.mainFile?.type}); resolve it before comparing content.`,
+      })),
+    }));
   }
   const sharedSignals = left.signals.filter((signal) => right.signals.includes(signal));
   return toMcpTextResult(

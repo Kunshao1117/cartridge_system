@@ -129,7 +129,7 @@ beforeEach(() => {
   // 預設模擬相容期：只有 legacy SKILL.md 存在，MEMORY.md 需由個別測試明確開啟。
   vi.mocked(fs.access).mockImplementation(async (target) => {
     const filePath = String(target).replace(/\\/g, "/");
-    if (filePath.endsWith("/SKILL.md")) return;
+    if (filePath.endsWith("/SKILL.md") || filePath.includes("/src/")) return;
     throw new Error("ENOENT");
   });
 });
@@ -467,7 +467,8 @@ describe("handleMemoryStatus", () => {
     expect(status.level).toBe("significant");
     expect(status.pendingChanges).toHaveLength(1);
     expect(status.pendingChanges[0].absolutePath).toContain("analyzer.ts");
-    expect(status.actionRequired).toContain("view_file");
+    expect(status.actionRequired).toContain("比較最新相關來源");
+    expect(status.actionRequired).not.toMatch(/memory_update|view_file/);
   });
 
   it("索引檔不存在時應回退讀 SKILL.md frontmatter", async () => {

@@ -125,6 +125,8 @@ export function getCartridgeStatus(cartridge: DesktopCartridgeSnapshot): {
     return { label: "阻塞", tone: "danger" };
   }
   if (
+    Boolean(cartridge.dependencySyncWarning) ||
+    (cartridge.dependencyDiagnostics?.length ?? 0) > 0 ||
     cartridge.indirectStaleness > 0 ||
     cartridge.legacyCompatibility ||
     cartridge.contentQualityStatus !== "complete"
@@ -144,6 +146,8 @@ export function cartridgesForIssue(
   if (issue === "review") {
     return project.cartridges.filter(
       (item) =>
+        Boolean(item.dependencySyncWarning) ||
+        (item.dependencyDiagnostics?.length ?? 0) > 0 ||
         item.indirectStaleness > 0 ||
         item.legacyCompatibility ||
         item.contentQualityStatus !== "complete" ||

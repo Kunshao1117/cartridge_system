@@ -243,7 +243,7 @@ export class CartridgeIndexManager {
 
       if (
         mainResolution.mainFile.type === "missing" &&
-        !hasChildMemoryCardDirectorySync(this.config.projectRoot, cardDir)
+        !hasChildMemoryCardDirectorySync(this.config.projectRoot, cardDir, MAX_SCAN_DEPTH - depth)
       ) {
         continue;
       }

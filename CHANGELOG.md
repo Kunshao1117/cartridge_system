@@ -25,6 +25,7 @@
 
 - 統一資料型 YAML/YML/JSON frontmatter parser，拒絕可執行或未知 engine、重複 BOM 繞過與 stringify 二次解析；保留日期、未知／prototype-named 欄位及正常 BOM/CRLF。
 - MCP、VS Code 與 Desktop 最終檔案 I/O 共用 lexical + realpath containment，拒絕越界索引、symlink/junction 與不安全開檔；此檢查不宣稱是抵禦持續惡意路徑替換的 OS sandbox。
+- 發布前依賴稽核：production findings 為 0；含開發／建置工具的完整樹仍有 29 項（25 high、4 moderate、0 critical），不宣稱所有依賴風險已清除。
 - 精準更新既有依賴家族：js-yaml 3.15.2 / 4.3.2、tar 7.5.22、fast-uri 3.1.8、ip-address 10.7.3、@hono/node-server 1.19.17、Hono 4.13.13、body-parser 2.3.0、qs 6.16.0，及必要子依賴；不使用 force audit fix 或跨 major 全面升級。
 
 ### fix

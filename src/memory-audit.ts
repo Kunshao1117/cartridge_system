@@ -19,8 +19,8 @@ import {
   type McpToolResult,
 } from "./mcp-response.js";
 import {
-  parseTrackedFiles,
-  shouldWarnEmptyTrackedFiles,
+  MAX_SCAN_DEPTH,
+  parseTrackedFiles,  shouldWarnEmptyTrackedFiles,
 } from "./index-manager.js";
 import { filterVisibleUntrackedFiles } from "./visible-index.js";
 import {
@@ -176,12 +176,12 @@ async function collectMemoryCardDirectories(
   const results: string[] = [];
 
   async function walk(dir: string, depth: number): Promise<void> {
-    if (depth > 5) return;
+    if (depth > MAX_SCAN_DEPTH) return;
     const entries = await fs.readdir(assertPathInsideProject(projectRoot, dir), { withFileTypes: true });
     for (const entry of entries) {
       const fullPath = path.join(dir, entry.name);
       if (entry.isDirectory()) {
-        if (entry.name.toLowerCase() === "archive") continue;
+        if (entry.name.startsWith(".") || entry.name.toLowerCase() === "archive") continue;
         if (depth === 1 && requireMemPrefix && !entry.name.startsWith("mem-")) {
           continue;
         }
@@ -191,7 +191,7 @@ async function collectMemoryCardDirectories(
         );
         if (
           resolution.mainFile.type !== "missing" ||
-          (await hasChildMemoryCardDirectory(projectRoot, fullPath))
+          (await hasChildMemoryCardDirectory(projectRoot, fullPath, MAX_SCAN_DEPTH - depth))
         ) {
           results.push(fullPath);
         }

@@ -18,6 +18,7 @@ import { stalenessToLevel } from "./staleness.js";
 import { getTaiwanISO } from "./timestamp.js";
 import {
   CartridgeIndexManager,
+  MAX_SCAN_DEPTH,
   parseTrackedFiles,
 } from "./index-manager.js";
 import {
@@ -445,7 +446,7 @@ async function findMemoryMainRecursive(
   parentId: string | null,
   requireMemPrefix: boolean,
 ): Promise<MemoryMainFileLookup | null> {
-  if (depth > 4) return null;
+  if (depth > MAX_SCAN_DEPTH) return null;
   try {
     const entries = await fs.readdir(assertPathInsideProject(projectRoot, dir), { withFileTypes: true });
     for (const entry of entries) {
@@ -619,7 +620,7 @@ export async function handleMemoryList(args: unknown): Promise<McpToolResult> {
       // 索引不存在 — 回退到目錄掃描（先掃 memory/，再掃 skills/mem-*）
       const modules: string[] = [];
       async function collect(dir: string, depth: number, parent: string | null, legacyRoot: boolean): Promise<void> {
-        if (depth > 4) return;
+        if (depth > MAX_SCAN_DEPTH) return;
         let files: Array<{ name: string; isDirectory: () => boolean }>;
         try {
           files = await fs.readdir(assertPathInsideProject(listProjectRoot, dir), { withFileTypes: true });
@@ -630,7 +631,7 @@ export async function handleMemoryList(args: unknown): Promise<McpToolResult> {
           const module = parent ? `${parent}.${child.name}` : child.name;
           const childDir = path.join(dir, child.name);
           const resolved = await resolveMemoryMainFileInDirectory(listProjectRoot, childDir);
-          if ((resolved.mainFile.type !== "missing" || await hasChildMemoryCardDirectory(listProjectRoot, childDir)) && !modules.includes(module)) modules.push(module);
+          if ((resolved.mainFile.type !== "missing" || await hasChildMemoryCardDirectory(listProjectRoot, childDir, MAX_SCAN_DEPTH - depth)) && !modules.includes(module)) modules.push(module);
           await collect(childDir, depth + 1, module, false);
         }
       }

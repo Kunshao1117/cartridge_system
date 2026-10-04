@@ -5,11 +5,11 @@ import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { scanContextRegistry } from "../context-registry.js";
 import { auditContextInventory } from "../context-audit.js";
 import { handleContextDiff, handleContextInventory } from "../context-tools.js";
-import { CartridgeIndexManager } from "../index-manager.js";
+import { CartridgeIndexManager, MAX_SCAN_DEPTH } from "../index-manager.js";
 import { createConfig } from "../config.js";
 import { handleMemoryList, handleMemoryRead, handleMemoryStatus, handleMemoryCommit } from "../mcp-handlers.js";
 import { buildMemoryAuditReport } from "../memory-audit.js";
-import { REQUIRED_MEMORY_QUALITY_FIELDS, REQUIRED_MEMORY_QUALITY_SECTIONS } from "../memory-main-file.js";
+import { REQUIRED_MEMORY_QUALITY_FIELDS, REQUIRED_MEMORY_QUALITY_SECTIONS, hasChildMemoryCardDirectory, hasChildMemoryCardDirectorySync } from "../memory-main-file.js";
 import { validateDependencySemantics } from "../dependency-semantics.js";
 
 let root: string;
@@ -97,6 +97,62 @@ describe("T05-T07 Memory inventory identity and read-only quality", () => {
     const diff = JSON.parse((await handleContextDiff({ projectRoot: root, leftId: conflict.id, rightId: "codex.agents" })).content[0].text);
     expect(diff.status).toBe("blocked");
     for (const [relative, raw] of Object.entries(fixtures)) expect(await fs.readFile(path.join(root, relative), "utf8")).toBe(raw);
+  });
+
+  it("keeps missing-main ancestors of a depth-four leaf aligned and excludes depth-five-only containers", async () => {
+    const fixtures = {
+      ".agents/memory/a/b/c/d/MEMORY.md": card(),
+      ".agents/memory/a/b/c/d/e/MEMORY.md": card(),
+      ".agents/memory/too/deep/without/main/leaf/MEMORY.md": card(),
+      ".agents/memory/archive-only/archive/hidden/MEMORY.md": card(),
+      ".agents/memory/hidden-only/.hidden/MEMORY.md": card(),
+    };
+    for (const [relative, raw] of Object.entries(fixtures)) await write(relative, raw);
+    await write("src/one.ts", "export const one = 1;\n");
+    const expected = {
+      a: "missing",
+      "a.b": "missing",
+      "a.b.c": "missing",
+      "a.b.c.d": "MEMORY.md",
+    };
+    const aDir = path.join(root, ".agents/memory/a");
+    // Default one-level behavior is preserved; only callers with a remaining
+    // supported depth budget discover ancestors whose own main file is absent.
+    expect(hasChildMemoryCardDirectorySync(root, aDir)).toBe(false);
+    expect(await hasChildMemoryCardDirectory(root, aDir)).toBe(false);
+    for (const [budget, found] of [[0, false], [2, false], [MAX_SCAN_DEPTH - 1, true]] as const) {
+      expect(hasChildMemoryCardDirectorySync(root, aDir, budget)).toBe(found);
+      expect(await hasChildMemoryCardDirectory(root, aDir, budget)).toBe(found);
+    }
+
+    const memories = (await scanContextRegistry(root)).assets.filter(asset => asset.type === "memory");
+    expect(Object.fromEntries(memories.map(asset => [
+      asset.id.replace(/^agents\.memory\./, ""), asset.mainFile?.type,
+    ]))).toEqual(expected);
+
+    // Exercise the no-index directory fallback as well as the canonical-index
+    // list path. Both must expose the same containers and exclude depth five.
+    const fallback = JSON.parse((await handleMemoryList({ projectRoot: root })).content[0].text);
+    expect(Object.fromEntries(fallback.summary.cartridges.map((item: { module: string; mainFileType: string }) => [
+      item.module, item.mainFileType,
+    ]))).toEqual(expected);
+    const manager = new CartridgeIndexManager(createConfig(root));
+    const index = await manager.scan();
+    expect(Object.fromEntries(Object.entries(index.cartridges).map(([id, entry]) => [id, entry.mainFile?.type]))).toEqual(expected);
+    expect(index.cartridges["a.b.c.d"]).toMatchObject({ depth: MAX_SCAN_DEPTH, parent: "a.b.c" });
+    await write(".cartridge/index.json", JSON.stringify(index));
+    const canonical = JSON.parse((await handleMemoryList({ projectRoot: root })).content[0].text);
+    expect(Object.fromEntries(canonical.summary.cartridges.map((item: { module: string; mainFileType: string }) => [
+      item.module, item.mainFileType,
+    ]))).toEqual(expected);
+    const audit = await buildMemoryAuditReport(root);
+    expect(audit.summary).toMatchObject({ cards: 4, missingMainFiles: 3, memoryMainFiles: 1, mainFileConflicts: 0 });
+    expect(audit.findings.filter(item => item.code === "MEMORY_MAIN_FILE_MISSING").map(item => item.module).sort())
+      .toEqual(["a", "a.b", "a.b.c"]);
+    expect(audit.findings.some(item => item.module === "a.b.c.d.e" || item.module?.startsWith("too."))).toBe(false);
+    for (const [relative, raw] of Object.entries(fixtures)) {
+      expect(await fs.readFile(path.join(root, relative), "utf8")).toBe(raw);
+    }
   });
 
   it("keeps four supported Memory levels, legacy mem-* identity, true Skills, and custom roots", async () => {

@@ -320,10 +320,15 @@ async function readDirectoryFileNames(cardDir: string): Promise<Set<string> | nu
   }
 }
 
+/** Find a real descendant card within the caller's remaining directory budget.
+ * The default retains the historical immediate-child query. Containers without
+ * main files count only when a descendant main is inside the supported depth. */
 export function hasChildMemoryCardDirectorySync(
   projectRoot: string,
   cardDir: string,
+  remainingDepth = 1,
 ): boolean {
+  if (!Number.isInteger(remainingDepth) || remainingDepth <= 0) return false;
   let entries: fs.Dirent[];
   try {
     entries = fs.readdirSync(assertPathInsideProject(projectRoot, cardDir), { withFileTypes: true });
@@ -337,14 +342,17 @@ export function hasChildMemoryCardDirectorySync(
     }
     const childDir = path.join(cardDir, entry.name);
     const resolution = resolveMemoryMainFileInDirectorySync(projectRoot, childDir);
-    return resolution.mainFile.type !== "missing";
+    return resolution.mainFile.type !== "missing" ||
+      hasChildMemoryCardDirectorySync(projectRoot, childDir, remainingDepth - 1);
   });
 }
 
 export async function hasChildMemoryCardDirectory(
   projectRoot: string,
   cardDir: string,
+  remainingDepth = 1,
 ): Promise<boolean> {
+  if (!Number.isInteger(remainingDepth) || remainingDepth <= 0) return false;
   let entries: Array<{
     name: string;
     isDirectory: () => boolean;
@@ -361,7 +369,8 @@ export async function hasChildMemoryCardDirectory(
     }
     const childDir = path.join(cardDir, entry.name);
     const resolution = await resolveMemoryMainFileInDirectory(projectRoot, childDir);
-    if (resolution.mainFile.type !== "missing") return true;
+    if (resolution.mainFile.type !== "missing" ||
+        await hasChildMemoryCardDirectory(projectRoot, childDir, remainingDepth - 1)) return true;
   }
   return false;
 }

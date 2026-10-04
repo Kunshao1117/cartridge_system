@@ -8,6 +8,7 @@ import { afterEach, describe, expect, it } from 'vitest';
 import { command, releaseEnvironment, releaseVersion, verifyReleaseSource } from '../../scripts/release-source.mjs';
 import { publishGitHubRelease, requireReleaseSource, sourceNotes } from '../../scripts/publish-github-release.mjs';
 import { verifyPublishedNpmSource } from '../../scripts/npm-release-source.mjs';
+import { splitArtifact, reassembleArtifact, MAX_PART_BYTES } from '../../scripts/verify-prepublication-artifact.mjs';
 
 const roots = [];
 const projectRoot = process.cwd();
@@ -431,5 +432,40 @@ describe('workflow wiring (without running a release workflow)', () => {
       expect(workflow.indexOf('run: node scripts/release-source.mjs npm\n')).toBeLessThan(workflow.indexOf('run: npm publish'));
       expect(workflow).toContain('run: node scripts/verify-npm-publication.mjs');
     } else expect(workflow).toContain(`run: node scripts/publish-github-release.mjs ${surface}`);
+  });
+});
+
+
+describe('small CI artifact transport preserves the complete original installer', () => {
+  function delivery() {
+    const bytes = Buffer.from('firstpart-secondpart-lastpart');
+    const record = { source: { revision: 'a'.repeat(40), tree: 'b'.repeat(40), repository: 'example/cartridge', workflowRun: '123' }, artifact: { name: 'Cartridge Desktop Console Setup 5.5.8.exe', size: bytes.length, sha256: createHash('sha256').update(bytes).digest('hex') } };
+    const split = splitArtifact(bytes, record, 8);
+    const data = new Map(split.parts.map(part => [part.name, part.bytes]));
+    return { bytes, record, ...split, readPart: name => data.get(name), data };
+  }
+  it('roundtrips ordered bounded pieces with full source and per-part digests', () => {
+    const test = delivery();
+    expect(MAX_PART_BYTES).toBe(24 * 1024 * 1024);
+    expect(test.manifest.source).toEqual(test.record.source);
+    expect(test.parts.every(part => part.size <= 8)).toBe(true);
+    expect(reassembleArtifact(test.manifest, test.readPart)).toEqual(test.bytes);
+  });
+  it.each(['missing', 'truncated', 'corrupted', 'wrong-order', 'wrong-full-digest', 'wrong-source'])('rejects %s artifact transport', kind => {
+    const test = delivery();
+    const first = test.parts[0].name;
+    if (kind === 'missing') test.data.delete(first);
+    if (kind === 'truncated') test.data.set(first, test.data.get(first).subarray(1));
+    if (kind === 'corrupted') test.data.set(first, Buffer.alloc(test.data.get(first).length, 0));
+    if (kind === 'wrong-order') test.manifest.parts.reverse();
+    if (kind === 'wrong-full-digest') test.manifest.artifact.sha256 = 'f'.repeat(64);
+    if (kind === 'wrong-source') test.manifest.source.revision = 'main';
+    expect(() => reassembleArtifact(test.manifest, test.readPart)).toThrow(/artifact/i);
+  });
+  it('rejects oversized pieces, incomplete source records, and excessive part counts', () => {
+    const test = delivery();
+    expect(() => splitArtifact(test.bytes, test.record, MAX_PART_BYTES + 1)).toThrow('segmentation input');
+    expect(() => splitArtifact(test.bytes, { ...test.record, artifact: { ...test.record.artifact, size: 1 } }, 8)).toThrow('source record');
+    expect(() => splitArtifact(test.bytes, test.record, 1)).toThrow('part count');
   });
 });

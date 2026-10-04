@@ -68,12 +68,93 @@ jobs:
           $file = Get-Item -LiteralPath "release/desktop/Cartridge Desktop Console Setup $version.exe"
           $env:PREPUBLICATION_PRODUCT_VERSION = $file.VersionInfo.ProductVersion
           node scripts/verify-prepublication-artifact.mjs desktop
-      - name: Preserve verified prepublication package evidence
-        if: ${{ success() }}
+      - name: Preserve verified VSIX package evidence
+        if: ${{ success() && runner.os == 'Linux' }}
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: prepublication-${{ runner.os }}-${{ env.PREPUBLICATION_VERSION }}-${{ github.event.pull_request.head.sha }}
           path: prepublication-artifacts/*
+          if-no-files-found: error
+          retention-days: 14
+          compression-level: 0
+      - name: Preserve Windows artifact index
+        if: ${{ success() && runner.os == 'Windows' }}
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: prepublication-Windows-index-${{ env.PREPUBLICATION_VERSION }}-${{ github.event.pull_request.head.sha }}
+          path: prepublication-segments/index/*
+          if-no-files-found: error
+          retention-days: 14
+          compression-level: 0
+      - name: Preserve Windows artifact part 01
+        if: ${{ success() && runner.os == 'Windows' && fromJSON(env.PREPUBLICATION_PART_COUNT || '0') >= 1 }}
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: prepublication-Windows-part-01-${{ env.PREPUBLICATION_VERSION }}-${{ github.event.pull_request.head.sha }}
+          path: prepublication-segments/part-01/*
+          if-no-files-found: error
+          retention-days: 14
+          compression-level: 0
+      - name: Preserve Windows artifact part 02
+        if: ${{ success() && runner.os == 'Windows' && fromJSON(env.PREPUBLICATION_PART_COUNT || '0') >= 2 }}
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: prepublication-Windows-part-02-${{ env.PREPUBLICATION_VERSION }}-${{ github.event.pull_request.head.sha }}
+          path: prepublication-segments/part-02/*
+          if-no-files-found: error
+          retention-days: 14
+          compression-level: 0
+      - name: Preserve Windows artifact part 03
+        if: ${{ success() && runner.os == 'Windows' && fromJSON(env.PREPUBLICATION_PART_COUNT || '0') >= 3 }}
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: prepublication-Windows-part-03-${{ env.PREPUBLICATION_VERSION }}-${{ github.event.pull_request.head.sha }}
+          path: prepublication-segments/part-03/*
+          if-no-files-found: error
+          retention-days: 14
+          compression-level: 0
+      - name: Preserve Windows artifact part 04
+        if: ${{ success() && runner.os == 'Windows' && fromJSON(env.PREPUBLICATION_PART_COUNT || '0') >= 4 }}
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: prepublication-Windows-part-04-${{ env.PREPUBLICATION_VERSION }}-${{ github.event.pull_request.head.sha }}
+          path: prepublication-segments/part-04/*
+          if-no-files-found: error
+          retention-days: 14
+          compression-level: 0
+      - name: Preserve Windows artifact part 05
+        if: ${{ success() && runner.os == 'Windows' && fromJSON(env.PREPUBLICATION_PART_COUNT || '0') >= 5 }}
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: prepublication-Windows-part-05-${{ env.PREPUBLICATION_VERSION }}-${{ github.event.pull_request.head.sha }}
+          path: prepublication-segments/part-05/*
+          if-no-files-found: error
+          retention-days: 14
+          compression-level: 0
+      - name: Preserve Windows artifact part 06
+        if: ${{ success() && runner.os == 'Windows' && fromJSON(env.PREPUBLICATION_PART_COUNT || '0') >= 6 }}
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: prepublication-Windows-part-06-${{ env.PREPUBLICATION_VERSION }}-${{ github.event.pull_request.head.sha }}
+          path: prepublication-segments/part-06/*
+          if-no-files-found: error
+          retention-days: 14
+          compression-level: 0
+      - name: Preserve Windows artifact part 07
+        if: ${{ success() && runner.os == 'Windows' && fromJSON(env.PREPUBLICATION_PART_COUNT || '0') >= 7 }}
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: prepublication-Windows-part-07-${{ env.PREPUBLICATION_VERSION }}-${{ github.event.pull_request.head.sha }}
+          path: prepublication-segments/part-07/*
+          if-no-files-found: error
+          retention-days: 14
+          compression-level: 0
+      - name: Preserve Windows artifact part 08
+        if: ${{ success() && runner.os == 'Windows' && fromJSON(env.PREPUBLICATION_PART_COUNT || '0') >= 8 }}
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: prepublication-Windows-part-08-${{ env.PREPUBLICATION_VERSION }}-${{ github.event.pull_request.head.sha }}
+          path: prepublication-segments/part-08/*
           if-no-files-found: error
           retention-days: 14
           compression-level: 0

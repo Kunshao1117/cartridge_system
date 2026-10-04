@@ -7,13 +7,6 @@ import { assertPathInsideProject, tryProjectPath } from "./file-containment.js";
 import path from "node:path";
 import fs from "node:fs";
 
-/** 匹配三種 import 模式的正則 */
-const IMPORT_PATTERNS: RegExp[] = [
-  /from\s+['"]([^'"]+)['"]/g, // ES import ... from "path"
-  /import\s*\(\s*['"]([^'"]+)['"]\s*\)/g, // 動態 import("path")
-  /require\s*\(\s*['"]([^'"]+)['"]\s*\)/g, // CommonJS require("path")
-];
-
 /** TypeScript 副檔名解析優先順序 */
 const TS_EXTENSIONS = [".ts", ".tsx", ".js", ".jsx"];
 
@@ -21,20 +14,71 @@ const TS_EXTENSIONS = [".ts", ".tsx", ".js", ".jsx"];
  * 從檔案內容擷取所有相對 import 路徑
  */
 export function extractImports(content: string): string[] {
-  const imports: Set<string> = new Set();
-  for (const pattern of IMPORT_PATTERNS) {
-    // 每次使用前建立新的 RegExp 實例以重置 lastIndex
-    const re = new RegExp(pattern.source, pattern.flags);
-    let match: RegExpExecArray | null;
-    while ((match = re.exec(content)) !== null) {
-      const importPath = match[1];
-      // 只處理相對路徑（./ 或 ../），跳過 node_modules 套件
-      if (importPath.startsWith(".")) {
-        imports.add(importPath);
-      }
+  const tokens = importTokens(content);
+  const imports = new Set<string>();
+  const add = (token: ImportToken | undefined) => {
+    if (token?.literal && /^(?:\.\.?\/)/.test(token.value)) imports.add(token.value);
+  };
+  for (let i = 0; i < tokens.length; i++) {
+    const token = tokens[i];
+    if (token.literal || tokens[i - 1]?.value === ".") continue;
+    if (token.value === "from" || token.value === "import") add(tokens[i + 1]);
+    if ((token.value === "import" || token.value === "require") && tokens[i + 1]?.value === "(") {
+      add(tokens[i + 2]);
     }
   }
   return [...imports];
+}
+
+type ImportToken = { value: string; literal?: boolean };
+/** A small lexical scanner: comments, strings and template text cannot invent
+ * import keywords. This intentionally extracts only static string specifiers. */
+function importTokens(content: string): ImportToken[] {
+  const tokens: ImportToken[] = [];
+  let cursor = 0;
+  function scanCode(interpolation = false): void {
+    let braces = 0;
+    while (cursor < content.length) {
+      const char = content[cursor];
+      if (interpolation && char === "}" && braces === 0) { cursor++; return; }
+      if (/\s/.test(char)) { cursor++; continue; }
+      if (content.startsWith("//", cursor)) {
+        const end = content.indexOf("\n", cursor + 2); cursor = end < 0 ? content.length : end; continue;
+      }
+      if (content.startsWith("/*", cursor)) {
+        const end = content.indexOf("*/", cursor + 2); cursor = end < 0 ? content.length : end + 2; continue;
+      }
+      if (char === "`") {
+        cursor++;
+        tokens.push({ value: "", literal: true });
+        while (cursor < content.length) {
+          if (content[cursor] === "\\") { cursor += 2; continue; }
+          if (content[cursor] === "`") { cursor++; break; }
+          if (content.startsWith("${", cursor)) { cursor += 2; scanCode(true); }
+          else cursor++;
+        }
+        continue;
+      }
+      if (char === "'" || char === '"') {
+        const quote = char; let value = ""; cursor++;
+        while (cursor < content.length && content[cursor] !== quote) {
+          if (content[cursor] === "\\") {
+            cursor++; if (cursor < content.length) value += content[cursor++];
+          } else value += content[cursor++];
+        }
+        cursor++;
+        tokens.push({ value, literal: true });
+        continue;
+      }
+      if (char === "{") braces++;
+      if (char === "}") braces--;
+      const identifier = content.slice(cursor).match(/^[A-Za-z_$][\w$]*/)?.[0];
+      if (identifier) { tokens.push({ value: identifier }); cursor += identifier.length; }
+      else { tokens.push({ value: char }); cursor++; }
+    }
+  }
+  scanCode();
+  return tokens;
 }
 
 /**

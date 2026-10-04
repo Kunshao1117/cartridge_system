@@ -30,7 +30,7 @@ function npmJson(label, args, expectedNotFound = false) {
 const errors = [];
 for (const [label, args, notFound] of [
   ['Registry versions and tags', ['view', 'cartridge-system', 'dist-tags', 'versions', '--json'], false],
-  ['Target version 5.5.5', ['view', 'cartridge-system@5.5.5', 'version', 'gitHead', 'dist', '--json'], true],
+  ['Target version 5.5.6', ['view', 'cartridge-system@5.5.6', 'version', 'gitHead', 'dist', '--json'], true],
   ['Full dependency audit', ['audit', '--json'], false],
   ['Production dependency audit', ['audit', '--omit=dev', '--json'], false],
 ]) {

@@ -8,6 +8,10 @@ import fs from "node:fs";
 import { createHash } from "node:crypto";
 import path from "node:path";
 import matter from "./safe-frontmatter.js";
+import { isProjectIndexArtifactPath } from "./project-index-artifacts.js";
+import { normalizeCardMetadata } from "./card-metadata.js";
+import { canonicalTrackedPath, isExcludedDirectoryPath } from "./tracked-path.js";
+import { calculatePendingStaleness } from "./staleness.js";
 import type {
   CartridgeConfig,
   CartridgeEntry,
@@ -66,7 +70,7 @@ export function parseTrackedFiles(content: string): string[] {
   )?.[1];
   if (!trackedSection) return [];
 
-  return trackedSection
+  return [...new Set(trackedSection
     .split("\n")
     .map((line) =>
       line
@@ -82,7 +86,7 @@ export function parseTrackedFiles(content: string): string[] {
         !line.startsWith("#") && // 過濾 ### 分組標題
         !line.startsWith("<") && // 過濾 HTML 標記
         !line.startsWith("←"), // 過濾行尾備註殘留
-    );
+    ).map(canonicalTrackedPath))];
 }
 
 /**
@@ -123,8 +127,8 @@ export class CartridgeIndexManager {
     this.index = {
       version: 1,
       lastScanned: "",
-      cartridges: {},
-      fileMap: {},
+      cartridges: Object.create(null),
+      fileMap: Object.create(null),
       untrackedFiles: [],
     };
     this.committedIndex = cloneIndex(this.index);
@@ -153,8 +157,8 @@ export class CartridgeIndexManager {
   async scan(options: { deriveDependencies?: boolean } = {}): Promise<CartridgeIndex> {
     const memoryDir = getMemoryAbsPath(this.config);
     const skillsDir = getSkillsAbsPath(this.config);
-    const newCartridges: Record<string, CartridgeEntry> = {};
-    const newFileMap: Record<string, string[]> = {};
+    const newCartridges: Record<string, CartridgeEntry> = Object.create(null);
+    const newFileMap: Record<string, string[]> = Object.create(null);
 
     // v4.0 主路徑：掃描 .agents/memory/（無 mem- 前綴限制）
     if (fs.existsSync(memoryDir)) {
@@ -174,8 +178,8 @@ export class CartridgeIndexManager {
       this.index = {
         version: 1,
         lastScanned: getTaiwanISO(),
-        cartridges: {},
-        fileMap: {},
+        cartridges: Object.create(null),
+        fileMap: Object.create(null),
         untrackedFiles: [],
       };
       return this.index;
@@ -297,7 +301,7 @@ export class CartridgeIndexManager {
       const cartridgeId = parentId ? `${parentId}.${entry.name}` : entry.name;
 
       // 保留既有的 pendingChanges（若有的話）
-      const existingEntry = this.index.cartridges[cartridgeId];
+      const existingEntry = ownEntry(this.index.cartridges, cartridgeId);
 
       if (!parsedSuccessfully && existingEntry) trackedFiles = existingEntry.trackedFiles;
       let declaredDependencies: string[] | undefined;
@@ -311,7 +315,8 @@ export class CartridgeIndexManager {
       const rawFingerprint = parsedSuccessfully && raw !== null ? fingerprintContent(raw) : undefined;
       const reconciliation = rawFingerprint && existingEntry?.trackingReconciliation?.fileFingerprint === rawFingerprint
         ? existingEntry.trackingReconciliation : undefined;
-      cartridges[cartridgeId] = {
+      const metadata = normalizeCardMetadata(frontmatter);
+      const scannedEntry: CartridgeEntry = {
         skillPath:
           mainResolution.mainFile.activePath ??
           mainResolution.mainFile.candidatePaths[0] ??
@@ -324,13 +329,13 @@ export class CartridgeIndexManager {
           mainResolution.mainFile.migrationRequired ||
           contentQuality.migrationRequired,
         legacyCompatibility: mainResolution.mainFile.legacyCompatibility,
-        description: (frontmatter.description as string) ?? "",
+        description: metadata.description,
         trackedFiles,
         staleness: Math.max(
-          reconciliation?.staleness ?? (typeof frontmatter.staleness === "number" && Number.isFinite(frontmatter.staleness) ? frontmatter.staleness : 0),
+          0, reconciliation?.staleness ?? (typeof frontmatter.staleness === "number" && Number.isFinite(frontmatter.staleness) ? frontmatter.staleness : 0),
           existingEntry?.pendingChanges.length ? existingEntry.staleness : 0,
         ),
-        lastUpdated: (frontmatter.last_updated as string) ?? "",
+        lastUpdated: metadata.lastUpdated,
         pendingChanges: existingEntry?.pendingChanges ?? [],
         ghostFiles: existingEntry?.ghostFiles ?? [],
         dependencies: existingEntry?.dependencies ?? declaredDependencies ?? [],
@@ -352,8 +357,38 @@ export class CartridgeIndexManager {
         compaction,
       };
 
-      // 建立反向映射
-      for (const file of trackedFiles) {
+      const duplicate = ownEntry(cartridges, cartridgeId);
+      const collision = duplicate && duplicate.skillPath !== scannedEntry.skillPath;
+      if (duplicate && collision) {
+        // Dot-joined historical IDs can denote multiple directories. Keep the
+        // ID stable, expose all candidates, and never route writes to one of them.
+        const candidates = [...new Set([
+          ...(duplicate.idConflictPaths ?? duplicate.mainFile?.candidatePaths ?? [duplicate.skillPath]),
+          ...(scannedEntry.mainFile?.candidatePaths.length ? scannedEntry.mainFile.candidatePaths : [scannedEntry.skillPath]),
+        ])].sort();
+        duplicate.idConflictPaths = candidates;
+        duplicate.mainFile = { ...duplicate.mainFile!, type: "conflict", activePath: null,
+          activeFileName: null, candidatePaths: candidates, conflict: true, migrationRequired: true };
+        duplicate.mainFileType = "conflict";
+        duplicate.contentQuality = analyzeMemoryContentQuality(null, duplicate.mainFile);
+        duplicate.contentQualityStatus = "conflict";
+        duplicate.migrationRequired = true;
+        duplicate.trackedFiles = [];
+        duplicate.staleness = Math.max(duplicate.staleness, scannedEntry.staleness);
+        duplicate.dependencies = [];
+        duplicate.declaredDependencies = [];
+        duplicate.engineeringDependencies = [];
+        for (const [file, owners] of Object.entries(fileMap)) {
+          const remaining = owners.filter((id) => id !== cartridgeId);
+          if (remaining.length) fileMap[file] = remaining;
+          else delete fileMap[file];
+        }
+      } else {
+        cartridges[cartridgeId] = scannedEntry;
+      }
+
+      // 建立反向映射，歧義 ID 不得成為來源檔擁有者。
+      for (const file of collision ? [] : trackedFiles) {
         if (!fileMap[file]) fileMap[file] = [];
         if (!fileMap[file].includes(cartridgeId)) {
           fileMap[file].push(cartridgeId);
@@ -451,8 +486,7 @@ export class CartridgeIndexManager {
    */
   getAffectedCartridges(filePath: string): string[] {
     // 嘗試精確匹配與正規化路徑匹配
-    const normalized = filePath.replace(/\\/g, "/");
-    return this.index.fileMap[normalized] ?? this.index.fileMap[filePath] ?? [];
+    return ownEntry(this.index.fileMap, canonicalTrackedPath(filePath)) ?? [];
   }
 
   /**
@@ -475,7 +509,7 @@ export class CartridgeIndexManager {
    * 將模組名稱解析為實際 SKILL.md 檔案路徑
    */
   resolveModulePath(moduleName: string): string | null {
-    const entry = this.index.cartridges[moduleName];
+    const entry = ownEntry(this.index.cartridges, moduleName);
     if (entry?.mainFile?.type === "conflict" || entry?.mainFile?.type === "missing") {
       return null;
     }
@@ -492,7 +526,7 @@ export class CartridgeIndexManager {
    * 更新指定卡匣的過期指數
    */
   updateStaleness(cartridgeId: string, staleness: number): void {
-    const entry = this.index.cartridges[cartridgeId];
+    const entry = ownEntry(this.index.cartridges, cartridgeId);
     if (entry) {
       entry.staleness = staleness;
     }
@@ -506,9 +540,9 @@ export class CartridgeIndexManager {
     filePath: string,
     eventType: "add" | "change" | "unlink",
   ): boolean {
-    const entry = this.index.cartridges[cartridgeId];
+    const entry = ownEntry(this.index.cartridges, cartridgeId);
     if (!entry) return false;
-    const normalized = filePath.replace(/\\/g, "/");
+    const normalized = canonicalTrackedPath(filePath);
     const existing = entry.pendingChanges.find((change) => change.filePath === normalized);
     const fingerprint = this.sourceFingerprint(normalized);
     const known = entry.sourceFingerprints?.[normalized];
@@ -543,7 +577,7 @@ export class CartridgeIndexManager {
    * 清空指定卡匣的待處理異動清單（staleness 重設後呼叫）
    */
   clearPendingChanges(cartridgeId: string): void {
-    const entry = this.index.cartridges[cartridgeId];
+    const entry = ownEntry(this.index.cartridges, cartridgeId);
     if (entry) {
       entry.pendingChanges = [];
     }
@@ -553,11 +587,12 @@ export class CartridgeIndexManager {
    * 將已追蹤但已刪除的檔案標記為幽靈
    */
   markGhostFile(cartridgeId: string, filePath: string): void {
-    const entry = this.index.cartridges[cartridgeId];
+    const entry = ownEntry(this.index.cartridges, cartridgeId);
     if (!entry) return;
     if (!entry.ghostFiles) entry.ghostFiles = [];
-    if (!entry.ghostFiles.includes(filePath)) {
-      entry.ghostFiles.push(filePath);
+    const normalized = canonicalTrackedPath(filePath);
+    if (!entry.ghostFiles.includes(normalized)) {
+      entry.ghostFiles.push(normalized);
     }
   }
 
@@ -565,7 +600,7 @@ export class CartridgeIndexManager {
    * 清除指定卡匣的幽靈檔案標記（記憶卡同步後呼叫）
    */
   clearGhostFiles(cartridgeId: string): void {
-    const entry = this.index.cartridges[cartridgeId];
+    const entry = ownEntry(this.index.cartridges, cartridgeId);
     if (entry) {
       entry.ghostFiles = [];
     }
@@ -578,6 +613,7 @@ export class CartridgeIndexManager {
   validateTrackedFiles(): { cartridgeId: string; ghostFile: string }[] {
     const results: { cartridgeId: string; ghostFile: string }[] = [];
     for (const [cartridgeId, entry] of Object.entries(this.index.cartridges)) {
+      if (entry.idConflictPaths?.length) continue;
       entry.ghostFiles = [];
       for (const trackedFile of entry.trackedFiles) {
         if (trackedFile.endsWith("/")) continue;
@@ -618,6 +654,7 @@ export class CartridgeIndexManager {
   ): void {
     for (const [id, entry] of Object.entries(this.index.cartridges)) {
       if (cartridgeId !== undefined && cartridgeId !== id) continue;
+      if (entry.idConflictPaths?.length) continue;
       const tracked = new Set(entry.trackedFiles);
       const missing = new Set(entry.trackedFiles.filter((file) => {
         if (file.endsWith("/")) return false;
@@ -625,7 +662,6 @@ export class CartridgeIndexManager {
         return !candidate || !fs.existsSync(candidate);
       }));
       const previousPendingCount = entry.pendingChanges.length;
-      const previousPendingScore = this.pendingScore(entry, this.config.scoring);
       entry.pendingChanges = entry.pendingChanges.filter((change) =>
         tracked.has(change.filePath) && (!options.resolvePresentPending || missing.has(change.filePath)),
       );
@@ -639,7 +675,7 @@ export class CartridgeIndexManager {
         entry.sourceFingerprints = Object.fromEntries(Object.entries(entry.sourceFingerprints).filter(([file]) => tracked.has(file)));
       }
       if (entry.pendingChanges.length > 0) {
-        entry.staleness = this.pendingScore(entry, this.config.scoring) + Math.max(0, entry.staleness - previousPendingScore);
+        entry.staleness = calculatePendingStaleness(entry, this.config.scoring);
       } else if (previousPendingCount > 0) {
         entry.staleness = 0;
       }
@@ -647,12 +683,6 @@ export class CartridgeIndexManager {
         entry.trackingReconciliation = { fileFingerprint: entry.memoryFileFingerprint, staleness: entry.staleness };
       }
     }
-  }
-
-  private pendingScore(entry: CartridgeEntry, scoring: CartridgeConfig["scoring"]): number {
-    return entry.pendingChanges.reduce((score, change) => score + (
-      change.eventType === "unlink" ? scoring.fileDeleted : change.eventType === "add" ? scoring.fileAdded : scoring.fileChanged
-    ), 0);
   }
 
   /**
@@ -687,21 +717,7 @@ export class CartridgeIndexManager {
 
       // 重新計算 staleness
       if (entry.pendingChanges.length > 0) {
-        let score = 0;
-        for (const change of entry.pendingChanges) {
-          switch (change.eventType) {
-            case "change":
-              score += scoring.fileChanged;
-              break;
-            case "unlink":
-              score += scoring.fileDeleted;
-              break;
-            case "add":
-              score += scoring.fileAdded;
-              break;
-          }
-        }
-        entry.staleness = score;
+        entry.staleness = calculatePendingStaleness(entry, scoring);
       }
     }
   }
@@ -839,7 +855,7 @@ export class CartridgeIndexManager {
   private isUntrackedCandidate(filePath: string): boolean {
     if (isProjectIndexArtifactPath(filePath)) return false;
     if (isManagedMemoryArtifactPath(filePath)) return false;
-    if (this.config.excludeDirs.some((dir) => filePath.startsWith(dir))) {
+    if (isExcludedDirectoryPath(filePath, this.config.excludeDirs)) {
       return false;
     }
     if (this.config.ignoreFiles.some((file) => filePath.endsWith(file))) {
@@ -915,7 +931,12 @@ export class CartridgeIndexManager {
     this.index.untrackedFiles = filterVisibleUntrackedFiles(
       this.index.untrackedFiles,
     );
-    return JSON.stringify(this.index, null, 2);
+    if (!normalizePersistedIndex(this.index)) throw new Error("Invalid canonical index candidate; refusing persistence.");
+    const serialized = JSON.stringify(this.index, null, 2);
+    if (!normalizePersistedIndex(JSON.parse(serialized) as unknown)) {
+      throw new Error("Invalid serialized canonical index; refusing persistence.");
+    }
+    return serialized;
   }
 
   acceptCommittedPersistence(fingerprint: string): void {
@@ -999,17 +1020,6 @@ export type PersistedIndexReadResult =
   | { status: "loaded"; index: CartridgeIndex; fingerprint: string }
   | { status: "missing" | "invalid" };
 
-function isProjectIndexArtifactPath(filePath: string): boolean {
-  const normalized = filePath.replace(/\\/g, "/").toLowerCase();
-  return (
-    normalized === ".cartridge/index.json" ||
-    normalized === ".cartridge/index.lock" ||
-    normalized.startsWith(".cartridge/index.lock/") ||
-    normalized.startsWith(".cartridge/index.lock.stale-") ||
-    /^\.cartridge\/index\.\d+\.[0-9a-f-]+\.tmp$/i.test(normalized)
-  );
-}
-
 function sameUntrackedFiles(
   left: UntrackedFileEntry[],
   right: UntrackedFileEntry[],
@@ -1027,7 +1037,10 @@ function sameUntrackedFiles(
 }
 
 function cloneIndex(index: CartridgeIndex): CartridgeIndex {
-  return JSON.parse(JSON.stringify(index)) as CartridgeIndex;
+  const clone = JSON.parse(JSON.stringify(index)) as CartridgeIndex;
+  clone.cartridges = Object.assign(Object.create(null), clone.cartridges);
+  clone.fileMap = Object.assign(Object.create(null), clone.fileMap);
+  return clone;
 }
 
 function normalizePersistedIndex(value: unknown): CartridgeIndex | null {
@@ -1063,8 +1076,20 @@ function normalizePersistedIndex(value: unknown): CartridgeIndex | null {
   return {
     version: value.version,
     lastScanned: value.lastScanned,
-    cartridges: value.cartridges as unknown as Record<string, CartridgeEntry>,
-    fileMap: value.fileMap as unknown as Record<string, string[]>,
+    cartridges: Object.assign(Object.create(null), Object.fromEntries(Object.entries(value.cartridges).map(([id, raw]) => {
+      const entry = raw as CartridgeEntry;
+      return [id, { ...entry,
+        trackedFiles: [...new Set(entry.trackedFiles.map(canonicalTrackedPath))],
+        ghostFiles: [...new Set(entry.ghostFiles.map(canonicalTrackedPath))],
+        pendingChanges: normalizePendingChanges(entry.pendingChanges),
+        sourceFingerprints: normalizeSourceFingerprints(entry.sourceFingerprints),
+      }];
+    }))),
+    fileMap: Object.entries(value.fileMap).reduce<Record<string, string[]>>((map, [file, modules]) => {
+      const normalized = canonicalTrackedPath(file);
+      map[normalized] = [...new Set([...(map[normalized] ?? []), ...(modules as string[])])];
+      return map;
+    }, Object.create(null)),
     untrackedFiles: filterVisibleUntrackedFiles(
       untrackedFiles as UntrackedFileEntry[],
     ),
@@ -1091,6 +1116,7 @@ function isUntrackedFileEntry(value: unknown): value is UntrackedFileEntry {
 function isPersistedCartridgeEntry(value: unknown): value is CartridgeEntry {
   if (!isRecord(value)) return false;
   return (
+    (value.idConflictPaths === undefined || isStringArray(value.idConflictPaths)) &&
     typeof value.skillPath === "string" &&
     typeof value.description === "string" &&
     isStringArray(value.trackedFiles) &&
@@ -1162,4 +1188,45 @@ function stableData(value: unknown): unknown {
       .map(([key, item]) => [key, stableData(item)]));
   }
   return value;
+}
+
+function ownEntry<T>(dictionary: Record<string, T>, key: string): T | undefined {
+  return Object.hasOwn(dictionary, key) ? dictionary[key] : undefined;
+}
+
+
+/** Old snapshots may contain several spellings of one source. Prefer the newest
+ * parseable event; where chronology is unknowable, retain the higher-severity
+ * signal (unlink > change > add), keeping the first timestamp on equal severity. */
+function normalizePendingChanges(changes: CartridgeEntry["pendingChanges"]): CartridgeEntry["pendingChanges"] {
+  const canonical = new Map<string, CartridgeEntry["pendingChanges"][number]>();
+  const severity = { add: 1, change: 2, unlink: 3 };
+  for (const change of changes) {
+    const filePath = canonicalTrackedPath(change.filePath);
+    const candidate = { ...change, filePath };
+    const previous = canonical.get(filePath);
+    if (!previous) { canonical.set(filePath, candidate); continue; }
+    const previousTime = Date.parse(previous.timestamp);
+    const nextTime = Date.parse(candidate.timestamp);
+    const comparable = Number.isFinite(previousTime) && Number.isFinite(nextTime) && previousTime !== nextTime;
+    if (comparable ? nextTime > previousTime : severity[candidate.eventType] > severity[previous.eventType]) {
+      canonical.set(filePath, candidate);
+    }
+  }
+  return [...canonical.values()];
+}
+
+function normalizeSourceFingerprints(fingerprints: Record<string, string> | undefined): Record<string, string> | undefined {
+  if (!fingerprints) return undefined;
+  const result: Record<string, string> = Object.create(null);
+  const ambiguous = new Set<string>();
+  for (const [rawPath, fingerprint] of Object.entries(fingerprints)) {
+    const filePath = canonicalTrackedPath(rawPath);
+    if (ambiguous.has(filePath)) continue;
+    if (Object.hasOwn(result, filePath) && result[filePath] !== fingerprint) {
+      // Disagreeing historical aliases must not suppress a genuine later event.
+      delete result[filePath]; ambiguous.add(filePath);
+    } else result[filePath] = fingerprint;
+  }
+  return result;
 }

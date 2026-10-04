@@ -18,7 +18,7 @@ export async function loadCabinetMemoryMetadata(
   index: CartridgeIndex,
   projectRoot: string,
 ): Promise<Record<string, CabinetMemoryMetadata>> {
-  const result: Record<string, CabinetMemoryMetadata> = {};
+  const result: Record<string, CabinetMemoryMetadata> = Object.create(null);
   await Promise.all(
     Object.entries(index.cartridges).map(async ([id, entry]) => {
       try {

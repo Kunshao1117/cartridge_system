@@ -1,6 +1,7 @@
 import fs from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
+import { randomUUID } from "node:crypto";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { createConfig } from "../config.js";
 import { CartridgeIndexManager } from "../index-manager.js";
@@ -8,6 +9,7 @@ import {
   fingerprintContent,
   ProjectIndexInvalidError,
   ProjectIndexLockTimeoutError,
+  ProjectIndexLockCompatibilityError,
   ProjectIndexMissingError,
   reloadProjectIndexFromDisk,
   runProjectIndexTransaction,
@@ -184,12 +186,14 @@ describe("project index transaction", () => {
     const root = await createRoot();
     const lockPath = path.join(root, ".cartridge", "index.lock");
     await fs.mkdir(lockPath);
+    const staleToken = randomUUID();
     await fs.writeFile(
-      path.join(lockPath, "owner.json"),
+      path.join(lockPath, `owner-${staleToken}.json`),
       JSON.stringify({
+        protocolVersion: 2,
         pid: 999_999_999,
         hostname: os.hostname(),
-        token: "stale",
+        token: staleToken,
         createdAt: 0,
       }),
     );
@@ -207,12 +211,14 @@ describe("project index transaction", () => {
     ).resolves.toBeDefined();
 
     await fs.mkdir(lockPath);
+    const liveToken = randomUUID();
     await fs.writeFile(
-      path.join(lockPath, "owner.json"),
+      path.join(lockPath, `owner-${liveToken}.json`),
       JSON.stringify({
+        protocolVersion: 2,
         pid: process.pid,
         hostname: os.hostname(),
-        token: "live",
+        token: liveToken,
         createdAt: Date.now(),
       }),
     );
@@ -230,10 +236,9 @@ describe("project index transaction", () => {
     ).rejects.toBeInstanceOf(ProjectIndexLockTimeoutError);
   });
 
-  it("refreshes the held lock heartbeat and respects a fresh remote lease", async () => {
+  it("refreshes the unique held owner heartbeat and never reclaims a remote lease", async () => {
     const root = await createRoot();
     const lockPath = path.join(root, ".cartridge", "index.lock");
-    const ownerPath = path.join(lockPath, "owner.json");
     const manager = new CartridgeIndexManager(createConfig(root));
     let releaseMutation!: () => void;
     let mutationStarted!: () => void;
@@ -253,6 +258,9 @@ describe("project index transaction", () => {
       },
     });
     await started;
+    const [ownerName] = await fs.readdir(lockPath);
+    const ownerPath = path.join(lockPath, ownerName);
+    expect(ownerName).toMatch(/^owner-[0-9a-f-]{36}\.json$/);
     const initialMtime = (await fs.stat(ownerPath)).mtimeMs;
     await new Promise((resolve) => setTimeout(resolve, 30));
     expect((await fs.stat(ownerPath)).mtimeMs).toBeGreaterThan(initialMtime);
@@ -260,15 +268,20 @@ describe("project index transaction", () => {
     await transaction;
 
     await fs.mkdir(lockPath);
+    const remoteToken = randomUUID();
+    const remoteOwnerPath = path.join(lockPath, `owner-${remoteToken}.json`);
     await fs.writeFile(
-      ownerPath,
+      remoteOwnerPath,
       JSON.stringify({
+        protocolVersion: 2,
         pid: 1,
         hostname: "remote-host.example",
-        token: "remote-live",
+        token: remoteToken,
         createdAt: 0,
       }),
     );
+    const remoteBefore = await fs.readFile(remoteOwnerPath, "utf8");
+    const indexBefore = await fs.readFile(path.join(root, ".cartridge/index.json"), "utf8");
     await expect(
       runProjectIndexTransaction({
         projectRoot: root,
@@ -284,7 +297,7 @@ describe("project index transaction", () => {
     ).rejects.toBeInstanceOf(ProjectIndexLockTimeoutError);
 
     const stale = new Date(Date.now() - 2_000);
-    await fs.utimes(ownerPath, stale, stale);
+    await fs.utimes(remoteOwnerPath, stale, stale);
     await expect(
       runProjectIndexTransaction({
         projectRoot: root,
@@ -292,7 +305,9 @@ describe("project index transaction", () => {
         timing: { remoteStaleMs: 1_000 },
         mutation: async () => undefined,
       }),
-    ).resolves.toBeDefined();
+    ).rejects.toBeInstanceOf(ProjectIndexLockCompatibilityError);
+    expect(await fs.readFile(remoteOwnerPath, "utf8")).toBe(remoteBefore);
+    expect(await fs.readFile(path.join(root, ".cartridge/index.json"), "utf8")).toBe(indexBefore);
   });
 
   it("atomically replaces an existing canonical index on two successive commits", async () => {
@@ -335,12 +350,9 @@ describe("project index transaction", () => {
         mutation: async () => {
           manager.addUntrackedFile("src/fenced.ts", "add");
           manager.markDirty();
-          const ownerPath = path.join(
-            root,
-            ".cartridge",
-            "index.lock",
-            "owner.json",
-          );
+          const lockPath = path.join(root, ".cartridge", "index.lock");
+          const [ownerName] = await fs.readdir(lockPath);
+          const ownerPath = path.join(lockPath, ownerName);
           const owner = JSON.parse(await fs.readFile(ownerPath, "utf8"));
           await fs.writeFile(ownerPath, JSON.stringify({ ...owner, token: "replaced" }));
         },

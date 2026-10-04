@@ -4,7 +4,7 @@
  * 使用 vi.mock('node:fs') 模擬 statSync 回傳控制 mtime
  */
 
-import { describe, it, expect, vi, beforeEach } from "vitest";
+import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { CartridgeIndexManager } from "../index-manager.js";
 import { createConfig } from "../config.js";
 import type { CartridgeConfig, CartridgeIndex } from "../types.js";
@@ -59,7 +59,10 @@ const toMs = (iso: string) => new Date(iso).getTime();
 
 beforeEach(() => {
   vi.clearAllMocks();
+  vi.spyOn(Date, "now").mockReturnValue(toMs("2026-03-29T10:00:00+08:00"));
 });
+
+afterEach(() => vi.restoreAllMocks());
 
 // ---------------------------------------------------------------------------
 // detectMissedChanges — 離線變動偵測
@@ -96,7 +99,7 @@ describe("detectMissedChanges — 離線變動偵測", () => {
     expect(entry.pendingChanges).toHaveLength(1);
     expect(entry.pendingChanges[0].filePath).toBe("src/foo.ts");
     expect(entry.pendingChanges[0].eventType).toBe("change");
-    expect(entry.staleness).toBe(DEFAULT_SCORING.fileChanged);
+    expect(entry.staleness).toBe(DEFAULT_SCORING.fileChanged + DEFAULT_SCORING.dailyDecay);
   });
 
   it("檔案比記憶卡舊時不應產生任何異動", () => {
@@ -215,7 +218,7 @@ describe("detectMissedChanges — 離線變動偵測", () => {
     expect(entry.pendingChanges).toHaveLength(1);
     expect(entry.pendingChanges[0].eventType).toBe("unlink");
     // staleness = fileDeleted(20)
-    expect(entry.staleness).toBe(DEFAULT_SCORING.fileDeleted);
+    expect(entry.staleness).toBe(DEFAULT_SCORING.fileDeleted + DEFAULT_SCORING.dailyDecay);
   });
 
   it("目錄型追蹤路徑（尾部 /）應被跳過", () => {
@@ -290,7 +293,7 @@ describe("detectMissedChanges — 離線變動偵測", () => {
       "src/also-new.ts",
     ]);
     // 2 個 change 事件 × fileChanged(10) = 20
-    expect(entry.staleness).toBe(2 * DEFAULT_SCORING.fileChanged);
+    expect(entry.staleness).toBe(2 * DEFAULT_SCORING.fileChanged + DEFAULT_SCORING.dailyDecay);
   });
 
   it("既有待處理異動應與新偵測合併計算過期指數", () => {
@@ -330,7 +333,7 @@ describe("detectMissedChanges — 離線變動偵測", () => {
     expect(entry.pendingChanges).toHaveLength(2);
     // staleness = fileDeleted(20) + fileChanged(10) = 30
     expect(entry.staleness).toBe(
-      DEFAULT_SCORING.fileDeleted + DEFAULT_SCORING.fileChanged,
+      DEFAULT_SCORING.fileDeleted + DEFAULT_SCORING.fileChanged + DEFAULT_SCORING.dailyDecay,
     );
   });
 

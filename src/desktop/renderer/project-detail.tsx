@@ -36,7 +36,7 @@ import {
 } from "./common";
 import { IssueDrawer } from "./issue-drawer";
 import { SettingsPanel } from "./settings-panel";
-import type { IssueKind, IssueSelection } from "./status";
+import { pickIssueForCartridge, type IssueKind, type IssueSelection } from "./status";
 
 export function ProjectDetail(props: {
   project: DesktopProjectSnapshot | undefined;
@@ -86,6 +86,7 @@ export function ProjectDetail(props: {
         <ScrollPane className={styles.detailScroll} ariaLabel="專案詳情">
           <EmptyState>選擇左側專案後，這裡會顯示單一專案詳情。</EmptyState>
         </ScrollPane>
+        {props.settingsOpen && <SettingsPanel settings={props.settings} onClose={() => props.onSettingsOpenChange(false)} onChange={props.onSettingsChange} />}
       </aside>
     );
   }
@@ -146,6 +147,14 @@ export function ProjectDetail(props: {
       </div>
 
       <ScrollPane className={styles.detailScroll} ariaLabel={`${project.name} 詳情`}>
+        {(project.error || project.syncWarning || project.status === "paused") && (
+          <section role="status" aria-label="專案診斷" className={styles.diagnosticBanner}>
+            {project.error && <Text>掃描失敗：{project.error}。目前顯示上次成功資料，可能已過期。</Text>}
+            {project.syncWarning && <Text>同步未完成：{project.syncWarning}</Text>}
+            {project.status === "paused" && <Text>監控已暫停，尚未持續驗證來源。</Text>}
+            <Text>上次成功掃描：{project.lastScanned || "尚無成功掃描"}</Text>
+          </section>
+        )}
         <CartridgeTable
           project={project}
           selectedCartridgeId={props.issueSelection?.cartridgeId ?? null}
@@ -244,24 +253,20 @@ function CartridgeRow(props: {
 }) {
   const detail = useDetailStyles();
   const kind = pickIssueForCartridge(props.cartridge, props.activeIssue);
-  const hasMainFileConflict = props.cartridge.mainFileType === "conflict";
+  const hasMainFileConflict = props.cartridge.mainFileType === "conflict" || props.cartridge.mainFileType === "missing";
   return (
-    <button
+    <div
       className={cx(
         detail.cartridgeRow,
         props.selected && detail.cartridgeRowSelected,
       )}
-      type="button"
       role="listitem"
-      onClick={() => props.onSelect(kind, props.cartridge.id)}
     >
-      <Text weight="semibold" className={detail.cartridgeNameCell} title={props.cartridge.id}>
-        {props.cartridge.id}
-      </Text>
-      <CartridgeStatusPill cartridge={props.cartridge} />
-      <span className={detail.cartridgeMetricSummary}>
-        {formatCartridgeMetrics(props.cartridge)}
-      </span>
+      <button type="button" className={detail.cartridgeSelect} onClick={() => props.onSelect(kind, props.cartridge.id)} aria-label={`查看 ${props.cartridge.id} 原因`}>
+        <Text weight="semibold" className={detail.cartridgeNameCell} title={props.cartridge.id}>{props.cartridge.id}</Text>
+        <CartridgeStatusPill cartridge={props.cartridge} />
+        <span className={detail.cartridgeMetricSummary}>{formatCartridgeMetrics(props.cartridge)}</span>
+      </button>
       <Button
         size="small"
         className={detail.tableButton}
@@ -282,7 +287,7 @@ function CartridgeRow(props: {
       >
         {hasMainFileConflict ? "衝突" : "開啟"}
       </Button>
-    </button>
+    </div>
   );
 }
 
@@ -319,23 +324,21 @@ function UntrackedFiles(props: {
       ) : (
         <div className={detail.untrackedList}>
           {props.project.untrackedFiles.map((file) => (
-            <button
+            <div
               key={file.filePath}
-              type="button"
               className={cx(
                 detail.fileRow,
                 file.filePath === props.selectedFilePath && detail.fileRowSelected,
               )}
-              onClick={() => props.onSelectUntracked(file.filePath)}
             >
-              <div className={styles.brandBlock}>
+              <button type="button" className={cx(styles.brandBlock, detail.fileSelect)} onClick={() => props.onSelectUntracked(file.filePath)}>
                 <Text weight="semibold" className={detail.pathCell}>
                   {file.filePath}
                 </Text>
                 <Text size={200} className={styles.muted}>
                   建議歸屬：{file.suggestedOwner ?? "尚無建議"}
                 </Text>
-              </div>
+              </button>
               <Button
                 size="small"
                 onClick={(event) => {
@@ -348,59 +351,11 @@ function UntrackedFiles(props: {
               >
                 開啟
               </Button>
-            </button>
+            </div>
           ))}
         </div>
       )}
     </section>
-  );
-}
-
-function pickIssueForCartridge(
-  cartridge: DesktopCartridgeSnapshot,
-  preferred: IssueKind,
-): IssueKind {
-  if (preferred === "ghost" && cartridge.ghostFiles > 0) return "ghost";
-  if (
-    preferred === "review" &&
-    (cartridge.indirectStaleness > 0 ||
-      cartridge.legacyCompatibility ||
-      cartridge.contentQualityStatus !== "complete" ||
-      hasCompactionAdvisory(cartridge))
-  ) {
-    return "review";
-  }
-  if (cartridge.ghostFiles > 0) return "ghost";
-  if (
-    cartridge.mainFileType === "conflict" ||
-    cartridge.mainFileType === "missing" ||
-    cartridge.contentQualityStatus === "conflict" ||
-    cartridge.compaction?.needsCompaction ||
-    cartridge.staleness > 0 ||
-    cartridge.pendingChanges > 0 ||
-    preferred === "blocking"
-  ) {
-    return "blocking";
-  }
-  if (
-    cartridge.indirectStaleness > 0 ||
-    cartridge.legacyCompatibility ||
-    cartridge.contentQualityStatus !== "complete"
-  ) {
-    return "review";
-  }
-  if (hasCompactionAdvisory(cartridge)) return "review";
-  return "blocking";
-}
-
-function hasCompactionAdvisory(cartridge: DesktopCartridgeSnapshot): boolean {
-  return Boolean(
-    cartridge.compaction?.isLegacy ||
-      cartridge.legacyCompatibility ||
-      cartridge.contentQualityStatus !== "complete" ||
-      cartridge.compaction?.reasons.includes("highChineseRatio") ||
-      cartridge.trackedFiles.length > 8 ||
-      (cartridge.compaction?.archiveMigrationWarnings?.length ?? 0) > 0,
   );
 }
 

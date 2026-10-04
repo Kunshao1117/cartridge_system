@@ -1,5 +1,6 @@
 import fs, { type FSWatcher } from "node:fs";
 import path from "node:path";
+import { isProjectIndexArtifactPath } from "../project-index-artifacts.js";
 import type { FileEventType } from "../types.js";
 
 export interface NodeProjectWatcherOptions {
@@ -13,6 +14,7 @@ export interface NodeProjectWatcherOptions {
 
 export class NodeProjectWatcher {
   private watcher: FSWatcher | undefined;
+  private generation = 0;
   private debounceMap = new Map<string, NodeJS.Timeout>();
   private readonly debounceMs: number;
   private readonly options: NodeProjectWatcherOptions;
@@ -24,11 +26,13 @@ export class NodeProjectWatcher {
 
   start(): void {
     this.stop();
+    const generation = this.generation;
     try {
       this.watcher = fs.watch(
         this.options.projectRoot,
         { recursive: true },
         (eventType, filename) => {
+          if (generation !== this.generation) return;
           if (!filename) {
             this.options.onRescan();
             return;
@@ -39,23 +43,35 @@ export class NodeProjectWatcher {
             this.debounceIndex(mapNodeEvent(absPath, eventType));
             return;
           }
-          if (isProjectIndexArtifact(relPath)) return;
+          if (isProjectIndexArtifactPath(relPath)) return;
           this.debounce(absPath, mapNodeEvent(absPath, eventType));
         },
       );
-      this.watcher.on("error", (error) => this.options.onError?.(error));
+      this.watcher.on("error", (error) => {
+        if (generation !== this.generation) return;
+        this.stop();
+        this.options.onError?.(error);
+      });
     } catch (error) {
-      this.options.onError?.(asError(error));
+      this.stop();
+      const failure = asError(error);
+      this.options.onError?.(failure);
+      throw failure;
     }
   }
 
   stop(): void {
-    this.watcher?.close();
+    this.generation += 1;
+    const watcher = this.watcher;
     this.watcher = undefined;
-    for (const timer of this.debounceMap.values()) {
-      clearTimeout(timer);
+    try {
+      watcher?.close();
+    } finally {
+      for (const timer of this.debounceMap.values()) {
+        clearTimeout(timer);
+      }
+      this.debounceMap.clear();
     }
-    this.debounceMap.clear();
   }
 
   private debounce(absPath: string, eventType: FileEventType): void {
@@ -88,16 +104,6 @@ function mapNodeEvent(absPath: string, eventType: string): FileEventType {
 
 function normalizeFilename(filename: string | Buffer): string {
   return filename.toString().replace(/\\/g, "/");
-}
-
-function isProjectIndexArtifact(relPath: string): boolean {
-  const normalized = relPath.replace(/\\/g, "/").toLowerCase();
-  return (
-    normalized === ".cartridge/index.lock" ||
-    normalized.startsWith(".cartridge/index.lock/") ||
-    /^\.cartridge\/index\.\d+\.[0-9a-f-]+\.tmp$/i.test(normalized) ||
-    normalized.startsWith(".cartridge/index.lock.stale-")
-  );
 }
 
 function asError(error: unknown): Error {

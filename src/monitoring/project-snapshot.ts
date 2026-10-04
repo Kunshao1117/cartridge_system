@@ -1,6 +1,7 @@
 import path from "node:path";
 import { createVisibleCartridgeIndex } from "../visible-index.js";
-import { classifyMemoryWarnings } from "../staleness.js";
+import { canonicalProjectRoot } from "./project-identity.js";
+import { classifyMemoryWarnings, type MemoryWarningItem } from "../staleness.js";
 import { projectCanonicalHealth } from "../project-health.js";
 import type { MemoryCompactionMetrics } from "../memory-compaction.js";
 import type {
@@ -44,6 +45,7 @@ export interface DesktopCartridgeSnapshot {
   ghostFilePaths: string[];
   compaction: MemoryCompactionMetrics | null;
   guidance: string;
+  warnings?: MemoryWarningItem[];
 }
 
 export interface DesktopPendingChangeSnapshot {
@@ -90,7 +92,7 @@ export interface DesktopProjectSnapshot {
 }
 
 export function createProjectId(projectRoot: string): string {
-  return Buffer.from(path.resolve(projectRoot).toLowerCase()).toString("base64url");
+  return Buffer.from(canonicalProjectRoot(projectRoot)).toString("base64url");
 }
 
 export function buildDesktopProjectSnapshot(args: {
@@ -103,7 +105,18 @@ export function buildDesktopProjectSnapshot(args: {
   const index = createVisibleCartridgeIndex(args.index);
   const warnings = classifyMemoryWarnings(index);
   const cartridges = Object.entries(index.cartridges)
-    .map(([id, entry]) => toCartridgeSnapshot(id, entry))
+    .map(([id, entry]) => {
+      const snapshot = toCartridgeSnapshot(id, entry);
+      const targets = [...warnings.blocking, ...warnings.review, ...warnings.advisory, ...warnings.info].filter(item => item.target === id);
+      const issues = targets.filter(item => item.tier !== "info");
+      return {
+        ...snapshot,
+        warnings: targets,
+        guidance: issues.length && snapshot.guidance === "目前沒有需要處理的記憶問題。"
+          ? issues.map(item => `${item.label}：${item.reason}`).join("；")
+          : snapshot.guidance,
+      };
+    })
     .sort((a, b) => b.staleness - a.staleness || a.id.localeCompare(b.id));
   const ghostFiles = cartridges.reduce((sum, item) => sum + item.ghostFiles, 0);
   const pendingChanges = cartridges.reduce(

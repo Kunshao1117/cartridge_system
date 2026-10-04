@@ -1,11 +1,13 @@
 import { FluentProvider, webLightTheme } from "@fluentui/react-components";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import type {
   DesktopCartridgeSnapshot,
   DesktopProjectSnapshot,
 } from "../../monitoring/project-snapshot";
 import type { DesktopOperationResult } from "../ipc-channels";
 import type { DesktopSettings } from "../project-store";
+import { SettingsUpdateQueue } from "./settings-updates";
+import { LatestRequest } from "./latest-request";
 import { desktopApi } from "./desktop-api";
 import { useDesktopStyles } from "./desktopStyles";
 import { Overview } from "./overview";
@@ -35,6 +37,10 @@ interface OperationState {
 
 export function App() {
   const styles = useDesktopStyles();
+  const snapshotRequests = useRef(new LatestRequest());
+  const settingsRequests = useRef(new LatestRequest());
+  const settingsUpdates = useRef(new SettingsUpdateQueue(desktopApi));
+  const operationRequests = useRef(new LatestRequest());
   const [projects, setProjects] = useState<DesktopProjectSnapshot[]>([]);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [settings, setSettings] = useState<DesktopSettings>(defaultSettings);
@@ -49,15 +55,20 @@ export function App() {
   });
 
   useEffect(() => {
-    void Promise.all([desktopApi.listProjects(), desktopApi.getSettings()]).then(
-      ([snapshots, nextSettings]) => {
-        applyProjectSnapshots(snapshots);
-        setSettings(nextSettings);
-      },
-    ).catch((error) => {
-      showLocalFeedback("error", `載入桌面監控狀態失敗：${formatErrorMessage(error)}`);
+    const snapshotRequest = snapshotRequests.current.begin();
+    const settingsRequest = settingsRequests.current.begin();
+    void desktopApi.listProjects().then(snapshots => {
+      if (snapshotRequests.current.isCurrent(snapshotRequest)) applyProjectSnapshots(snapshots);
+    }).catch(error => {
+      if (snapshotRequests.current.isCurrent(snapshotRequest)) showLocalFeedback("error", `載入桌面監控狀態失敗：${formatErrorMessage(error)}`);
+    });
+    void desktopApi.getSettings().then(nextSettings => {
+      if (settingsRequests.current.isCurrent(settingsRequest)) setSettings(nextSettings);
+    }).catch(error => {
+      if (settingsRequests.current.isCurrent(settingsRequest)) showLocalFeedback("error", `載入設定失敗：${formatErrorMessage(error)}`);
     });
     const disposeSnapshots = desktopApi.onSnapshotsChanged((snapshots) => {
+      snapshotRequests.current.invalidate();
       applyProjectSnapshots(snapshots);
     });
     const disposeSettingsRequest = desktopApi.onSettingsRequested(() => {
@@ -65,6 +76,9 @@ export function App() {
       showLocalFeedback("success", "已開啟設定。");
     });
     return () => {
+      snapshotRequests.current.invalidate();
+      settingsRequests.current.invalidate();
+      operationRequests.current.invalidate();
       disposeSnapshots();
       disposeSettingsRequest();
     };
@@ -81,7 +95,7 @@ export function App() {
     setIssueSelection((current) =>
       current ? normalizeIssueSelection(selected, current.kind, current) : null,
     );
-  }, [selected?.id, selected?.lastScanned]);
+  }, [selected]);
 
   function applyProjectSnapshots(snapshots: DesktopProjectSnapshot[]): void {
     setProjects(snapshots);
@@ -96,7 +110,10 @@ export function App() {
     pendingMessage: string,
     action: Promise<DesktopOperationResult<DesktopProjectSnapshot[]>>,
   ): void {
-    void runOperation(pendingMessage, action, applyProjectSnapshots);
+    const request = snapshotRequests.current.begin();
+    void runOperation(pendingMessage, action, snapshots => {
+      if (snapshotRequests.current.isCurrent(request)) applyProjectSnapshots(snapshots);
+    });
   }
 
   function runDesktopOperation(
@@ -111,12 +128,14 @@ export function App() {
     action: Promise<DesktopOperationResult<T>>,
     onData?: (data: T) => void,
   ): Promise<void> {
+    const request = operationRequests.current.begin();
     setOperation({ status: "pending", message: pendingMessage });
     try {
       const result = await action;
       if (result.data !== undefined && onData) onData(result.data);
-      setOperation({ status: result.outcome, message: result.message });
+      if (operationRequests.current.isCurrent(request)) setOperation({ status: result.outcome, message: result.message });
     } catch (error) {
+      if (!operationRequests.current.isCurrent(request)) return;
       setOperation({
         status: "error",
         message: `操作失敗：${formatErrorMessage(error)}`,
@@ -125,10 +144,14 @@ export function App() {
   }
 
   function updateSetting(patch: Partial<DesktopSettings>): void {
-    void runOperation("正在更新設定...", desktopApi.updateSettings(patch), setSettings);
+    const request = settingsRequests.current.begin();
+    void runOperation("正在更新設定...", settingsUpdates.current.update(patch), nextSettings => {
+      if (settingsRequests.current.isCurrent(request)) setSettings(nextSettings);
+    });
   }
 
   function showLocalFeedback(status: OperationStatusKind, message: string): void {
+    operationRequests.current.invalidate();
     setOperation({ status, message });
   }
 
@@ -267,7 +290,6 @@ function pickCartridge(
   return (
     candidates.find((item) => item.id === currentId) ??
     candidates[0] ??
-    project.cartridges[0] ??
     null
   );
 }

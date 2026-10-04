@@ -50,7 +50,7 @@ export class CartridgeCodeLensProvider implements vscode.CodeLensProvider {
     // 未歸屬檔案
     return [
       new vscode.CodeLens(range, {
-        title: "$(ghost) 未歸屬檔案 — 點擊歸檔…",
+        title: "$(ghost) 未歸屬檔案 — 選擇歸屬建議…",
         command: "cartridge.attributeFile",
         arguments: [document.uri],
       }),

@@ -5,10 +5,10 @@ import { CartridgeIndexManager } from "../index-manager.js";
 import { refreshMemoryIndex } from "../memory-reindex.js";
 import { StalenessAnalyzer } from "../analyzer.js";
 import { MemoryWriter } from "../writer.js";
-import type { CartridgeConfig, CartridgeIndex } from "../types.js";
+import type { CartridgeConfig } from "../types.js";
 import { handleProjectFileEvent } from "./project-event-handler.js";
 import { NodeProjectWatcher } from "./node-project-watcher.js";
-import { reloadProjectIndexFromDisk } from "../project-index-transaction.js";
+import { reloadProjectIndexFromDisk, runProjectIndexTransaction } from "../project-index-transaction.js";
 import {
   buildDesktopProjectSnapshot,
   createProjectId,
@@ -34,6 +34,7 @@ export class CartridgeProjectMonitor {
   private rescanTimer: NodeJS.Timeout | undefined;
   private startupPromise: Promise<DesktopProjectSnapshot> | undefined;
   private activeRescan: Promise<DesktopProjectSnapshot> | undefined;
+  private readonly inFlightOperations = new Set<Promise<unknown>>();
   private trailingRescan:
     | { generation: number; injectStartupWarnings: boolean }
     | undefined;
@@ -45,6 +46,7 @@ export class CartridgeProjectMonitor {
   private listeners = new Set<ProjectMonitorListener>();
   private enabled = true;
   private error: string | null = null;
+  private watcherError: string | null = null;
   private syncWarning: string | null = null;
 
   constructor(projectRoot: string) {
@@ -91,14 +93,23 @@ export class CartridgeProjectMonitor {
 
     const watcher = this.watcher;
     this.watcher = undefined;
+    let watcherStopError: unknown;
     try {
       watcher?.stop();
+    } catch (error) {
+      watcherStopError = error;
     } finally {
       this.clearTimers();
     }
 
-    await this.activeRescan?.catch(() => undefined);
+    // Stop accepting callbacks first, then drain everything already accepted,
+    // including source transactions that are still waiting for an external lock.
+    await Promise.allSettled([
+      ...(this.activeRescan ? [this.activeRescan] : []),
+      ...this.inFlightOperations,
+    ]);
     await this.indexManager.flushIfDirty();
+    if (watcherStopError) throw watcherStopError;
     if (generation !== this.lifecycleGeneration || !this.stopped) return;
     this.notify();
   }
@@ -203,7 +214,7 @@ export class CartridgeProjectMonitor {
     injectStartupWarnings: boolean,
   ): Promise<void> {
     try {
-      const { index } = await refreshMemoryIndex({
+      await refreshMemoryIndex({
         projectRoot: this.projectRoot,
         config: this.config,
         indexManager: this.indexManager,
@@ -215,10 +226,13 @@ export class CartridgeProjectMonitor {
       if (!this.isCurrentGeneration(generation)) return;
 
       if (injectStartupWarnings) {
-        await this.injectStartupWarnings(index, generation);
+        await this.injectStartupWarnings(generation);
         if (!this.isCurrentGeneration(generation)) return;
       }
 
+      if (this.isActiveGeneration(generation) && !this.watcher && this.watcherError !== null) {
+        this.startWatcher(generation);
+      }
       this.error = null;
       this.syncWarning = null;
       this.notify();
@@ -240,7 +254,7 @@ export class CartridgeProjectMonitor {
       projectRoot: this.projectRoot,
       index: this.indexManager.getVisibleIndex(),
       enabled: this.enabled,
-      error: this.error,
+      error: this.watcherError ?? this.error,
       syncWarning: this.syncWarning ?? this.indexManager.getSyncWarning(),
     });
   }
@@ -257,14 +271,13 @@ export class CartridgeProjectMonitor {
   }
 
   private startWatcher(generation: number): void {
-    if (!this.isActiveGeneration(generation)) return;
+    if (!this.isActiveGeneration(generation) || this.watcher) return;
 
-    this.watcher?.stop();
-    this.watcher = new NodeProjectWatcher({
+    const watcher = new NodeProjectWatcher({
       projectRoot: this.projectRoot,
       onEvent: (absPath, eventType) => {
-        if (!this.isActiveGeneration(generation)) return;
-        void handleProjectFileEvent({
+        if (!this.isActiveGeneration(generation) || this.watcher !== watcher) return;
+        void this.trackOperation(handleProjectFileEvent({
           config: this.config,
           indexManager: this.indexManager,
           analyzer: this.analyzer,
@@ -273,17 +286,17 @@ export class CartridgeProjectMonitor {
           absFilePath: absPath,
           eventType,
           onUpdate: () => this.notifyIfCurrent(generation),
-        }).catch((error) => this.setError(error, generation));
+        }).catch((error) => this.setError(error, generation)));
       },
       onRescan: () => {
-        if (!this.isActiveGeneration(generation)) return;
+        if (!this.isActiveGeneration(generation) || this.watcher !== watcher) return;
         void this.requestRescan(generation).catch((error) =>
           this.setError(error, generation),
         );
       },
       onIndexChanged: () => {
-        if (!this.isActiveGeneration(generation)) return;
-        void reloadProjectIndexFromDisk(
+        if (!this.isActiveGeneration(generation) || this.watcher !== watcher) return;
+        void this.trackOperation(reloadProjectIndexFromDisk(
           this.projectRoot,
           this.indexManager,
         )
@@ -296,11 +309,33 @@ export class CartridgeProjectMonitor {
                 : null;
             this.notify();
           })
-          .catch((error) => this.setError(error, generation));
+          .catch((error) => this.setError(error, generation)));
       },
-      onError: (error) => this.setError(error, generation),
+      onError: (error) => {
+        if (!this.isActiveGeneration(generation) || this.watcher !== watcher) return;
+        this.watcher = undefined;
+        watcher.stop();
+        this.watcherError = error.message;
+        this.notify();
+      },
     });
-    this.watcher.start();
+    this.watcher = watcher;
+    try {
+      watcher.start();
+      this.watcherError = null;
+    } catch (error) {
+      if (this.watcher === watcher) this.watcher = undefined;
+      watcher.stop();
+      this.watcherError = error instanceof Error ? error.message : String(error);
+      throw error;
+    }
+  }
+
+  private trackOperation<T>(operation: Promise<T>): Promise<T> {
+    this.inFlightOperations.add(operation);
+    const release = () => { this.inFlightOperations.delete(operation); };
+    void operation.then(release, release);
+    return operation;
   }
 
   private startTimers(generation: number): void {
@@ -309,9 +344,9 @@ export class CartridgeProjectMonitor {
 
     this.heartbeat = setInterval(() => {
       if (!this.isActiveGeneration(generation)) return;
-      void this.indexManager.flushIfDirty().catch((error) =>
+      void this.trackOperation(this.indexManager.flushIfDirty().catch((error) =>
         this.setError(error, generation),
-      );
+      ));
     }, 300_000);
     this.rescanTimer = setInterval(() => {
       if (!this.isActiveGeneration(generation)) return;
@@ -329,22 +364,31 @@ export class CartridgeProjectMonitor {
   }
 
   private async injectStartupWarnings(
-    index: CartridgeIndex,
     generation: number,
   ): Promise<void> {
-    for (const entry of Object.values(index.cartridges)) {
-      if (!this.isCurrentGeneration(generation)) return;
-      if (
-        entry.staleness >= this.config.thresholds.significant &&
-        entry.pendingChanges.length > 0
-      ) {
-        await this.writer.injectWarning(
-          entry.mainFile?.activePath ?? entry.skillPath,
-          entry.pendingChanges.map((change) => change.filePath),
-          entry.staleness,
-        );
-      }
-    }
+    await runProjectIndexTransaction({
+      projectRoot: this.projectRoot,
+      indexManager: this.indexManager,
+      mutation: async () => {
+        // A commit can finish after the startup scan released its transaction.
+        // Only the index reloaded under this lock may authorize warning writes.
+        if (!this.isActiveGeneration(generation)) return;
+        for (const entry of Object.values(this.indexManager.getIndex().cartridges)) {
+          if (!this.isActiveGeneration(generation)) return;
+          if (entry.mainFile?.type === "conflict" || entry.mainFile?.type === "missing" || entry.idConflictPaths?.length) continue;
+          if (
+            entry.staleness >= this.config.thresholds.significant &&
+            entry.pendingChanges.length > 0
+          ) {
+            await this.writer.injectWarning(
+              entry.mainFile?.activePath ?? entry.skillPath,
+              entry.pendingChanges.map((change) => change.filePath),
+              entry.staleness,
+            );
+          }
+        }
+      },
+    });
   }
 
   private isCurrentGeneration(generation: number): boolean {

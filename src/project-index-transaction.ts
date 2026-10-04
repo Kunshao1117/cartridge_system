@@ -8,9 +8,12 @@ import type { CartridgeIndexManager } from "./index-manager.js";
 
 const INDEX_RELATIVE_PATH = ".cartridge/index.json";
 const LOCK_RELATIVE_PATH = ".cartridge/index.lock";
-const OWNER_FILENAME = "owner.json";
+const LEGACY_OWNER_FILENAME = "owner.json";
+const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+const OWNER_FILENAME_PATTERN = /^owner-([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})\.json$/i;
 
 interface LockOwner {
+  protocolVersion: 2;
   pid: number;
   hostname: string;
   token: string;
@@ -55,6 +58,14 @@ export class ProjectIndexLockTimeoutError extends Error {
   constructor(projectRoot: string) {
     super(`Timed out waiting for project index lock: ${projectRoot}`);
     this.name = "ProjectIndexLockTimeoutError";
+  }
+}
+
+/** Unsafe/unknown generations are never guessed stale or removed automatically. */
+export class ProjectIndexLockCompatibilityError extends Error {
+  constructor(projectRoot: string, reason: string) {
+    super(`Project index lock requires coordinated restart or recovery: ${reason}. Stop all VS Code, Desktop and MCP clients before inspecting/removing an abandoned lock; do not mix old and new versions. Project: ${projectRoot}`);
+    this.name = "ProjectIndexLockCompatibilityError";
   }
 }
 
@@ -314,6 +325,16 @@ interface HeldLock {
   released: boolean;
 }
 
+type ObservedLock =
+  | { kind: "missing" }
+  | { kind: "empty" }
+  | { kind: "legacy"; owner: Omit<LockOwner, "protocolVersion">; ownerMtime: number }
+  | { kind: "current"; owner: LockOwner; ownerPath: string; ownerMtime: number };
+
+function ownerFilename(token: string): string {
+  return `owner-${token}.json`;
+}
+
 async function acquireLock(
   projectRoot: string,
   timing: ProjectIndexTransactionTiming,
@@ -322,98 +343,176 @@ async function acquireLock(
   const lockPath = path.resolve(projectRoot, LOCK_RELATIVE_PATH);
   assertInsideProject(projectRoot, lockPath);
   await fs.mkdir(assertPathInsideProject(projectRoot, cartridgeDir), { recursive: true });
-  const deadline = timing.now() + timing.lockTimeoutMs;
-
-  while (true) {
-    const owner: LockOwner = {
-      pid: process.pid,
-      hostname: os.hostname(),
-      token: randomUUID(),
-      createdAt: timing.now(),
-    };
-    let created = false;
+  await cleanupStaleLockCandidates(projectRoot, timing);
+  const owner: LockOwner = {
+    protocolVersion: 2, pid: process.pid, hostname: os.hostname(), token: randomUUID(), createdAt: timing.now(),
+  };
+  const candidatePath = `${lockPath}.candidate-${owner.pid}-${owner.token}`;
+  const candidateOwnerPath = path.join(candidatePath, ownerFilename(owner.token));
+  let candidateCreated = false;
+  try {
+    // Publish only complete nonempty directories. Other v2 contenders can never
+    // mistake an initializing owner for an empty abandoned canonical lock.
+    await fs.mkdir(assertPathInsideProject(projectRoot, candidatePath));
+    candidateCreated = true;
+    const handle = await fs.open(assertPathInsideProject(projectRoot, candidateOwnerPath), "wx", 0o600);
     try {
-      await fs.mkdir(assertPathInsideProject(projectRoot, lockPath));
-      created = true;
-      const ownerPath = path.join(lockPath, OWNER_FILENAME);
-      await fs.writeFile(assertPathInsideProject(projectRoot, ownerPath), JSON.stringify(owner), {
-        encoding: "utf8",
-        flag: "wx",
-      });
-      const lock: HeldLock = {
-        projectRoot,
-        lockPath,
-        ownerPath,
-        owner,
-        heartbeatTimer: null,
-        heartbeatInFlight: Promise.resolve(),
-        released: false,
-      };
-      startLockHeartbeat(lock, timing);
-      return lock;
+      await handle.writeFile(JSON.stringify(owner), "utf8");
+      await handle.sync();
+    } finally {
+      await handle.close();
+    }
+    const deadline = timing.now() + timing.lockTimeoutMs;
+    let attempted = false;
+    while (true) {
+      if (attempted && timing.now() >= deadline) throw new ProjectIndexLockTimeoutError(projectRoot);
+      attempted = true;
+      // Windows rename can replace an ordinary file with this directory. Reject
+      // existing non-protocol artifacts before publication. This observation does
+      // not grant ownership: rename still arbitrates between nonempty v2 locks.
+      await observeLock(projectRoot, lockPath);
+      try {
+        await fs.rename(assertPathInsideProject(projectRoot, candidatePath), assertPathInsideProject(projectRoot, lockPath));
+        candidateCreated = false;
+        const lock: HeldLock = {
+          projectRoot, lockPath, ownerPath: path.join(lockPath, ownerFilename(owner.token)), owner,
+          heartbeatTimer: null, heartbeatInFlight: Promise.resolve(), released: false,
+        };
+        startLockHeartbeat(lock, timing);
+        return lock;
+      } catch (error) {
+        // Windows reports existing directories as EPERM/EACCES on some versions.
+        // Distinguish actual contention from a filesystem failure on a free path.
+        if (!isLockContention(error)) throw error;
+        const observed = await observeLock(projectRoot, lockPath);
+        if (observed.kind === "missing") {
+          await timing.sleep(timing.retryMinMs);
+          continue;
+        }
+        if (observed.kind === "empty") {
+          await removeEmptyLockDirectory(projectRoot, lockPath);
+          continue;
+        }
+        const age = timing.now() - Math.max(observed.owner.createdAt, observed.ownerMtime);
+        if (observed.owner.hostname !== os.hostname()) {
+          if (age >= timing.remoteStaleMs) {
+            throw new ProjectIndexLockCompatibilityError(projectRoot, "remote owner liveness cannot be proven; automatic lease expiry is disabled");
+          }
+        } else if (!isProcessAlive(observed.owner.pid)) {
+          if (observed.kind === "legacy") {
+            throw new ProjectIndexLockCompatibilityError(projectRoot, "abandoned legacy owner.json cannot be safely reclaimed by this protocol");
+          }
+          if (age >= timing.localStaleMs) {
+            await recoverStaleLock(projectRoot, lockPath, observed.ownerPath);
+            continue;
+          }
+        }
+        if (timing.now() >= deadline) throw new ProjectIndexLockTimeoutError(projectRoot);
+        const spread = Math.max(0, timing.retryMaxMs - timing.retryMinMs);
+        await timing.sleep(timing.retryMinMs + Math.floor(timing.random() * spread));
+      }
+    }
+  } finally {
+    if (candidateCreated) {
+      // Only our never-published, UUID-specific staging location is cleaned.
+      await fs.unlink(assertPathInsideProject(projectRoot, candidateOwnerPath)).catch(() => undefined);
+      await fs.rmdir(assertPathInsideProject(projectRoot, candidatePath)).catch(() => undefined);
+    }
+  }
+}
+
+async function observeLock(projectRoot: string, lockPath: string): Promise<ObservedLock> {
+  try {
+    const stat = await fs.lstat(assertPathInsideProject(projectRoot, lockPath));
+    if (!stat.isDirectory() || stat.isSymbolicLink()) {
+      throw new ProjectIndexLockCompatibilityError(projectRoot, "canonical lock is not an ordinary directory");
+    }
+    const names = await fs.readdir(assertPathInsideProject(projectRoot, lockPath));
+    if (names.length === 0) return { kind: "empty" };
+    if (names.length !== 1) throw new ProjectIndexLockCompatibilityError(projectRoot, "lock contains unknown or multiple owner files");
+    const name = names[0];
+    const match = name.match(OWNER_FILENAME_PATTERN);
+    if (!match && name !== LEGACY_OWNER_FILENAME) {
+      throw new ProjectIndexLockCompatibilityError(projectRoot, "unrecognized lock ownership format");
+    }
+    const ownerPath = path.join(lockPath, name);
+    const ownerStat = await fs.lstat(assertPathInsideProject(projectRoot, ownerPath));
+    if (!ownerStat.isFile() || ownerStat.isSymbolicLink()) {
+      throw new ProjectIndexLockCompatibilityError(projectRoot, "owner marker is not an ordinary file");
+    }
+    let owner: unknown;
+    try {
+      owner = JSON.parse(await fs.readFile(assertPathInsideProject(projectRoot, ownerPath), "utf8"));
     } catch (error) {
-      if (created) {
-        await fs.rm(assertPathInsideProject(projectRoot, lockPath), { recursive: true, force: true }).catch(() => undefined);
-        throw error;
-      }
-      if (!isErrorCode(error, "EEXIST")) throw error;
-      if (await canRecoverStaleLock(projectRoot, lockPath, timing)) {
-        await recoverStaleLock(projectRoot, lockPath);
-        continue;
-      }
-      if (timing.now() >= deadline) {
-        throw new ProjectIndexLockTimeoutError(projectRoot);
-      }
-      const spread = timing.retryMaxMs - timing.retryMinMs;
-      await timing.sleep(timing.retryMinMs + Math.floor(timing.random() * spread));
+      if (isErrorCode(error, "ENOENT")) return { kind: "missing" };
+      throw new ProjectIndexLockCompatibilityError(projectRoot, "incomplete or unreadable owner metadata");
     }
+    if (name === LEGACY_OWNER_FILENAME && isOwnerMetadata(owner) && !("protocolVersion" in owner)) {
+      return { kind: "legacy", owner, ownerMtime: ownerStat.mtimeMs };
+    }
+    if (!isLockOwner(owner) || owner.token !== match?.[1]) {
+      throw new ProjectIndexLockCompatibilityError(projectRoot, "owner token does not match its generation-specific filename");
+    }
+    return { kind: "current", owner, ownerPath, ownerMtime: ownerStat.mtimeMs };
+  } catch (error) {
+    if (isErrorCode(error, "ENOENT")) return { kind: "missing" };
+    throw error;
   }
 }
 
-async function canRecoverStaleLock(
-  projectRoot: string,
-  lockPath: string,
-  timing: ProjectIndexTransactionTiming,
-): Promise<boolean> {
-  let owner: LockOwner | null = null;
+async function recoverStaleLock(projectRoot: string, lockPath: string, observedOwnerPath: string): Promise<void> {
   try {
-    owner = JSON.parse(
-      await fs.readFile(assertPathInsideProject(projectRoot, path.join(lockPath, OWNER_FILENAME)), "utf8"),
-    ) as LockOwner;
-  } catch {
-    try {
-      const stat = await fs.stat(assertPathInsideProject(projectRoot, lockPath));
-      return timing.now() - stat.mtimeMs >= timing.remoteStaleMs;
-    } catch {
-      return false;
-    }
-  }
-  if (!isLockOwner(owner)) return false;
-  let ownerMtime = owner.createdAt;
-  try {
-    ownerMtime = (await fs.stat(assertPathInsideProject(projectRoot, path.join(lockPath, OWNER_FILENAME)))).mtimeMs;
-  } catch {
-    return false;
-  }
-  const age = timing.now() - Math.max(owner.createdAt, ownerMtime);
-  if (owner.hostname !== os.hostname()) return age >= timing.remoteStaleMs;
-  if (isProcessAlive(owner.pid)) return false;
-  return age >= timing.localStaleMs;
-}
-
-async function recoverStaleLock(
-  projectRoot: string,
-  lockPath: string,
-): Promise<void> {
-  const stalePath = `${lockPath}.stale-${process.pid}-${randomUUID()}`;
-  assertInsideProject(projectRoot, stalePath);
-  try {
-    await fs.rename(assertPathInsideProject(projectRoot, lockPath), assertPathInsideProject(projectRoot, stalePath));
+    // No common filename or directory rename: a delayed reaper's exact marker
+    // can never identify a later owner's UUID, even after its stale check pauses.
+    await fs.unlink(assertPathInsideProject(projectRoot, observedOwnerPath));
   } catch (error) {
     if (isErrorCode(error, "ENOENT")) return;
     throw error;
   }
-  await fs.rm(assertPathInsideProject(projectRoot, stalePath), { recursive: true, force: true });
+  await removeEmptyLockDirectory(projectRoot, lockPath);
+}
+
+async function removeEmptyLockDirectory(projectRoot: string, lockPath: string): Promise<void> {
+  try {
+    await fs.rmdir(assertPathInsideProject(projectRoot, lockPath));
+  } catch (error) {
+    if (isErrorCode(error, "ENOENT") || isErrorCode(error, "ENOTEMPTY") || isErrorCode(error, "EEXIST")) return;
+    // A populated replacement may produce EACCES/EPERM on Windows. Verify it
+    // exists and keep it; never turn a failed rmdir into recursive cleanup.
+    if (isErrorCode(error, "EACCES") || isErrorCode(error, "EPERM")) {
+      try {
+        if ((await fs.readdir(assertPathInsideProject(projectRoot, lockPath))).length > 0) return;
+      } catch (readError) { if (isErrorCode(readError, "ENOENT")) return; }
+    }
+    throw error;
+  }
+}
+
+async function cleanupStaleLockCandidates(projectRoot: string, timing: ProjectIndexTransactionTiming): Promise<void> {
+  const directory = path.resolve(projectRoot, ".cartridge");
+  const names = await fs.readdir(assertPathInsideProject(projectRoot, directory));
+  for (const name of names) {
+    const match = name.match(/^index\.lock\.candidate-(\d+)-([0-9a-f-]+)$/i);
+    if (!match || !UUID_PATTERN.test(match[2])) continue;
+    const candidate = path.join(directory, name);
+    try {
+      const observed = await observeLock(projectRoot, candidate);
+      // Partial staging metadata proves neither host nor process ownership.
+      // Preserve it rather than guessing that an initializing contender died.
+      if (observed.kind !== "current" || observed.owner.token !== match[2] || observed.owner.pid !== Number(match[1]) ||
+          observed.owner.hostname !== os.hostname() || isProcessAlive(observed.owner.pid) ||
+          timing.now() - Math.max(observed.owner.createdAt, observed.ownerMtime) < timing.localStaleMs) continue;
+      await recoverStaleLock(projectRoot, candidate, observed.ownerPath);
+    } catch {
+      // Unknown staging debris does not grant ownership and must remain inert.
+    }
+  }
+}
+
+function isLockContention(error: unknown): boolean {
+  return isErrorCode(error, "EEXIST") || isErrorCode(error, "ENOTEMPTY") ||
+    isErrorCode(error, "ENOTDIR") || isErrorCode(error, "EISDIR") ||
+    isErrorCode(error, "EACCES") || isErrorCode(error, "EPERM");
 }
 
 async function assertLockOwnership(lock: HeldLock): Promise<void> {
@@ -435,8 +534,9 @@ async function releaseLock(lock: HeldLock): Promise<void> {
   } catch {
     return;
   }
-  assertInsideProject(lock.projectRoot, lock.lockPath);
-  await fs.rm(lock.lockPath, { recursive: true, force: true });
+  // A newer generation has a different marker. Even a delayed release cannot
+  // delete it; nonrecursive rmdir preserves any populated replacement directory.
+  await recoverStaleLock(lock.projectRoot, lock.lockPath, lock.ownerPath);
 }
 
 function startLockHeartbeat(
@@ -531,24 +631,27 @@ async function cleanupStaleTemps(
   }
 }
 
-function isLockOwner(value: unknown): value is LockOwner {
+function isOwnerMetadata(value: unknown): value is Omit<LockOwner, "protocolVersion"> {
   if (!value || typeof value !== "object") return false;
   const owner = value as Partial<LockOwner>;
-  return (
-    typeof owner.pid === "number" &&
-    typeof owner.hostname === "string" &&
-    typeof owner.token === "string" &&
-    typeof owner.createdAt === "number"
-  );
+  return Number.isInteger(owner.pid) && (owner.pid ?? 0) > 0 &&
+    typeof owner.hostname === "string" && owner.hostname.length > 0 &&
+    typeof owner.token === "string" && owner.token.length > 0 &&
+    typeof owner.createdAt === "number" && Number.isFinite(owner.createdAt);
+}
+
+function isLockOwner(value: unknown): value is LockOwner {
+  return isOwnerMetadata(value) && "protocolVersion" in value && value.protocolVersion === 2 && UUID_PATTERN.test(value.token);
 }
 
 function isProcessAlive(pid: number): boolean {
-  if (!Number.isInteger(pid) || pid <= 0) return false;
+  if (!Number.isInteger(pid) || pid <= 0) return true;
   try {
     process.kill(pid, 0);
     return true;
   } catch (error) {
-    return isErrorCode(error, "EPERM");
+    // Only ESRCH proves death. Permission, range and platform errors fail closed.
+    return !isErrorCode(error, "ESRCH");
   }
 }
 

@@ -4,8 +4,8 @@
  */
 
 import fs from 'node:fs'
-import path from 'node:path'
-import { assertPathInsideProject, PathContainmentError } from './file-containment.js'
+import { assertPathInsideProject } from './file-containment.js'
+import { assertMemoryCardPath } from './memory-card-path.js'
 import { patchMemorySource, readMemorySource } from './memory-source-patch.js'
 import type { CartridgeConfig, StalenessLevel } from './types.js'
 import { getStalenessLevel } from './staleness.js'
@@ -55,22 +55,7 @@ export class MemoryWriter {
   constructor(private config: CartridgeConfig) {}
 
   private cardPath(relativePath: string): string {
-    const absolute = assertPathInsideProject(this.config.projectRoot, relativePath)
-    if (!['MEMORY.md', 'SKILL.md'].includes(path.basename(absolute))) throw new PathContainmentError(relativePath)
-    const within = (root: string, legacy: boolean) => {
-      const relative = path.relative(assertPathInsideProject(this.config.projectRoot, root), absolute)
-      const parts = relative.split(path.sep)
-      return parts.length >= 2 && !path.isAbsolute(relative) && !parts.includes('..') &&
-        !parts.slice(0, -1).some(part => part.toLowerCase() === 'archive') &&
-        (!legacy || parts[0].startsWith('mem-'))
-    }
-    if (!within(this.config.memoryDir, false) && !within(this.config.skillsDir, true)) throw new PathContainmentError(relativePath)
-    const otherName = path.basename(absolute) === 'MEMORY.md' ? 'SKILL.md' : 'MEMORY.md'
-    const other = assertPathInsideProject(this.config.projectRoot, path.join(path.dirname(absolute), otherName))
-    if (fs.existsSync(absolute) && fs.existsSync(other)) {
-      throw new Error('MEMORY_MAIN_FILE_CONFLICT: resolve dual Memory main files before writing a warning')
-    }
-    return absolute
+    return assertMemoryCardPath(this.config, relativePath)
   }
 
   /** Repeated delivery of the same warning must not change bytes or timestamp. */

@@ -1,4 +1,6 @@
 import path from "node:path";
+import { isProjectIndexArtifactPath } from "../project-index-artifacts.js";
+import { isExcludedDirectoryPath } from "../tracked-path.js";
 import fs from "node:fs";
 import { assertPathInsideProject } from "../file-containment.js";
 import type { CartridgeConfig, FileEventType } from "../types.js";
@@ -35,6 +37,8 @@ export interface ProjectFileEvent extends ProjectEventHandlerDeps {
 export async function handleProjectFileEvent(
   args: ProjectFileEvent,
 ): Promise<void> {
+  const relativePath = path.relative(args.config.projectRoot, args.absFilePath).replace(/\\/g, "/");
+  if (isProjectIndexArtifactPath(relativePath)) return;
   try {
     const transaction = await runProjectIndexTransaction({
       projectRoot: args.config.projectRoot,
@@ -85,7 +89,7 @@ async function handleProjectFileEventUnlocked(
     return { updated: true, refresh: false };
   }
 
-  if (args.config.excludeDirs.some((dir) => relPath.startsWith(dir))) {
+  if (isExcludedDirectoryPath(relPath, args.config.excludeDirs)) {
     return { updated: false, refresh: false };
   }
 

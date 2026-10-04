@@ -11,6 +11,7 @@ import type { StalenessAnalyzer } from "./analyzer.js";
 import type { GitignoreFilter } from "./gitignore-filter.js";
 import type { MemoryWriter } from "./writer.js";
 import { handleProjectFileEvent } from "./monitoring/project-event-handler.js";
+import { isProjectIndexArtifactPath } from "./project-index-artifacts.js";
 import { reloadProjectIndexFromDisk } from "./project-index-transaction.js";
 
 /**
@@ -24,6 +25,8 @@ export class CartridgeWatcher {
   private writer: MemoryWriter;
   private watchers: vscode.Disposable[] = [];
   private debounceMap = new Map<string, NodeJS.Timeout>();
+  private pending = new Set<Promise<unknown>>();
+  private generation = 0;
   private onUpdate?: () => void;
   private onSyncWarning?: (message: string) => void;
 
@@ -53,13 +56,16 @@ export class CartridgeWatcher {
    */
   async start(): Promise<void> {
     this.stop();
+    const generation = this.generation;
+    await this.drain();
+    if (generation !== this.generation) return;
 
     const watcher = vscode.workspace.createFileSystemWatcher("**/*");
 
     this.watchers.push(
-      watcher.onDidChange((uri) => this.debounceEvent(uri.fsPath, "change")),
-      watcher.onDidCreate((uri) => this.debounceEvent(uri.fsPath, "add")),
-      watcher.onDidDelete((uri) => this.debounceEvent(uri.fsPath, "unlink")),
+      watcher.onDidChange((uri) => { if (generation === this.generation) this.debounceEvent(uri.fsPath, "change"); }),
+      watcher.onDidCreate((uri) => { if (generation === this.generation) this.debounceEvent(uri.fsPath, "add"); }),
+      watcher.onDidDelete((uri) => { if (generation === this.generation) this.debounceEvent(uri.fsPath, "unlink"); }),
       watcher,
     );
 
@@ -70,11 +76,21 @@ export class CartridgeWatcher {
    * 停止監聽引擎
    */
   stop(): void {
+    this.generation++;
     for (const d of this.watchers) d.dispose();
     this.watchers = [];
     for (const t of this.debounceMap.values()) clearTimeout(t);
     this.debounceMap.clear();
     console.log("[監聽引擎] 已停止");
+  }
+
+  async drain(): Promise<void> {
+    await Promise.allSettled([...this.pending]);
+  }
+
+  private track(task: Promise<unknown>): void {
+    this.pending.add(task);
+    void task.finally(() => this.pending.delete(task)).catch(() => undefined);
   }
 
   /**
@@ -97,7 +113,7 @@ export class CartridgeWatcher {
       this.debounceIndexEvent();
       return;
     }
-    if (isProjectIndexArtifact(relPath)) return;
+    if (isProjectIndexArtifactPath(relPath)) return;
     const existing = this.debounceMap.get(absPath);
     if (existing) clearTimeout(existing);
 
@@ -105,14 +121,15 @@ export class CartridgeWatcher {
       absPath,
       setTimeout(() => {
         this.debounceMap.delete(absPath);
-        void this.handleEvent(absPath, eventType).catch((err) =>
+        this.track(this.handleEvent(absPath, eventType).catch((err) =>
           console.error(`[監聽引擎] 事件處理失敗: ${absPath}`, err),
-        );
+        ));
       }, CartridgeWatcher.DEBOUNCE_MS),
     );
   }
 
   private debounceIndexEvent(): void {
+    const generation = this.generation;
     const key = "<project-index>";
     const existing = this.debounceMap.get(key);
     if (existing) clearTimeout(existing);
@@ -120,21 +137,22 @@ export class CartridgeWatcher {
       key,
       setTimeout(() => {
         this.debounceMap.delete(key);
-        void reloadProjectIndexFromDisk(
+        this.track(reloadProjectIndexFromDisk(
           this.config.projectRoot,
           this.indexManager,
         )
           .then((result) => {
+            if (generation !== this.generation) return;
             if (result.status === "missing" || result.status === "invalid") {
               this.onSyncWarning?.(result.warning);
             }
             if (result.status !== "self-write") this.onUpdate?.();
           })
-          .catch((error) =>
-            this.onSyncWarning?.(
+          .catch((error) => {
+            if (generation === this.generation) this.onSyncWarning?.(
               error instanceof Error ? error.message : String(error),
-            ),
-          );
+            );
+          }));
       }, 150),
     );
   }
@@ -146,6 +164,7 @@ export class CartridgeWatcher {
     absFilePath: string,
     eventType: FileEventType,
   ): Promise<void> {
+    const generation = this.generation;
     await handleProjectFileEvent({
       config: this.config,
       indexManager: this.indexManager,
@@ -154,8 +173,8 @@ export class CartridgeWatcher {
       writer: this.writer,
       absFilePath,
       eventType,
-      onUpdate: this.onUpdate,
-      onRefresh: () => this.refresh(),
+      onUpdate: () => { if (generation === this.generation) this.onUpdate?.(); },
+      onRefresh: () => { if (generation === this.generation) this.refresh(); },
     });
   }
 
@@ -163,6 +182,7 @@ export class CartridgeWatcher {
    * 測試與舊內部 seam 相容：實際處理委派給共用事件 helper。
    */
   private async handleSkillFileChange(relPath: string): Promise<void> {
+    const generation = this.generation;
     await handleProjectFileEvent({
       config: this.config,
       indexManager: this.indexManager,
@@ -171,18 +191,9 @@ export class CartridgeWatcher {
       writer: this.writer,
       absFilePath: path.resolve(this.config.projectRoot, relPath),
       eventType: "change",
-      onUpdate: this.onUpdate,
-      onRefresh: () => this.refresh(),
+      onUpdate: () => { if (generation === this.generation) this.onUpdate?.(); },
+      onRefresh: () => { if (generation === this.generation) this.refresh(); },
     });
   }
 }
 
-function isProjectIndexArtifact(relPath: string): boolean {
-  const normalized = relPath.replace(/\\/g, "/").toLowerCase();
-  return (
-    normalized === ".cartridge/index.lock" ||
-    normalized.startsWith(".cartridge/index.lock/") ||
-    /^\.cartridge\/index\.\d+\.[0-9a-f-]+\.tmp$/i.test(normalized) ||
-    normalized.startsWith(".cartridge/index.lock.stale-")
-  );
-}

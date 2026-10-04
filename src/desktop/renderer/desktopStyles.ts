@@ -18,7 +18,7 @@ export const useDesktopStyles = makeStyles({
     minWidth: 0,
     overflow: "hidden",
     display: "grid",
-    gridTemplateColumns: "250px clamp(440px, 34vw, 660px) minmax(520px, 1fr)",
+    gridTemplateColumns: "220px minmax(280px, 0.85fr) minmax(0, 1.15fr)",
     backgroundColor: "#f5f6f8",
     color: "#1f2428",
   },
@@ -116,6 +116,7 @@ export const useDesktopStyles = makeStyles({
     borderTop: "1px solid #e6e9ee",
   },
   centerColumn: {
+    minWidth: 0,
     minHeight: 0,
     display: "grid",
     gridTemplateRows: "auto minmax(0, 1fr)",
@@ -139,6 +140,7 @@ export const useDesktopStyles = makeStyles({
     padding: "12px 20px 18px",
   },
   detailColumn: {
+    minWidth: 0,
     minHeight: 0,
     position: "relative",
     borderLeft: "1px solid #d9dee7",
@@ -163,9 +165,17 @@ export const useDesktopStyles = makeStyles({
     minHeight: 0,
     padding: "14px 18px 22px",
     display: "grid",
-    gridTemplateRows: "minmax(240px, 1fr) minmax(150px, auto)",
+    gridAutoRows: "minmax(min-content, auto)",
     alignContent: "stretch",
     gap: "12px",
+  },
+  diagnosticBanner: {
+    display: "grid",
+    gap: "6px",
+    padding: "10px",
+    overflowWrap: "anywhere",
+    backgroundColor: "#fff4ce",
+    border: "1px solid #e5c365",
   },
   compactToolbar: {
     display: "flex",

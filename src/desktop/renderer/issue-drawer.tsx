@@ -88,7 +88,7 @@ function CartridgeGuidance(props: {
   const styles = useDesktopStyles();
   const detail = useDetailStyles();
   const prompt = buildCartridgePrompt(props.cartridge);
-  const canOpenMainFile = props.cartridge.mainFileType !== "conflict";
+  const canOpenMainFile = props.cartridge.mainFileType !== "conflict" && props.cartridge.mainFileType !== "missing";
   return (
     <>
       <section className={detail.drawerSection}>
@@ -96,6 +96,9 @@ function CartridgeGuidance(props: {
         <Text size={200} className={styles.muted}>
           {props.cartridge.guidance}
         </Text>
+        {props.cartridge.warnings?.filter(item => item.tier !== "info").map((item, index) => (
+          <Text key={`${item.code}:${index}`} size={200}>{item.label}：{item.reason}</Text>
+        ))}
         <div className={detail.sectionActions}>
           <Button
             size="small"
@@ -159,7 +162,7 @@ function CartridgeGuidance(props: {
         emptyText="沒有幽靈檔案。"
         files={props.cartridge.ghostFilePaths.map((filePath) => ({
           path: filePath,
-          meta: "檔案已不存在，請從記憶卡 Tracked Files 移除。",
+          meta: "先確認來源是否暫時不可用；需恢復來源，或經授權移除不再適用的 Tracked Files 路徑。",
           openable: false,
         }))}
       />

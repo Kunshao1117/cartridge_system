@@ -1,3 +1,5 @@
+import { handleMemoryGraph } from "../memory-graph.js";
+import { handleContextDiff, handleContextPlan } from "../context-tools.js";
 import { describe, expect, it, vi } from "vitest";
 import { dispatchToolCall, hasExplicitApproval } from "../tool-dispatcher.js";
 import {
@@ -273,5 +275,23 @@ describe("tool-dispatcher — MCP 工具分派與防線", () => {
 
     expect(result.isError).toBeUndefined();
     expect(result.content[0].text).toBe("project_context_status called");
+  });
+});
+
+
+describe("MCP-C01 rejected handlers retain the structured error contract", () => {
+  it.each([
+    ["context_diff", handleContextDiff], ["context_plan", handleContextPlan], ["memory_graph", handleMemoryGraph],
+  ] as const)("captures a rejected %s handler", async (name, handler) => {
+    vi.mocked(handler).mockRejectedValueOnce(new Error("fixture I/O failure"));
+    const result = await dispatchToolCall({ name, args: { projectRoot: process.cwd(), leftId: "a", rightId: "b" } });
+    const envelope = JSON.parse(result.content[0].text);
+    expect(result.isError).toBe(true);
+    expect(envelope).toMatchObject({ status: "error", metadata: { tool: name, readOnly: true }, findings: [{ code: "tool_execution_failed" }] });
+  });
+  it("does not mislabel an unexpected write-handler rejection as read-only", async () => {
+    vi.mocked(handleMemoryCommit).mockRejectedValueOnce(new Error("fixture write failure"));
+    const result = await dispatchToolCall({ name: "memory_commit", args: { projectRoot: process.cwd(), moduleName: "a", confirm: true } });
+    expect(JSON.parse(result.content[0].text).metadata.readOnly).toBe(false);
   });
 });

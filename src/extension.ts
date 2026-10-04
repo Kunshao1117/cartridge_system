@@ -19,6 +19,7 @@ import { createConfig } from "./config";
 import { CartridgeIndexManager } from "./index-manager";
 import { StalenessAnalyzer } from "./analyzer";
 import { MemoryWriter } from "./writer";
+import { injectExtensionStartupWarnings } from "./extension-startup-warnings";
 import { CartridgeWatcher } from "./watcher";
 import { CartridgeStatusBar } from "./status-bar";
 import {
@@ -33,7 +34,8 @@ import {
 import { CartridgeCodeLensProvider } from "./codelens-provider";
 import { registerGovernanceViews } from "./governance-views";
 import type { GovernanceViewsController } from "./governance-views";
-import { suggestOwner } from "./smart-owner";
+import { createAttributionGuidance } from "./attribution-guidance";
+import { classifyMemoryWarnings } from "./staleness";
 import { checkForExtensionUpdate } from "./update-checker";
 import { projectCanonicalHealth } from "./project-health";
 
@@ -45,6 +47,11 @@ let config: ReturnType<typeof createConfig> | undefined;
 let governanceViews: GovernanceViewsController | undefined;
 let codeLensProvider: CartridgeCodeLensProvider | undefined;
 let heartbeatTimer: NodeJS.Timeout | undefined;
+let initialUntrackedTimer: NodeJS.Timeout | undefined;
+let startupWarningsPromise: Promise<void> | undefined;
+let initialRefreshPromise: ReturnType<typeof refreshMemoryIndex> | undefined;
+let deactivating = false;
+let lifecycleGeneration = 0;
 let untrackedRescanTimer: NodeJS.Timeout | undefined;
 let untrackedRescanPromise: Promise<void> | undefined;
 const shownExclusionWarnings = new Set<string>();
@@ -58,6 +65,9 @@ const SUPPRESSED_UPDATE_VERSION_KEY = "cartridge.updateCheck.suppressedVersion";
 export async function activate(
   context: vscode.ExtensionContext,
 ): Promise<void> {
+  deactivating = false;
+  const generation = ++lifecycleGeneration;
+  const isActive = () => !deactivating && generation === lifecycleGeneration;
   // === 最優先：無條件註冊指令 ===
 
   // 命令：重新掃描索引
@@ -132,33 +142,16 @@ export async function activate(
         );
       } else {
         const channel = vscode.window.createOutputChannel("記憶卡匣健康報告");
-        const sorted = entries
-          .filter(([, v]) => v.staleness > 0)
-          .sort(([, a], [, b]) => b.staleness - a.staleness);
-        const tierIcon = (s: number) =>
-          s >= 100
-            ? "🔴"
-            : s >= 60
-              ? "🟠"
-              : s >= 30
-                ? "🟡"
-                : s >= 10
-                  ? "🔵"
-                  : "🟢";
-
+        const warnings = classifyMemoryWarnings(idx);
         channel.clear();
-        channel.appendLine(`⚠️ 記憶卡匣過期報告（總分：${totalScore}）`);
-        channel.appendLine("");
-        for (const [id, v] of sorted) {
-          const icon = tierIcon(v.staleness);
-          const changes = v.pendingChanges?.length ?? 0;
-          channel.appendLine(
-            `${icon} ${id.padEnd(24)} staleness=${String(v.staleness).padStart(3)}  (${changes} 個檔案異動)`,
-          );
+        channel.appendLine(`記憶卡匣健康報告（${health.status}，過期總分：${totalScore}）`);
+        if (health.syncWarning) channel.appendLine(`同步未完成：${health.syncWarning}`);
+        for (const item of [...warnings.blocking, ...warnings.review, ...warnings.advisory]) {
+          channel.appendLine(`${item.tier === "blocking" ? "🔴" : "🟡"} ${item.label}：${item.reason}`);
         }
-        const healthy = entries.filter(([, v]) => v.staleness === 0);
-        for (const [id] of healthy) {
-          channel.appendLine(`🟢 ${id.padEnd(24)} staleness=  0`);
+        const affected = new Set([...warnings.blocking, ...warnings.review, ...warnings.advisory].map(item => item.target));
+        for (const [id] of entries) {
+          if (!affected.has(id)) channel.appendLine(`🟢 ${id}`);
         }
         channel.show(true);
       }
@@ -258,23 +251,20 @@ export async function activate(
         if (!indexManager || !config) return;
         const fileUri = uri ?? vscode.window.activeTextEditor?.document.uri;
         if (!fileUri) return;
-        const relPath = path
-          .relative(config.projectRoot, fileUri.fsPath)
-          .replace(/\\/g, "/");
-        const index = indexManager.getIndex();
-        const suggested = suggestOwner(relPath, index);
-        const cartridgeIds = Object.keys(index.cartridges);
-        const picked = await vscode.window.showQuickPick(
-          cartridgeIds.map((id) => ({
-            label: id === suggested ? `⭐ ${id} (推薦)` : id,
-            id,
-          })),
-          { placeHolder: "選擇要歸屬的記憶卡" },
-        );
-        if (picked) {
-          vscode.window.showInformationMessage(
-            `已將 ${path.basename(relPath)} 標記歸屬至 [${picked.id}]。請使用 MCP 工具更新記憶卡的追蹤清單。`,
-          );
+        try {
+          const projectRoot = config.projectRoot;
+          const result = await createAttributionGuidance({
+            projectRoot, filePath: fileUri.fsPath, index: indexManager.getVisibleIndex(),
+            choose: async choices => (await vscode.window.showQuickPick(choices, { placeHolder: "選擇歸屬建議（尚未套用）" }))?.id,
+          });
+          if (!result || deactivating) return;
+          const channel = vscode.window.createOutputChannel("記憶卡匣歸屬建議");
+          context.subscriptions.push(channel);
+          channel.clear(); channel.appendLine(result.message); channel.appendLine(result.prompt); channel.show(true);
+          const choice = await vscode.window.showInformationMessage(result.message, ...(result.targetPath ? ["開啟記憶卡"] : []));
+          if (choice === "開啟記憶卡" && result.targetPath && !deactivating) await vscode.commands.executeCommand("cartridge.openProjectFile", projectRoot, result.targetPath);
+        } catch (error) {
+          if (!deactivating) void vscode.window.showWarningMessage(`歸屬建議失敗：${error instanceof Error ? error.message : String(error)}`);
         }
       },
     ),
@@ -334,6 +324,7 @@ export async function activate(
     console.error("[記憶卡匣] 自動排除設定失敗：", err);
   }
 
+  if (!isActive()) return;
   // === 初始化流程（允許失敗但不影響指令） ===
   try {
     config = createConfig(projectRoot);
@@ -350,7 +341,7 @@ export async function activate(
 
     const writer = new MemoryWriter(config);
 
-    const { index } = await refreshMemoryIndex({
+    initialRefreshPromise = refreshMemoryIndex({
       projectRoot,
       config,
       indexManager,
@@ -359,22 +350,13 @@ export async function activate(
       includeProjectFiles: false,
       persist: true,
     });
+    try { await initialRefreshPromise; } finally { initialRefreshPromise = undefined; }
 
-    // v2.0: 啟動時將過期警報寫入 SKILL.md（修復 #3：原本只更新 RAM 沒有寫入檔案）
-    for (const [, entry] of Object.entries(index.cartridges)) {
-      if (
-        entry.staleness >= config.thresholds.significant &&
-        entry.pendingChanges.length > 0
-      ) {
-        const changedFiles = entry.pendingChanges.map((c) => c.filePath);
-        await writer.injectWarning(
-          entry.mainFile?.activePath ?? entry.skillPath,
-          changedFiles,
-          entry.staleness,
-        );
-      }
-    }
+    if (!isActive()) return;
+    startupWarningsPromise = injectExtensionStartupWarnings({ config, indexManager, writer, isActive });
+    try { await startupWarningsPromise; } finally { startupWarningsPromise = undefined; }
 
+    if (!isActive()) return;
     // v2.0: 立即顯示基礎燈號（不等待幽靈掃描）
     statusBar.update(
       indexManager.getVisibleIndex(),
@@ -405,7 +387,7 @@ export async function activate(
     };
 
     const analyzer = new StalenessAnalyzer(config, indexManager, writer);
-    watcher = new CartridgeWatcher(
+    const activeWatcher = new CartridgeWatcher(
       config,
       indexManager,
       analyzer,
@@ -414,17 +396,19 @@ export async function activate(
       undefined,
       showIndexSyncWarning,
     );
-    await watcher.start();
+    watcher = activeWatcher;
+    await activeWatcher.start();
+    if (!isActive()) { activeWatcher.stop(); await activeWatcher.drain(); return; }
 
     // 背景未歸屬掃描與桌面/MCP 共用同一 Git canonical candidate set。
-    setTimeout(() => void runBackgroundUntrackedRefresh(), 3000);
+    initialUntrackedTimer = setTimeout(() => void runBackgroundUntrackedRefresh(), 3000);
     untrackedRescanTimer = setInterval(
       () => void runBackgroundUntrackedRefresh(),
       60_000,
     );
 
     // v2.0: 安全心跳（每 5 分鐘落地一次）
-    heartbeatTimer = setInterval(() => indexManager?.flushIfDirty(), 300_000);
+    heartbeatTimer = setInterval(() => { void indexManager?.flushIfDirty().catch(error => console.error("[記憶卡匣] 心跳寫入失敗：", error)); }, 300_000);
 
     context.subscriptions.push(
       vscode.workspace.onDidChangeWorkspaceFolders(async () => {
@@ -452,13 +436,22 @@ export async function activate(
  * 擴充套件關閉（VS Code 關閉時自動呼叫）
  */
 export async function deactivate(): Promise<void> {
+  deactivating = true;
+  lifecycleGeneration++;
+  if (initialUntrackedTimer) clearTimeout(initialUntrackedTimer);
+  initialUntrackedTimer = undefined;
   watcher?.stop();
   if (heartbeatTimer) clearInterval(heartbeatTimer);
   if (untrackedRescanTimer) clearInterval(untrackedRescanTimer);
-  await indexManager?.flushIfDirty();
-  statusBar?.dispose();
-  governanceViews?.dispose();
-  codeLensProvider?.dispose();
+  if (indexManager) indexManager.onChanged = undefined;
+  try {
+    await Promise.all([watcher?.drain(), untrackedRescanPromise?.catch(() => undefined), startupWarningsPromise?.catch(() => undefined), initialRefreshPromise?.catch(() => undefined)]);
+    await indexManager?.flushIfDirty();
+  } finally {
+    statusBar?.dispose(); governanceViews?.dispose(); codeLensProvider?.dispose();
+    watcher = undefined; statusBar = undefined; governanceViews = undefined; codeLensProvider = undefined;
+    indexManager = undefined; config = undefined; gitignoreFilter = undefined;
+  }
 }
 
 async function runUpdateCheck(
@@ -469,6 +462,7 @@ async function runUpdateCheck(
     context.extension.packageJSON?.version ?? "0.0.0",
   );
   const result = await checkForExtensionUpdate({ currentVersion });
+  if (deactivating) return;
 
   if (result.status === "available") {
     const suppressedVersion = context.globalState.get<string>(
@@ -522,6 +516,7 @@ function isAutomaticUpdateCheckEnabled(): boolean {
 }
 
 async function runBackgroundUntrackedRefresh(): Promise<void> {
+  if (deactivating) return;
   if (untrackedRescanPromise) return untrackedRescanPromise;
   if (!config || !indexManager || !gitignoreFilter) return;
 
@@ -532,6 +527,7 @@ async function runBackgroundUntrackedRefresh(): Promise<void> {
         indexManager: indexManager!,
         gitignoreFilter: gitignoreFilter!,
       });
+      if (deactivating) return;
       showExclusionWarnings(result.diagnostics);
       statusBar?.update(
         indexManager?.getVisibleIndex(),

@@ -155,5 +155,12 @@ export async function dispatchToolCall(
     return createApprovalRequiredResult(tool, prepared.args);
   }
 
-  return handler(prepared.args);
+  try {
+    return await handler(prepared.args);
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    return toMcpTextResult(createToolEnvelope({ tool: request.name, readOnly: tool.readOnly,
+      projectRoot: extractProjectRoot(prepared.args), status: "error", summary: { error: message },
+      findings: [{ severity: "error", code: "tool_execution_failed", message }] }));
+  }
 }

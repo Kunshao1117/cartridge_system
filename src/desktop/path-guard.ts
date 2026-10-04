@@ -1,14 +1,11 @@
 import { assertPathInsideProject } from "../file-containment.js";
 import path from "node:path";
+import { canonicalProjectRoot } from "../monitoring/project-identity.js";
 
-function canonicalPath(value: string): string {
-  const resolved = path.resolve(value);
-  return process.platform === "win32" ? resolved.toLowerCase() : resolved;
-}
 
 export function isKnownProjectRoot(root: string, knownRoots: string[]): boolean {
-  const candidate = canonicalPath(root);
-  return knownRoots.some((knownRoot) => canonicalPath(knownRoot) === candidate);
+  const candidate = canonicalProjectRoot(root);
+  return knownRoots.some((knownRoot) => canonicalProjectRoot(knownRoot) === candidate);
 }
 
 export function resolveProjectFilePath(

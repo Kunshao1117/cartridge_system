@@ -43,6 +43,7 @@ export interface GitStatusEntry {
   index: string;
   workingTree: string;
   path: string;
+  originalPath?: string;
   category: "tracked" | "untracked";
 }
 
@@ -86,23 +87,45 @@ type PreflightReadiness = {
   warningReasons: string[];
 };
 
+function decodeQuotedGitPath(value: string): string {
+  if (!value.startsWith('"') || !value.endsWith('"')) return value;
+  const inner = value.slice(1, -1);
+  const chunks: Buffer[] = [];
+  for (let i = 0; i < inner.length;) {
+    if (inner[i] !== "\\") {
+      const point = String.fromCodePoint(inner.codePointAt(i)!);
+      chunks.push(Buffer.from(point)); i += point.length; continue;
+    }
+    const octal = /^[0-7]{1,3}/.exec(inner.slice(i + 1));
+    if (octal) { chunks.push(Buffer.from([parseInt(octal[0], 8)])); i += octal[0].length + 1; continue; }
+    const escapes: Record<string, string> = { n: "\n", r: "\r", t: "\t", b: "\b", f: "\f", v: "\v", a: "\x07", '"': '"', "\\": "\\" };
+    chunks.push(Buffer.from(escapes[inner[i + 1]] ?? inner[i + 1] ?? "\\")); i += 2;
+  }
+  return Buffer.concat(chunks).toString("utf8");
+}
+
 export function parseGitStatusPorcelain(output: string): GitStatusEntry[] {
-  return output
-    .split(/\r?\n/)
-    .filter((line) => line.trim().length > 0)
-    .map((line) => {
-      const rawPath = line.slice(3);
-      const path = rawPath.includes(" -> ")
-        ? rawPath.split(" -> ").at(-1) ?? rawPath
-        : rawPath;
-      return {
-        raw: line,
-        index: line[0] ?? " ",
-        workingTree: line[1] ?? " ",
-        path,
-        category: line.startsWith("??") ? "untracked" : "tracked",
-      };
-    });
+  const nul = output.includes("\0");
+  const records = nul ? output.split("\0") : output.split(/\r?\n/);
+  const entries: GitStatusEntry[] = [];
+  for (let i = 0; i < records.length; i++) {
+    const line = records[i];
+    if (line.length < 3) continue;
+    let rawPath = line.slice(3);
+    const renamed = /[RC]/.test(line.slice(0, 2));
+    let originalPath: string | undefined;
+    if (renamed && nul) originalPath = records[++i]; // -z is destination NUL original, neither is C-quoted.
+    else if (renamed) {
+      let quoted = false;
+      for (let cursor = 0; cursor < rawPath.length; cursor++) {
+        if (rawPath[cursor] === "\\") { cursor++; continue; }
+        if (rawPath[cursor] === '"') quoted = !quoted;
+        if (!quoted && rawPath.slice(cursor, cursor + 4) === " -> ") { originalPath = decodeQuotedGitPath(rawPath.slice(0, cursor)); rawPath = rawPath.slice(cursor + 4); break; }
+      }
+    }
+    entries.push({ raw: line, index: line[0], workingTree: line[1], path: nul ? rawPath : decodeQuotedGitPath(rawPath), ...(originalPath ? { originalPath } : {}), category: line.startsWith("??") ? "untracked" : "tracked" });
+  }
+  return entries;
 }
 
 function buildMemoryGate(index: PreflightIndex) {
@@ -235,6 +258,7 @@ function buildGitGate(entries: GitStatusEntry[]) {
       unstaged: unstaged.length,
       files: entries.map((entry) => ({
         path: entry.path,
+        ...(entry.originalPath ? { originalPath: entry.originalPath } : {}),
         status: `${entry.index}${entry.workingTree}`,
         category: entry.category,
       })),

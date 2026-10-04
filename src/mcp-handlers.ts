@@ -5,7 +5,10 @@
 
 import * as fs from "fs/promises";
 import * as path from "path";
+import { assertMemoryCardPath } from "./memory-card-path.js";
+import { MemoryReviewConflictError, replaceReviewedCard, sourceRevision } from "./memory-review-snapshot.js";
 import * as z from "zod";
+import { moduleIdSchema } from "./module-id.js";
 import matter from "./safe-frontmatter.js";
 import { patchMemorySource, readMemorySource } from "./memory-source-patch.js";
 import { assertPathInsideProject, tryProjectPath } from "./file-containment.js";
@@ -75,12 +78,7 @@ const projectRootField = z
   });
 
 /** moduleName 共用驗證規則：只允許記憶卡 ID，不允許路徑片段 */
-const moduleNameSchema = z
-  .string()
-  .min(1)
-  .regex(/^[A-Za-z0-9_-]+(?:\.[A-Za-z0-9_-]+)*$/, {
-    message: "moduleName 只能包含英數、底線、連字號與點號分隔，不得包含路徑片段",
-  });
+const moduleNameSchema = moduleIdSchema;
 
 /** memory_list 工具參數驗證 Schema */
 export const memoryListSchema = z.object({
@@ -146,8 +144,8 @@ function createMemoryMainConflictResult(args: {
   candidates: string[];
 }): McpToolResult {
   const message =
-    `Module "${args.moduleName}" has both MEMORY.md and SKILL.md. ` +
-    "Resolve the conflict before reading or writing this memory card.";
+    `Module "${args.moduleName}" has conflicting memory main files. ` +
+    "Resolve the conflicting card identity or dual MEMORY.md / SKILL.md before reading or writing this memory card.";
   return toMcpTextResult(
     createToolEnvelope({
       tool: args.tool,
@@ -204,83 +202,6 @@ type MemoryMainFileLookup =
       entry?: CartridgeEntry;
     };
 
-function mainFileInfoFromEntry(entry: CartridgeEntry): MemoryMainFileInfo | null {
-  if (entry.mainFile) return entry.mainFile;
-  if (!entry.skillPath) return null;
-  const normalized = entry.skillPath.replace(/\\/g, "/");
-  const isMemory = normalized.endsWith("/MEMORY.md") || normalized === "MEMORY.md";
-  return {
-    type: isMemory ? "MEMORY.md" : "legacy SKILL.md",
-    activePath: normalized,
-    activeFileName: path.basename(normalized),
-    candidates: isMemory ? { memory: normalized } : { legacySkill: normalized },
-    candidatePaths: [normalized],
-    legacyCompatibility: !isMemory,
-    migrationRequired: !isMemory,
-    conflict: false,
-  };
-}
-
-function resolvePathInsideRoot(projectRoot: string, relativePath: string): string | null {
-  return tryProjectPath(projectRoot, relativePath);
-}
-
-function directoryCandidatesFromEntry(
-  projectRoot: string,
-  entry: CartridgeEntry,
-): string[] {
-  const mainFile = mainFileInfoFromEntry(entry);
-  const paths = [
-    mainFile?.activePath,
-    ...(mainFile?.candidatePaths ?? []),
-    entry.skillPath,
-  ].filter((item): item is string => Boolean(item));
-  const directories = new Set<string>();
-  for (const candidatePath of paths) {
-    const normalized = candidatePath.replace(/\\/g, "/");
-    const fileName = path.posix.basename(normalized);
-    const directoryPath = /\.md$/i.test(fileName)
-      ? path.posix.dirname(normalized)
-      : normalized;
-    const absoluteDirectory = resolvePathInsideRoot(projectRoot, directoryPath);
-    if (absoluteDirectory) directories.add(absoluteDirectory);
-  }
-  return [...directories];
-}
-
-async function lookupFromIndexEntryDirectories(
-  projectRoot: string,
-  entry: CartridgeEntry,
-): Promise<MemoryMainFileLookup | null> {
-  for (const directory of directoryCandidatesFromEntry(projectRoot, entry)) {
-    const lookup = await lookupFromDirectory(projectRoot, directory);
-    if (lookup) return lookup;
-  }
-  return null;
-}
-
-function staleIndexAsMissingLookup(
-  mainFile: MemoryMainFileInfo,
-  entry: CartridgeEntry,
-): MemoryMainFileLookup {
-  return {
-    status: "missing",
-    mainFile: {
-      ...mainFile,
-      type: "missing",
-      activePath: null,
-      activeFileName: null,
-      candidates: {},
-      legacyCompatibility: false,
-      migrationRequired: true,
-      conflict: false,
-    },
-    candidates: mainFile.candidatePaths,
-    message: "Memory main file is missing.",
-    entry,
-  };
-}
-
 async function lookupFromDirectory(
   projectRoot: string,
   cardDir: string,
@@ -305,8 +226,9 @@ async function lookupFromDirectory(
       message: "Memory main file is missing.",
     };
   }
-  const filePath = tryProjectPath(projectRoot, mainFile.activePath);
-  if (!filePath) return null;
+  let filePath: string;
+  try { filePath = assertMemoryCardPath(createConfig(projectRoot), mainFile.activePath); }
+  catch { return null; }
   try {
     const raw = await fs.readFile(assertPathInsideProject(projectRoot, filePath), "utf-8");
     return {
@@ -329,96 +251,52 @@ async function lookupFromDirectory(
 export async function resolveMemoryMainFileForModule(
   projectRoot: string,
   moduleName: string,
+  suppliedIndex?: CartridgeIndex,
+  discovery?: Map<string, MemoryMainFileLookup[]>,
 ): Promise<MemoryMainFileLookup> {
   const normalizedRoot = path.resolve(projectRoot);
-  const indexPath = path.join(projectRoot, ".cartridge", "index.json");
-  let staleIndexedMissing: MemoryMainFileLookup | null = null;
-  try {
-    const raw = await fs.readFile(assertPathInsideProject(projectRoot, indexPath), "utf-8");
-    const index = JSON.parse(raw) as CartridgeIndex;
-    const entry = index.cartridges?.[moduleName];
-    if (entry) {
-      const mainFile = mainFileInfoFromEntry(entry);
-      const indexedDirectoryLookup = await lookupFromIndexEntryDirectories(
-        normalizedRoot,
-        entry,
-      );
-      if (indexedDirectoryLookup) {
-        return { ...indexedDirectoryLookup, entry };
-      }
-      if (mainFile?.type === "conflict" || mainFile?.type === "missing") {
-        staleIndexedMissing = staleIndexAsMissingLookup(mainFile, entry);
-      }
-      const safeActivePath = mainFile?.activePath
-        ? resolvePathInsideRoot(normalizedRoot, mainFile.activePath)
-        : null;
-      if (mainFile?.activePath && safeActivePath) {
-        const directoryLookup = await lookupFromDirectory(
-          normalizedRoot,
-          path.dirname(safeActivePath),
-        );
-        if (directoryLookup) {
-          return { ...directoryLookup, entry };
-        }
-        const resolved = safeActivePath;
-        try {
-          const rawContent = await fs.readFile(assertPathInsideProject(normalizedRoot, resolved), "utf-8");
-          return {
-            status: "ready",
-            filePath: resolved,
-            relativePath: mainFile.activePath,
-            mainFile,
-            contentQuality: analyzeMemoryContentQuality(rawContent, mainFile),
-            entry,
-          };
-        } catch {
-          /* 索引記錄的路徑不存在，繼續嘗試 */
-        }
-      }
+  let index = suppliedIndex;
+  if (!index) {
+    try {
+      index = JSON.parse(await fs.readFile(assertPathInsideProject(normalizedRoot, ".cartridge/index.json"), "utf-8")) as CartridgeIndex;
+    } catch { /* Read-only fallback discovers real cards; index paths grant no authority. */ }
+  }
+  const entry = index?.cartridges && Object.hasOwn(index.cartridges, moduleName)
+    ? index.cartridges[moduleName] : undefined;
+  // Collect all candidates before choosing. Literal dotted directory names and
+  // nested paths can share a historical ID; no lookup order may select a victim.
+  const candidates = new Map<string, MemoryMainFileLookup>();
+  const add = (lookup: MemoryMainFileLookup | null) => {
+    if (!lookup) return;
+    const key = lookup.status === "ready" ? lookup.relativePath : lookup.candidates.join("\0");
+    candidates.set(key, lookup);
+  };
+  if (discovery?.has(moduleName)) {
+    for (const lookup of discovery.get(moduleName) ?? []) add(lookup);
+  } else {
+  for (const root of [".agents/memory", ".agents/skills"]) {
+    if (root.endsWith("skills") && !moduleName.split(".")[0].startsWith("mem-")) continue;
+    for (const pieces of [[moduleName], moduleName.split(".")]) {
+      add(await lookupFromDirectory(normalizedRoot, path.join(normalizedRoot, root, ...pieces)));
     }
-  } catch {
-    /* 索引不存在 */
+    if (!discovery) {
+      for (const candidate of await findMemoryMainRecursive(normalizedRoot, path.join(normalizedRoot, root), moduleName, 1, null, root.endsWith("skills"))) add(candidate.lookup);
+    }
   }
-
-  const directDirs = [
-    path.join(normalizedRoot, ".agents", "memory", moduleName),
-    path.join(normalizedRoot, ".agents", "memory", ...moduleName.split(".")),
-    path.join(normalizedRoot, ".agents", "skills", moduleName),
-    path.join(normalizedRoot, ".agents", "skills", ...moduleName.split(".")),
-  ];
-  for (const dir of directDirs) {
-    const lookup = await lookupFromDirectory(normalizedRoot, dir);
-    if (lookup) return lookup;
   }
-
-  const fromMemory = await findMemoryMainRecursive(
-    normalizedRoot,
-    path.join(normalizedRoot, ".agents", "memory"),
-    moduleName,
-    1,
-    null,
-    false,
-  );
-  if (fromMemory) return fromMemory;
-
-  const fromSkills = await findMemoryMainRecursive(
-    normalizedRoot,
-    path.join(normalizedRoot, ".agents", "skills"),
-    moduleName,
-    1,
-    null,
-    true,
-  );
-  if (fromSkills) return fromSkills;
-
-  if (staleIndexedMissing) {
-    return staleIndexedMissing;
+  const matches = [...candidates.values()];
+  if (matches.length > 1 || matches.some(lookup => lookup.status === "conflict")) {
+    const paths = [...new Set(matches.flatMap(lookup => lookup.status === "ready" ? [lookup.relativePath] : lookup.candidates))].sort();
+    return { status: "conflict", candidates: paths, message: `Module "${moduleName}" identifies multiple memory main files.`, entry,
+      mainFile: { type: "conflict", activePath: null, activeFileName: null, candidates: {}, candidatePaths: paths, legacyCompatibility: false, migrationRequired: true, conflict: true } };
   }
-
+  if (matches.length === 1) return { ...matches[0], entry };
   return {
-    status: "not_found",
+    status: entry ? "missing" : "not_found",
     candidates: [],
-    message: `Module "${moduleName}" not found.`,
+    message: entry ? "Memory main file is missing or is outside configured memory roots." : `Module "${moduleName}" not found.`,
+    entry,
+    ...(entry ? { mainFile: { type: "missing" as const, activePath: null, activeFileName: null, candidates: {}, candidatePaths: [], legacyCompatibility: false, migrationRequired: true, conflict: false } } : {}),
   };
 }
 
@@ -441,39 +319,29 @@ export async function resolveSkillPath(
 async function findMemoryMainRecursive(
   projectRoot: string,
   dir: string,
-  moduleName: string,
+  moduleName: string | null,
   depth: number,
   parentId: string | null,
   requireMemPrefix: boolean,
-): Promise<MemoryMainFileLookup | null> {
-  if (depth > MAX_SCAN_DEPTH) return null;
-  try {
-    const entries = await fs.readdir(assertPathInsideProject(projectRoot, dir), { withFileTypes: true });
-    for (const entry of entries) {
-      if (!entry.isDirectory()) continue;
-      if (entry.name.toLowerCase() === "archive") continue;
-      if (requireMemPrefix && !entry.name.startsWith("mem-")) continue;
-      if (!requireMemPrefix && entry.name.startsWith(".")) continue;
-      const cartridgeId = parentId ? `${parentId}.${entry.name}` : entry.name;
-      const cardDir = path.join(dir, entry.name);
-      if (cartridgeId === moduleName) {
-        const lookup = await lookupFromDirectory(projectRoot, cardDir);
-        if (lookup) return lookup;
-      }
-      const found = await findMemoryMainRecursive(
-        projectRoot,
-        cardDir,
-        moduleName,
-        depth + 1,
-        cartridgeId,
-        false,
-      );
-      if (found) return found;
+): Promise<Array<{ id: string; lookup: MemoryMainFileLookup }>> {
+  if (depth > MAX_SCAN_DEPTH) return [];
+  const found: Array<{ id: string; lookup: MemoryMainFileLookup }> = [];
+  let entries: Array<{ name: string; isDirectory(): boolean }>;
+  try { entries = await fs.readdir(assertPathInsideProject(projectRoot, dir), { withFileTypes: true }); }
+  catch { return []; }
+  if (!Array.isArray(entries)) return [];
+  for (const entry of entries) {
+    if (typeof entry.isDirectory !== "function" || !entry.isDirectory() || entry.name.startsWith(".") || entry.name.toLowerCase() === "archive") continue;
+    if (requireMemPrefix && !entry.name.startsWith("mem-")) continue;
+    const id = parentId ? `${parentId}.${entry.name}` : entry.name;
+    const cardDir = path.join(dir, entry.name);
+    if (moduleName === null || id === moduleName) {
+      const lookup = await lookupFromDirectory(projectRoot, cardDir);
+      if (lookup) found.push({ id, lookup });
     }
-  } catch {
-    /* 目錄不存在 */
+    found.push(...await findMemoryMainRecursive(projectRoot, cardDir, moduleName, depth + 1, id, false));
   }
-  return null;
+  return found;
 }
 
 /**
@@ -523,19 +391,32 @@ export async function handleMemoryList(args: unknown): Promise<McpToolResult> {
       const modules = Object.keys(cartridges);
       const untrackedFiles = index.untrackedFiles ?? [];
 
+      const discovery = new Map<string, MemoryMainFileLookup[]>();
+      for (const root of [".agents/memory", ".agents/skills"]) {
+        const candidates = await findMemoryMainRecursive(parsed.data.projectRoot, path.join(parsed.data.projectRoot, root), null, 1, null, root.endsWith("skills"));
+        for (const candidate of candidates) {
+          const existing = discovery.get(candidate.id) ?? [];
+          existing.push(candidate.lookup);
+          discovery.set(candidate.id, existing);
+        }
+      }
+      // One bounded directory/read pass per list, no repeated index parsing or
+      // unbounded parallel file reads for every card.
       const enriched = await Promise.all(modules.map(async (mod) => {
         const cached = cartridges[mod];
-        const lookup = await resolveMemoryMainFileForModule(parsed.data.projectRoot, mod);
+        const lookup = await resolveMemoryMainFileForModule(parsed.data.projectRoot, mod, index, discovery);
         const entry = { ...cached };
-        if (lookup.status === "ready" || lookup.status === "conflict" || lookup.status === "missing") {
+        if (lookup.status === "ready" || lookup.status === "conflict" || lookup.status === "missing" || lookup.status === "not_found") {
           entry.mainFile = lookup.mainFile ?? cached.mainFile;
-          entry.mainFileType = entry.mainFile?.type ?? (lookup.status === "missing" ? "missing" : cached.mainFileType);
+          entry.mainFileType = entry.mainFile?.type ?? (["missing", "not_found"].includes(lookup.status) ? "missing" : cached.mainFileType);
           if (lookup.status === "ready") {
             entry.contentQuality = lookup.contentQuality;
             entry.contentQualityStatus = lookup.contentQuality.status;
           } else {
             entry.contentQuality = undefined;
             entry.contentQualityStatus = lookup.status === "conflict" ? "conflict" : "pending_review";
+            entry.migrationRequired = true;
+            entry.legacyCompatibility = false;
           }
         }
         const trackedCount = entry.trackedFiles?.length ?? 0;
@@ -592,6 +473,8 @@ export async function handleMemoryList(args: unknown): Promise<McpToolResult> {
         };
       }));
       const dependencyFindings: CartridgeFinding[] = enriched.flatMap((entry) => [
+        ...(entry.mainFileType === "missing" ? [{ severity: "warning" as const, code: "memory_main_file_missing", message: `${entry.module}: memory main file is missing.` }] : []),
+        ...(entry.contentQualityStatus !== "complete" ? [{ severity: "warning" as const, code: "memory_content_quality", message: `${entry.module}: ${entry.contentQualityStatus}` }] : []),
         ...(entry.dependencySyncWarning ? [{ severity: "warning" as const, code: "DERIVED_SYNC_PARTIAL", message: `${entry.module}: ${entry.dependencySyncWarning}` }] : []),
         ...entry.dependencyDiagnostics.map((item) => ({ severity: "warning" as const, code: item.code, message: `${entry.module}: ${item.message}` })),
       ]);
@@ -872,7 +755,7 @@ export async function handleMemoryStatus(
   try {
     const indexRaw = await fs.readFile(assertPathInsideProject(projectRoot, indexPath), "utf-8");
     const index = JSON.parse(indexRaw);
-    const entry = index.cartridges?.[moduleName];
+    const entry = index.cartridges && Object.hasOwn(index.cartridges, moduleName) ? index.cartridges[moduleName] : undefined;
 
     if (!entry) {
       return createHandlerErrorResult({
@@ -990,7 +873,7 @@ export async function handleMemoryStatus(
                 {
                   severity: "error" as const,
                   code: "memory_main_file_conflict",
-                  message: `Module ${moduleName} has both MEMORY.md and SKILL.md.`,
+                  message: `Module ${moduleName} has conflicting memory main-file identities; inspect all candidate paths before resolving the conflict.`,
                 },
               ]
             : []),
@@ -1058,15 +941,13 @@ export async function handleMemoryStatus(
       }
       const filePath = lookup.filePath;
       const raw = await fs.readFile(assertPathInsideProject(projectRoot, filePath), "utf-8");
-      const fmMatch = raw.match(/^---\n([\s\S]*?)\n---/);
-      let staleness = 0;
-      let lastUpdated = "";
-      if (fmMatch) {
-        const smatch = fmMatch[1].match(/staleness:\s*(\d+)/);
-        const tmatch = fmMatch[1].match(/last_updated:\s*['"]?([^'"\n]+)/);
-        if (smatch) staleness = parseInt(smatch[1], 10);
-        if (tmatch) lastUpdated = tmatch[1].trim();
-      }
+      const { data: fallbackMetadata } = matter(raw);
+      const staleness = typeof fallbackMetadata.staleness === "number" && Number.isFinite(fallbackMetadata.staleness) && fallbackMetadata.staleness >= 0
+        ? fallbackMetadata.staleness : 0;
+      const lastUpdated = typeof fallbackMetadata.last_updated === "string"
+        ? fallbackMetadata.last_updated
+        : fallbackMetadata.last_updated instanceof Date && Number.isFinite(fallbackMetadata.last_updated.getTime())
+          ? fallbackMetadata.last_updated.toISOString() : "";
 
       const status = {
         module: moduleName,
@@ -1255,8 +1136,22 @@ export async function handleMemoryCommit(
     });
   }
 
+  let cardWritten = false;
+  let preparedResult: McpToolResult | undefined;
   try {
     const { moduleName, projectRoot } = parsed.data;
+    const config = createConfig(projectRoot);
+    const manager = new CartridgeIndexManager(config);
+    const observedIndex = await manager.readPersistedIndex();
+    if (observedIndex.status === "invalid") throw new Error("Canonical project index is invalid; reindex is required before commit.");
+    const observedLookup = await resolveMemoryMainFileForModule(projectRoot, moduleName);
+    const observedRaw = observedLookup.status === "ready"
+      ? await fs.readFile(assertMemoryCardPath(config, observedLookup.filePath), "utf-8") : null;
+    const observedEntry = observedIndex.status === "loaded" && Object.hasOwn(observedIndex.index.cartridges, moduleName)
+      ? JSON.stringify(observedIndex.index.cartridges[moduleName]) : null;
+    const observedFiles = observedRaw === null ? [] : parseTrackedFiles(matter(observedRaw).content);
+    const observedSources = await sourceRevision(projectRoot, observedFiles);
+    const transaction = await runProjectIndexTransaction({ projectRoot, indexManager: manager, mutation: async () => {
     const isoLocal = getTaiwanISO();
 
     // 1. 路徑解析
@@ -1285,7 +1180,15 @@ export async function handleMemoryCommit(
     const filePath = lookup.filePath;
 
     // 2. 讀取已寫入的作用中主檔
-    const rawContent = await fs.readFile(assertPathInsideProject(projectRoot, filePath), "utf-8");
+    const rawContent = await fs.readFile(assertMemoryCardPath(config, filePath), "utf-8");
+    const assertReviewedRevision = async () => {
+      const current = manager.getIndex();
+      const currentEntry = Object.hasOwn(current.cartridges, moduleName) ? JSON.stringify(current.cartridges[moduleName]) : null;
+      if (observedLookup.status !== "ready" || observedLookup.relativePath !== lookup.relativePath ||
+          rawContent !== observedRaw || currentEntry !== observedEntry ||
+          await sourceRevision(projectRoot, observedFiles) !== observedSources) throw new MemoryReviewConflictError();
+    };
+    await assertReviewedRevision();
 
     // 3. 結構驗證
     const warnings: string[] = [];
@@ -1339,17 +1242,8 @@ export async function handleMemoryCommit(
     );
     warnings.push(...pathWarnings);
 
-    let indexForCommit: CartridgeIndex | null = null;
-    try {
-      const indexPath = path.join(projectRoot, ".cartridge", "index.json");
-      indexForCommit = JSON.parse(
-        await fs.readFile(assertPathInsideProject(projectRoot, indexPath), "utf-8"),
-      ) as CartridgeIndex;
-    } catch {
-      indexForCommit = null;
-    }
-
-    const cartridgeEntry = indexForCommit?.cartridges[moduleName];
+    const indexForCommit = manager.getIndex();
+    const cartridgeEntry = indexForCommit.cartridges[moduleName];
     const dependencies = normalizeDeclaredDependencies(frontmatter.dependencies);
     warnings.push(
       ...validateDependencySemantics({
@@ -1386,7 +1280,6 @@ export async function handleMemoryCommit(
         unresolvedTrackedFiles.push(trackedPath);
       }
     }
-    const config = createConfig(projectRoot);
     const remainingStaleness = unresolvedTrackedFiles.length > 0
       ? Math.max(Number(frontmatter.staleness) || 0, unresolvedTrackedFiles.length * config.scoring.fileDeleted)
       : 0;
@@ -1412,7 +1305,8 @@ export async function handleMemoryCommit(
       lookup.mainFile,
     );
     warnings.push(...formatQualityWarnings(moduleName, postCommitQuality));
-    await fs.writeFile(assertPathInsideProject(projectRoot, filePath), updatedContent, "utf-8");
+    await replaceReviewedCard(config, filePath, rawContent, updatedContent, assertReviewedRevision);
+    cardWritten = true;
 
     // 5. 索引同步：主檔已成功寫入時，索引失敗需明確回報 partial warning。
     let trackedFilesCount = trackedPathsForValidation.length;
@@ -1421,11 +1315,6 @@ export async function handleMemoryCommit(
     let trackingSynchronized = false;
     let derivedSynchronized = false;
     try {
-      const manager = new CartridgeIndexManager(config);
-      await runProjectIndexTransaction({
-        projectRoot,
-        indexManager: manager,
-        mutation: async () => {
           const index = manager.getIndex();
           if (!index.cartridges?.[moduleName]) {
             throw new Error(
@@ -1503,8 +1392,6 @@ export async function handleMemoryCommit(
           warnings.push(`⚠️ [DERIVED_SYNC_PARTIAL] 卡片已寫入；${derivedWarning}。`);
         }
           manager.markDirty();
-        },
-      });
       indexSynchronized = true;
       indexRegistered = true;
       trackingSynchronized = unresolvedTrackedFiles.length === 0;
@@ -1531,7 +1418,7 @@ export async function handleMemoryCommit(
       warnings,
     };
 
-    return toMcpTextResult(
+    preparedResult = toMcpTextResult(
       createToolEnvelope({
         tool: "memory_commit",
         readOnly: false,
@@ -1563,8 +1450,20 @@ export async function handleMemoryCommit(
         legacy: { ...report },
       }),
     );
+    return preparedResult;
+    } });
+    return transaction.value;
   } catch (e: unknown) {
     const msg = e instanceof Error ? e.message : String(e);
+    if (cardWritten) {
+      const prior = preparedResult ? JSON.parse(preparedResult.content[0].text) : null;
+      const report = { ...(prior?.summary ?? {}), status: "success", module: parsed.data.moduleName, cardWritten: true,
+        indexSynchronized: false, indexRegistered: false, trackingSynchronized: false, derivedSynchronized: false, synchronizationComplete: false };
+      const warning = `Card metadata was written, but canonical index persistence failed: ${msg}. Pending review evidence remains in the prior index; review and retry before treating synchronization as complete.`;
+      return toMcpTextResult(createToolEnvelope({ tool: "memory_commit", readOnly: false, projectRoot: parsed.data.projectRoot,
+        status: "warning", summary: { ...report, warnings: [...(prior?.summary?.warnings ?? []), warning] },
+        findings: [...(prior?.findings ?? []), { severity: "warning", code: "INDEX_SYNC_PARTIAL", message: warning }], legacy: report }));
+    }
     return createHandlerErrorResult({
       tool: "memory_commit",
       readOnly: false,
@@ -1575,7 +1474,7 @@ export async function handleMemoryCommit(
         typeof (args as { projectRoot?: unknown }).projectRoot === "string"
           ? (args as { projectRoot: string }).projectRoot
           : "",
-      code: "memory_commit_failed",
+      code: e instanceof MemoryReviewConflictError ? "memory_review_conflict" : "memory_commit_failed",
       message: `Error: ${msg}`,
     });
   }
@@ -1718,7 +1617,7 @@ export async function handleMemoryDeps(args: unknown): Promise<McpToolResult> {
     await manager.scan();
 
     const index = manager.getIndex();
-    const entry = index.cartridges[moduleName];
+    const entry = Object.hasOwn(index.cartridges, moduleName) ? index.cartridges[moduleName] : undefined;
     if (!entry) {
       return toMcpTextResult(
         createToolErrorEnvelope({

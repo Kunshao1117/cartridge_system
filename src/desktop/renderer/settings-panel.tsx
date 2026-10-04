@@ -65,6 +65,7 @@ function SettingSwitch(props: {
         </Text>
       </div>
       <Switch
+        aria-label={props.title}
         checked={props.checked}
         onChange={(_event, data) => props.onChange(Boolean(data.checked))}
       />

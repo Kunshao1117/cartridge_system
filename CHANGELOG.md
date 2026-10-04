@@ -2,6 +2,44 @@
 
 ## [Unreleased]
 
+## [desktop-v5.5.6] — 2026-10-04
+
+### fix
+
+- 同步本次 37 項原始碼稽核修復及 CORE-R1 跨程序鎖競態修復，Desktop、VSIX 與 npm MCP runtime 由同一 revision 建構。
+- Desktop 設定讀改寫依檔案序列化並原子替換，保留失敗前設定；renderer 忽略過期回覆，空專案仍可調整全域設定。
+- 系統匣、機櫃、問題抽屜與掃描結果共用真實 error／blocked／warning／paused 狀態；改善最小視窗寬度配置及非同步面板關閉／重開競態。
+
+### upgrade / limits
+
+- 升級或回退前，必須停止所有 MCP、Desktop 與 VS Code／Antigravity 用戶端並等待作業結束，再以同一版本重新啟動；新舊鎖協定不得混跑。記憶卡及 index 格式不遷移，未知或跨主機鎖不會被自動刪除，復原方式見 docs/LOCK_PROTOCOL.md。
+- 本版未執行已安裝 Electron／VSIX GUI、Windows UNC share、高 DPI 或真實 Gateway 人工驗收；Windows 安裝檔仍未簽章，可能顯示 SmartScreen。不要繞過作業系統安全警告。
+- 依賴版本沿用 5.5.5：production audit 為 0；完整開發／建置樹仍有 29 findings（25 high、4 moderate、0 critical），不宣稱無風險。
+
+## [5.5.6] — 2026-10-04
+
+### fix
+
+- 完成 37 項原始碼稽核修復及 CORE-R1 鎖回收競態修復。專案鎖採唯一世代識別、交易後重讀與原子持久化；memory_commit 重新核對複審來源、主卡及 pending 證據，避免舊結果清除較新的異動。
+- 清冊逐卡隔離 YAML／讀取錯誤，正確處理特殊合法名稱、卡片 ID 衝突、中文／空格 ID、失效日期、路徑正規化與有限分數；缺失或衝突卡保留待審證據，健康卡仍可讀取。
+- 補齊 side-effect import，排除註解／字串中的假依賴；即時監控、離線重掃與 reindex 共用一致過期計分與排除規則。
+- MCP 讀取端與公開 schema 對齊；修正 BOM／CRLF 狀態解析、canonical graph、context 精確識別、否定語句判讀及 git rename 路徑歸屬。自然語言判讀仍為有限啟發式。
+- VS Code／Desktop 對齊缺檔、品質衝突、ghost、dependency 與同步警告；歸屬功能如實提供建議，不把未完成寫入或部分同步回報成成功。
+- 三端發布鎖定精確 checkout SHA，核對同版 tags 與 npm gitHead；GitHub Release 用帶來源記錄的可恢復草稿發布，保留既有資產，不覆寫不同來源的同版成品。
+
+### upgrade / rollback
+
+- MCP npm、VSIX 與 Desktop 統一更新至 5.5.6，三條 tag 必須指向同一份 revision。
+- 升級及回退前，先停止所有 MCP、Desktop 與 VS Code／Antigravity 用戶端，等待正在執行的作業結束，再以同版三端重新啟動。舊版鎖回收方式不相容，新舊版不得混跑。
+- 記憶卡及 index 格式不遷移。有效舊版 live lock 會等待正常釋放；無法辨識、舊 stale 或其他主機的 lock 不會自動刪除。不要直接刪除可能仍使用中的鎖，請參閱 docs/LOCK_PROTOCOL.md。
+
+### verification / limits
+
+- 已驗收修復基線的雙 OS CI：Linux 725 passed；Windows 722 passed／3 個附理由的 skip。正式版本提交仍須重新通過完整測試、lint、TypeScript、MCP／VSIX／Desktop builds 與實際 MCP stdio smoke；最終結果以該提交的 GitHub Actions 為準。
+- 依賴版本沿用 5.5.5：production audit 為 0；完整開發／建置樹仍有 29 findings（25 high、4 moderate、0 critical），未進行跨 major 升級或 force audit fix，不宣稱所有風險已消除。
+- 未執行已安裝 Electron／VSIX GUI、真實 Gateway、Windows UNC share／高 DPI 的人工驗收。安全檢查不構成抵禦任意非合作程序的 OS sandbox 或檔案系統 CAS；發布 gate 也不是跨 GitHub／npm 的全域原子鎖。
+- npm 發布後核對 exact gitHead、tarball SHA512／SHA1、manifest 及 provenance source／subject metadata；metadata 核對不等於獨立密碼學簽章驗證。既有版本跳過 publish 仍必須通過同一核對。
+
 ## [desktop-v5.5.5] — 2026-10-04
 
 ### fix

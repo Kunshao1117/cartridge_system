@@ -3,6 +3,7 @@ import fs from "node:fs";
 import * as fsp from "node:fs/promises";
 import path from "node:path";
 import matter from "./safe-frontmatter.js";
+import { normalizeCardMetadata } from "./card-metadata.js";
 
 export const MEMORY_MAIN_FILENAME = "MEMORY.md";
 export const LEGACY_MEMORY_MAIN_FILENAME = "SKILL.md";
@@ -540,6 +541,7 @@ export function analyzeMemoryContentQuality(
   }
 
   const evidenceBase = analyzeEvidenceBase(body);
+  const metadata = normalizeCardMetadata(frontmatter);
   const missingFields = REQUIRED_MEMORY_QUALITY_FIELDS.filter(
     (field) => !hasRequiredField(frontmatter[field]),
   );
@@ -557,7 +559,7 @@ export function analyzeMemoryContentQuality(
         ? "missing_fields"
         : missingSections.length > 0
           ? "missing_sections"
-          : evidenceBase.status !== "present"
+          : evidenceBase.status !== "present" || metadata.warnings.length > 0
             ? "pending_review"
           : verificationDrivenStatus === "complete"
             ? "complete"
@@ -574,7 +576,7 @@ export function analyzeMemoryContentQuality(
         : null,
     validScope: frontmatter.valid_scope ?? null,
     evidenceBaseStatus: evidenceBase.status,
-    evidenceWarnings: evidenceBase.warnings,
+    evidenceWarnings: [...evidenceBase.warnings, ...metadata.warnings],
     legacyCompatibility: mainFile.legacyCompatibility,
     migrationRequired:
       mainFile.migrationRequired ||
@@ -622,7 +624,6 @@ export function moduleNameFromMemoryMainPath(relativePath: string): string {
   }
   return normalized
     .replace(/^\.agents\/skills\//, "")
-    .replace(/^mem-/, "")
     .replace(/\/(?:MEMORY|SKILL)\.md$/i, "")
     .replace(/\//g, ".");
 }

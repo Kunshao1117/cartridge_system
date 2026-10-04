@@ -1,3 +1,4 @@
+import { assertPathInsideProject, tryProjectPath } from "./file-containment.js";
 /**
  * 記憶卡匣外掛系統 — 輕量級 import 路徑掃描器
  * 從原始碼擷取 import/require 路徑，解析為專案相對路徑
@@ -45,8 +46,12 @@ export function resolveImportPath(
   fromFile: string,
   projectRoot: string,
 ): string | null {
-  const fromDir = path.dirname(path.resolve(projectRoot, fromFile));
+  const safeFrom = tryProjectPath(projectRoot, fromFile);
+  if (!safeFrom) return null;
+  const fromDir = path.dirname(safeFrom);
   const rawResolved = path.resolve(fromDir, importPath);
+
+  if (!tryProjectPath(projectRoot, rawResolved)) return null;
 
   // 嘗試直接匹配
   if (fs.existsSync(rawResolved) && fs.statSync(rawResolved).isFile()) {
@@ -57,7 +62,7 @@ export function resolveImportPath(
   const withoutExt = rawResolved.replace(/\.(js|jsx)$/, "");
   for (const ext of TS_EXTENSIONS) {
     const candidate = withoutExt + ext;
-    if (fs.existsSync(candidate)) {
+    if (tryProjectPath(projectRoot, candidate) && fs.existsSync(candidate)) {
       return path.relative(projectRoot, candidate).replace(/\\/g, "/");
     }
   }
@@ -65,7 +70,7 @@ export function resolveImportPath(
   // 嘗試 index 檔案（目錄 import）
   for (const ext of TS_EXTENSIONS) {
     const indexCandidate = path.join(rawResolved, `index${ext}`);
-    if (fs.existsSync(indexCandidate)) {
+    if (tryProjectPath(projectRoot, indexCandidate) && fs.existsSync(indexCandidate)) {
       return path.relative(projectRoot, indexCandidate).replace(/\\/g, "/");
     }
   }
@@ -80,10 +85,10 @@ export function scanFileImports(
   filePath: string,
   projectRoot: string,
 ): string[] {
-  const absPath = path.resolve(projectRoot, filePath);
-  if (!fs.existsSync(absPath)) return [];
+  const absPath = tryProjectPath(projectRoot, filePath);
+  if (!absPath || !fs.existsSync(absPath)) return [];
 
-  const content = fs.readFileSync(absPath, "utf-8");
+  const content = fs.readFileSync(assertPathInsideProject(projectRoot, absPath), "utf-8");
   const rawImports = extractImports(content);
   const resolved: string[] = [];
 

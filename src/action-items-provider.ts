@@ -1,4 +1,5 @@
-import * as path from "node:path";
+import { projectFileOpenCommand } from "./project-file-command.js";
+import { tryProjectPath } from "./file-containment.js";
 import * as vscode from "vscode";
 import { buildGovernanceActionItems } from "./action-items-model.js";
 import type { GovernanceActionItem } from "./action-items-model.js";
@@ -58,11 +59,17 @@ export class ActionItemsProvider implements vscode.TreeDataProvider<ActionNode> 
       return;
     }
     if (!node.targetPath) return;
-    const command = node.kind === "untracked" ? "cartridge.attributeFile" : "vscode.open";
+    if (node.kind !== "untracked") {
+      item.command = projectFileOpenCommand(this.projectRoot, node.targetPath, "開啟檔案");
+      return;
+    }
+    const target = tryProjectPath(this.projectRoot, node.targetPath);
+    if (!target) return;
+    const command = "cartridge.attributeFile";
     item.command = {
       command,
       title: node.kind === "untracked" ? "歸屬到記憶卡" : "開啟檔案",
-      arguments: [vscode.Uri.file(path.resolve(this.projectRoot, node.targetPath))],
+      arguments: [vscode.Uri.file(target)],
     };
   }
 

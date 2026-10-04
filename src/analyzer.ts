@@ -11,6 +11,7 @@ import type { CartridgeIndexManager } from "./index-manager.js";
 import { getStalenessLevel } from "./staleness.js";
 
 interface WarningWriter {
+  syncWarningState?(skillRelPath: string, changedFiles: string[], staleness: number): Promise<void>;
   injectWarning(
     skillRelPath: string,
     changedFiles: string[],
@@ -46,20 +47,23 @@ export class StalenessAnalyzer {
   async processFileEvent(
     filePath: string,
     eventType: FileEventType,
-  ): Promise<void> {
+  ): Promise<boolean> {
     const normalizedPath = filePath.replace(/\\/g, "/");
     const affectedCartridges =
       this.indexManager.getAffectedCartridges(normalizedPath);
 
-    if (affectedCartridges.length === 0) return;
+    if (affectedCartridges.length === 0) return false;
+    let updated = false;
 
     for (const cartridgeId of affectedCartridges) {
       // 記錄異動（去重由 indexManager 處理）
-      this.indexManager.addPendingChange(
+      const changed = this.indexManager.addPendingChange(
         cartridgeId,
         normalizedPath,
         eventType,
       );
+      if (!changed) continue;
+      updated = true;
 
       // 計算新的過期指數
       const newStaleness = this.calculateStaleness(cartridgeId);
@@ -70,7 +74,8 @@ export class StalenessAnalyzer {
       const entry = this.indexManager.getIndex().cartridges[cartridgeId];
       if (!entry) continue;
 
-      if (level === "significant" || level === "critical") {
+      if ((level === "significant" || level === "critical") &&
+          entry.mainFile?.type !== "conflict" && entry.mainFile?.type !== "missing") {
         const changedFiles = entry.pendingChanges.map((c) => c.filePath);
         await this.writer.injectWarning(
           entry.mainFile?.activePath ?? entry.skillPath,
@@ -81,6 +86,28 @@ export class StalenessAnalyzer {
 
       // 標記索引已變動（Cache-First：延遲至安全時機寫入）
       this.indexManager.markDirty();
+    }
+    if (updated) this.indexManager.buildAndMergeDependencies();
+    return updated;
+  }
+
+  /** Restore/update a missing warning without treating the write as a review. */
+  async refreshWarnings(cartridgeId?: string): Promise<void> {
+    for (const [id, entry] of Object.entries(this.indexManager.getIndex().cartridges)) {
+      if (cartridgeId !== undefined && id !== cartridgeId) continue;
+      if (entry.mainFile?.type === "conflict" || entry.mainFile?.type === "missing") continue;
+      if (this.writer.syncWarningState) {
+        await this.writer.syncWarningState(entry.mainFile?.activePath ?? entry.skillPath,
+          entry.pendingChanges.map((change) => change.filePath), entry.staleness);
+        continue;
+      }
+      const level = getStalenessLevel(entry.staleness, this.config);
+      if (level === "significant" || level === "critical") {
+        await this.writer.injectWarning(entry.mainFile?.activePath ?? entry.skillPath,
+          entry.pendingChanges.map((change) => change.filePath), entry.staleness);
+      } else if (entry.pendingChanges.length === 0 && entry.ghostFiles.length === 0) {
+        await this.writer.checkAndCleanWarning(entry.mainFile?.activePath ?? entry.skillPath);
+      }
     }
   }
 

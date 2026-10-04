@@ -2,6 +2,46 @@
 
 ## [Unreleased]
 
+## [desktop-v5.5.5] — 2026-10-04
+
+### fix
+
+- Desktop 與 VS Code / MCP 共用記憶卡複審、人工依賴傳播、離線直接／間接狀態收斂與部分同步警告。
+- 警告自寫與第二個監控程序的重複事件不再清除 pending / ghost；只同步受影響卡片的必要受管片段，保留其他卡片及非系統 lifecycle status。
+- Frontmatter 僅作資料解析，最終讀寫／開檔驗證實體路徑界線；保留合法專案內自訂根與 legacy 主卡。
+
+### security
+
+- Electron 保持 42 系列，最低需求提高至 ^42.9.2，鎖定 42.11.10；同步採用下列 5.5.5 的精準依賴安全修補。
+
+### note
+
+- 三個產品線必須由同一份 5.5.5 source revision 打包。自動化跨程序、建構與安全 fixture 不等於已安裝 Electron GUI / VSIX、真實 Gateway 或 UNC share 的人工驗收。
+- Windows 安裝檔仍未簽章，可能顯示 SmartScreen 提示；請只使用本倉庫正式 Release。
+
+## [5.5.5] — 2026-10-04
+
+### security
+
+- 統一資料型 YAML/YML/JSON frontmatter parser，拒絕可執行或未知 engine、重複 BOM 繞過與 stringify 二次解析；保留日期、未知／prototype-named 欄位及正常 BOM/CRLF。
+- MCP、VS Code 與 Desktop 最終檔案 I/O 共用 lexical + realpath containment，拒絕越界索引、symlink/junction 與不安全開檔；此檢查不宣稱是抵禦持續惡意路徑替換的 OS sandbox。
+- 發布前依賴稽核：production findings 為 0；含開發／建置工具的完整樹仍有 29 項（25 high、4 moderate、0 critical），不宣稱所有依賴風險已清除。
+- 精準更新既有依賴家族：js-yaml 3.15.2 / 4.3.2、tar 7.5.22、fast-uri 3.1.8、ip-address 10.7.3、@hono/node-server 1.19.17、Hono 4.13.13、body-parser 2.3.0、qs 6.16.0，及必要子依賴；不使用 force audit fix 或跨 major 全面升級。
+
+### fix
+
+- 清冊統一 MEMORY.md / legacy SKILL.md 身份、四層掃描與雙主檔 conflict，真正 Skill 仍使用 SKILL.md；Current Truth / Active Constraints 與既有理由章節均可提供人工 dependency 理由。
+- stale 提示改為比較當前來源與卡片後決定是否需內容或 tracking 修正，移除不存在的工具指引；保留既有 gate，不新增 disposition 或 M5 狀態引擎。
+- 工程 imports 與人工 declarations 分別呈現、共同傳播；循環、自我、重複與未知目標保留診斷，Relations / Applicable Skills 不混入傳播。
+- 離線 reindex 先收斂直接異動、tracking / ghost，再一次發布衍生結果；相同來源與警告的跨程序重複事件不重複計分，不以文字編輯冒充已完成複審。
+- memory_commit 分開回報 cardWritten、indexSynchronized、indexRegistered、trackingSynchronized、derivedSynchronized 與 synchronizationComplete；失敗保留先前可信衍生值，缺檔仍被追蹤時保留 pending / ghost。
+- legacy 最小修正保留未知 YAML、中文、原正文、archive 與非系統 lifecycle status，結構標準化僅在需要且取得授權時進行。
+
+### verification
+
+- 新增雙 OS、三端建構、實際 MCP stdio 雙程序與真實 Node 監控雙程序回歸，以及卡片／索引／衍生部分失敗與跨工具品質矩陣。
+- npm 發布後核對確切版本、gitHead、tarball SHA512/SHA1 與 manifest；provenance metadata 核對來源及 subject，不宣稱獨立密碼學簽章驗證。既有版本跳過 publish 仍須通過同一核對。
+
 ## [desktop-v5.5.4] — 2026-07-13
 
 ### fix

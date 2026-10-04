@@ -1,3 +1,5 @@
+import type { MemoryMainFileInfo, MemoryQualityReport } from "./memory-main-file.js";
+
 export type ContextOwner =
   | "codex"
   | "claude"
@@ -28,6 +30,9 @@ export interface ContextAsset {
   staleness: number;
   risk: ContextRisk;
   signals: string[];
+  /** Present for Memory assets only; conflicts never select an active file. */
+  mainFile?: MemoryMainFileInfo;
+  contentQuality?: MemoryQualityReport;
 }
 
 export interface ContextInventory {

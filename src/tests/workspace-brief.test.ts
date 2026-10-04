@@ -1,3 +1,4 @@
+import path from "node:path";
 import { describe, expect, it, vi, beforeEach } from "vitest";
 import { handleWorkspaceBrief } from "../workspace-brief.js";
 import { buildWorkspaceBrief } from "../workspace-brief-summary.js";
@@ -8,7 +9,7 @@ vi.mock("fs/promises", () => ({
 
 import * as fs from "fs/promises";
 
-const PROJECT_ROOT = "/mock/other-project";
+const PROJECT_ROOT = path.resolve("/mock/other-project").replace(/\\/g, "/");
 
 beforeEach(() => {
   vi.clearAllMocks();

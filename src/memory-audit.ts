@@ -1,7 +1,8 @@
+import { assertPathInsideProject } from "./file-containment.js";
 import * as fs from "fs/promises";
 import * as path from "path";
 import * as z from "zod";
-import matter from "gray-matter";
+import matter from "./safe-frontmatter.js";
 import {
   buildDependencyGraph,
   detectCycles,
@@ -18,8 +19,8 @@ import {
   type McpToolResult,
 } from "./mcp-response.js";
 import {
-  parseTrackedFiles,
-  shouldWarnEmptyTrackedFiles,
+  MAX_SCAN_DEPTH,
+  parseTrackedFiles,  shouldWarnEmptyTrackedFiles,
 } from "./index-manager.js";
 import { filterVisibleUntrackedFiles } from "./visible-index.js";
 import {
@@ -175,12 +176,12 @@ async function collectMemoryCardDirectories(
   const results: string[] = [];
 
   async function walk(dir: string, depth: number): Promise<void> {
-    if (depth > 5) return;
-    const entries = await fs.readdir(dir, { withFileTypes: true });
+    if (depth > MAX_SCAN_DEPTH) return;
+    const entries = await fs.readdir(assertPathInsideProject(projectRoot, dir), { withFileTypes: true });
     for (const entry of entries) {
       const fullPath = path.join(dir, entry.name);
       if (entry.isDirectory()) {
-        if (entry.name.toLowerCase() === "archive") continue;
+        if (entry.name.startsWith(".") || entry.name.toLowerCase() === "archive") continue;
         if (depth === 1 && requireMemPrefix && !entry.name.startsWith("mem-")) {
           continue;
         }
@@ -190,7 +191,7 @@ async function collectMemoryCardDirectories(
         );
         if (
           resolution.mainFile.type !== "missing" ||
-          (await hasChildMemoryCardDirectory(projectRoot, fullPath))
+          (await hasChildMemoryCardDirectory(projectRoot, fullPath, MAX_SCAN_DEPTH - depth))
         ) {
           results.push(fullPath);
         }
@@ -209,7 +210,7 @@ async function readIndex(projectRoot: string): Promise<{
 }> {
   const indexPath = path.join(projectRoot, ".cartridge", "index.json");
   try {
-    const raw = await fs.readFile(indexPath, "utf-8");
+    const raw = await fs.readFile(assertPathInsideProject(projectRoot, indexPath), "utf-8");
     const parsed = JSON.parse(raw) as AuditIndex;
     if (Array.isArray(parsed.untrackedFiles)) {
       parsed.untrackedFiles = filterVisibleUntrackedFiles(
@@ -308,7 +309,7 @@ async function readMemoryCards(projectRoot: string): Promise<MemoryCard[]> {
       continue;
     }
 
-    const raw = await fs.readFile(absolutePath, "utf-8");
+    const raw = await fs.readFile(assertPathInsideProject(projectRoot, absolutePath), "utf-8");
     const parsed = matter(raw);
     const frontmatter = parsed.data as Record<string, unknown>;
     const contentQuality = analyzeMemoryContentQuality(raw, mainFile);
@@ -339,7 +340,7 @@ async function readArchiveVolumes(
 ): Promise<MemoryArchiveVolumeMetrics[]> {
   let entries: Array<{ name: string; isFile: () => boolean }>;
   try {
-    entries = await fs.readdir(cardDir, { withFileTypes: true });
+    entries = await fs.readdir(assertPathInsideProject(projectRoot, cardDir), { withFileTypes: true });
   } catch {
     return [];
   }
@@ -349,7 +350,7 @@ async function readArchiveVolumes(
       .filter((entry) => entry.isFile() && /^archive-\d{3}\.md$/i.test(entry.name))
       .map(async (entry) => {
         const archivePath = path.join(cardDir, entry.name);
-        const raw = await fs.readFile(archivePath, "utf-8");
+        const raw = await fs.readFile(assertPathInsideProject(projectRoot, archivePath), "utf-8");
         return buildArchiveVolumeMetrics(
           raw,
           normalizeRelative(projectRoot, archivePath),
@@ -378,7 +379,7 @@ async function findLegacyArchiveSkillPaths(
       isFile: () => boolean;
     }>;
     try {
-      entries = await fs.readdir(current, { withFileTypes: true });
+      entries = await fs.readdir(assertPathInsideProject(projectRoot, current), { withFileTypes: true });
     } catch {
       continue;
     }
@@ -536,7 +537,7 @@ function auditMemoryMainFileAndQuality(card: MemoryCard): MemoryAuditFinding[] {
     findings.push({
       severity: "warning",
       code: "MEMORY_MAIN_FILE_LEGACY",
-      message: `${card.module} 仍使用 legacy SKILL.md；可讀但需要遷移到 MEMORY.md。`,
+      message: `${card.module} 仍使用 legacy SKILL.md；仍可讀取；只在需要且已核准命名遷移時改為 MEMORY.md，一般修正維持原主檔。`,
       module: card.module,
       file: card.skillPath,
     });
@@ -686,7 +687,7 @@ function auditCompaction(card: MemoryCard): MemoryAuditFinding[] {
     findings.push({
       severity: "warning",
       code: "MEMORY_LEGACY_SCHEMA",
-      message: `${card.module} 使用舊記憶格式；可讀取，但下次更新時應懶升級為新版格式。`,
+      message: `${card.module} 使用舊記憶格式；仍可讀取；僅在需要且已核准結構標準化時升級，一般內容或追蹤修正維持最小範圍。`,
       module: card.module,
       file: card.skillPath,
     });

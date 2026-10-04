@@ -6,7 +6,9 @@
 import * as fs from "fs/promises";
 import * as path from "path";
 import * as z from "zod";
-import matter from "gray-matter";
+import matter from "./safe-frontmatter.js";
+import { patchMemorySource, readMemorySource } from "./memory-source-patch.js";
+import { assertPathInsideProject, tryProjectPath } from "./file-containment.js";
 import {
   formatDependencySemanticWarning,
   validateDependencySemantics,
@@ -16,6 +18,7 @@ import { stalenessToLevel } from "./staleness.js";
 import { getTaiwanISO } from "./timestamp.js";
 import {
   CartridgeIndexManager,
+  MAX_SCAN_DEPTH,
   parseTrackedFiles,
 } from "./index-manager.js";
 import {
@@ -28,12 +31,14 @@ import {
 } from "./memory-compaction.js";
 import {
   analyzeMemoryContentQuality,
+  hasChildMemoryCardDirectory,
   resolveMemoryMainFileInDirectory,
   type MemoryMainFileInfo,
   type MemoryQualityReport,
 } from "./memory-main-file.js";
 import { refreshMemoryIndex } from "./memory-reindex.js";
 import { createConfig } from "./config.js";
+import { normalizeDeclaredDependencies, recomputeDependencyState } from "./dependency-propagator.js";
 import { runProjectIndexTransaction } from "./project-index-transaction.js";
 import type { CartridgeEntry, CartridgeIndex } from "./types.js";
 import {
@@ -179,14 +184,7 @@ export function updateFrontmatterFields(
   rawContent: string,
   updates: Record<string, unknown>,
 ): string {
-  const { data: frontmatter, content } = matter(rawContent);
-
-  // 合併更新欄位
-  for (const [key, value] of Object.entries(updates)) {
-    frontmatter[key] = value;
-  }
-
-  return matter.stringify(content, frontmatter);
+  return patchMemorySource(rawContent, updates);
 }
 
 type MemoryMainFileLookup =
@@ -224,15 +222,7 @@ function mainFileInfoFromEntry(entry: CartridgeEntry): MemoryMainFileInfo | null
 }
 
 function resolvePathInsideRoot(projectRoot: string, relativePath: string): string | null {
-  const normalized = relativePath.replace(/\\/g, "/");
-  const absolute = path.isAbsolute(normalized)
-    ? path.resolve(normalized)
-    : path.resolve(projectRoot, normalized);
-  const relativeToRoot = path.relative(projectRoot, absolute);
-  if (relativeToRoot.startsWith("..") || path.isAbsolute(relativeToRoot)) {
-    return null;
-  }
-  return absolute;
+  return tryProjectPath(projectRoot, relativePath);
 }
 
 function directoryCandidatesFromEntry(
@@ -295,6 +285,7 @@ async function lookupFromDirectory(
   projectRoot: string,
   cardDir: string,
 ): Promise<MemoryMainFileLookup | null> {
+  if (!tryProjectPath(projectRoot, cardDir)) return null;
   const resolution = await resolveMemoryMainFileInDirectory(projectRoot, cardDir);
   const mainFile = resolution.mainFile;
   if (mainFile.type === "missing") return null;
@@ -314,9 +305,10 @@ async function lookupFromDirectory(
       message: "Memory main file is missing.",
     };
   }
-  const filePath = path.join(projectRoot, mainFile.activePath);
+  const filePath = tryProjectPath(projectRoot, mainFile.activePath);
+  if (!filePath) return null;
   try {
-    const raw = await fs.readFile(filePath, "utf-8");
+    const raw = await fs.readFile(assertPathInsideProject(projectRoot, filePath), "utf-8");
     return {
       status: "ready",
       filePath,
@@ -342,7 +334,7 @@ export async function resolveMemoryMainFileForModule(
   const indexPath = path.join(projectRoot, ".cartridge", "index.json");
   let staleIndexedMissing: MemoryMainFileLookup | null = null;
   try {
-    const raw = await fs.readFile(indexPath, "utf-8");
+    const raw = await fs.readFile(assertPathInsideProject(projectRoot, indexPath), "utf-8");
     const index = JSON.parse(raw) as CartridgeIndex;
     const entry = index.cartridges?.[moduleName];
     if (entry) {
@@ -357,17 +349,20 @@ export async function resolveMemoryMainFileForModule(
       if (mainFile?.type === "conflict" || mainFile?.type === "missing") {
         staleIndexedMissing = staleIndexAsMissingLookup(mainFile, entry);
       }
-      if (mainFile?.activePath) {
+      const safeActivePath = mainFile?.activePath
+        ? resolvePathInsideRoot(normalizedRoot, mainFile.activePath)
+        : null;
+      if (mainFile?.activePath && safeActivePath) {
         const directoryLookup = await lookupFromDirectory(
           normalizedRoot,
-          path.dirname(path.join(normalizedRoot, mainFile.activePath)),
+          path.dirname(safeActivePath),
         );
         if (directoryLookup) {
           return { ...directoryLookup, entry };
         }
-        const resolved = path.join(normalizedRoot, mainFile.activePath);
+        const resolved = safeActivePath;
         try {
-          const rawContent = await fs.readFile(resolved, "utf-8");
+          const rawContent = await fs.readFile(assertPathInsideProject(normalizedRoot, resolved), "utf-8");
           return {
             status: "ready",
             filePath: resolved,
@@ -451,9 +446,9 @@ async function findMemoryMainRecursive(
   parentId: string | null,
   requireMemPrefix: boolean,
 ): Promise<MemoryMainFileLookup | null> {
-  if (depth > 4) return null;
+  if (depth > MAX_SCAN_DEPTH) return null;
   try {
-    const entries = await fs.readdir(dir, { withFileTypes: true });
+    const entries = await fs.readdir(assertPathInsideProject(projectRoot, dir), { withFileTypes: true });
     for (const entry of entries) {
       if (!entry.isDirectory()) continue;
       if (entry.name.toLowerCase() === "archive") continue;
@@ -510,7 +505,8 @@ export async function handleMemoryList(args: unknown): Promise<McpToolResult> {
     });
   }
 
-  const agentsDir = path.join(parsed.data.projectRoot, ".agents", "memory");
+  const listProjectRoot = parsed.data.projectRoot;
+  const agentsDir = path.join(listProjectRoot, ".agents", "memory");
   try {
     // 優先從索引檔讀取全部卡匣（含巢狀子卡）
     const indexPath = path.join(
@@ -519,7 +515,7 @@ export async function handleMemoryList(args: unknown): Promise<McpToolResult> {
       "index.json",
     );
     try {
-      const indexRaw = await fs.readFile(indexPath, "utf-8");
+      const indexRaw = await fs.readFile(assertPathInsideProject(parsed.data.projectRoot, indexPath), "utf-8");
       const index = createVisibleCartridgeIndex(
         JSON.parse(indexRaw) as CartridgeIndex,
       );
@@ -527,8 +523,21 @@ export async function handleMemoryList(args: unknown): Promise<McpToolResult> {
       const modules = Object.keys(cartridges);
       const untrackedFiles = index.untrackedFiles ?? [];
 
-      const enriched = modules.map((mod) => {
-        const entry = cartridges[mod];
+      const enriched = await Promise.all(modules.map(async (mod) => {
+        const cached = cartridges[mod];
+        const lookup = await resolveMemoryMainFileForModule(parsed.data.projectRoot, mod);
+        const entry = { ...cached };
+        if (lookup.status === "ready" || lookup.status === "conflict" || lookup.status === "missing") {
+          entry.mainFile = lookup.mainFile ?? cached.mainFile;
+          entry.mainFileType = entry.mainFile?.type ?? (lookup.status === "missing" ? "missing" : cached.mainFileType);
+          if (lookup.status === "ready") {
+            entry.contentQuality = lookup.contentQuality;
+            entry.contentQualityStatus = lookup.contentQuality.status;
+          } else {
+            entry.contentQuality = undefined;
+            entry.contentQualityStatus = lookup.status === "conflict" ? "conflict" : "pending_review";
+          }
+        }
         const trackedCount = entry.trackedFiles?.length ?? 0;
         return {
           module: mod,
@@ -542,6 +551,8 @@ export async function handleMemoryList(args: unknown): Promise<McpToolResult> {
           ghostFilesCount: entry.ghostFiles?.length ?? 0,
           dependencyCount: entry.dependencies?.length ?? 0,
           indirectStaleness: entry.indirectStaleness ?? 0,
+          dependencyDiagnostics: entry.dependencyDiagnostics ?? [],
+          dependencySyncWarning: entry.dependencySyncWarning ?? null,
           compaction: entry.compaction ?? null,
           cardKind: entry.compaction?.cardKind ?? null,
           compactionCompliance: entry.compaction?.compliance ?? null,
@@ -556,7 +567,7 @@ export async function handleMemoryList(args: unknown): Promise<McpToolResult> {
           legacyMemory: entry.compaction?.isLegacy ?? false,
           mainFile: entry.mainFile ?? null,
           mainFileType: entry.mainFile?.type ?? entry.mainFileType ?? "legacy SKILL.md",
-          mainFilePath: entry.mainFile?.activePath ?? entry.skillPath ?? null,
+          mainFilePath: entry.mainFile ? entry.mainFile.activePath : entry.skillPath ?? null,
           contentQuality: entry.contentQuality ?? null,
           contentQualityStatus:
             entry.contentQuality?.status ??
@@ -579,7 +590,11 @@ export async function handleMemoryList(args: unknown): Promise<McpToolResult> {
             ? "此記憶卡已達壓縮門檻，請先彙整週期事件或拆分歸檔。"
             : null,
         };
-      });
+      }));
+      const dependencyFindings: CartridgeFinding[] = enriched.flatMap((entry) => [
+        ...(entry.dependencySyncWarning ? [{ severity: "warning" as const, code: "DERIVED_SYNC_PARTIAL", message: `${entry.module}: ${entry.dependencySyncWarning}` }] : []),
+        ...entry.dependencyDiagnostics.map((item) => ({ severity: "warning" as const, code: item.code, message: `${entry.module}: ${item.message}` })),
+      ]);
 
       const legacy = {
         cartridges: enriched,
@@ -590,7 +605,9 @@ export async function handleMemoryList(args: unknown): Promise<McpToolResult> {
           tool: "memory_list",
           readOnly: true,
           projectRoot: parsed.data.projectRoot,
-          status: "ready",
+          status: enriched.some((entry) => entry.mainFileType === "conflict") ? "error"
+            : dependencyFindings.length > 0 ? "warning" : "ready",
+          findings: dependencyFindings,
           summary: {
             cartridgeCount: enriched.length,
             cartridges: enriched,
@@ -602,36 +619,24 @@ export async function handleMemoryList(args: unknown): Promise<McpToolResult> {
     } catch {
       // 索引不存在 — 回退到目錄掃描（先掃 memory/，再掃 skills/mem-*）
       const modules: string[] = [];
-      try {
-        const files = await fs.readdir(agentsDir, { withFileTypes: true });
-        modules.push(
-          ...files
-            .filter((d) => d.isDirectory() && !d.name.startsWith("."))
-            .map((d) => d.name),
-        );
-      } catch {
-        /* memory/ 不存在 */
-      }
-      // 向後相容：掃描 skills/mem-*
-      try {
-        const skillsDir = path.join(
-          parsed.data.projectRoot,
-          ".agents",
-          "skills",
-        );
-        const skillFiles = await fs.readdir(skillsDir, { withFileTypes: true });
-        for (const d of skillFiles) {
-          if (
-            d.isDirectory() &&
-            d.name.startsWith("mem-") &&
-            !modules.includes(d.name)
-          ) {
-            modules.push(d.name);
-          }
+      async function collect(dir: string, depth: number, parent: string | null, legacyRoot: boolean): Promise<void> {
+        if (depth > MAX_SCAN_DEPTH) return;
+        let files: Array<{ name: string; isDirectory: () => boolean }>;
+        try {
+          files = await fs.readdir(assertPathInsideProject(listProjectRoot, dir), { withFileTypes: true });
+        } catch { return; }
+        for (const child of files) {
+          if (!child.isDirectory() || child.name.startsWith(".") || child.name.toLowerCase() === "archive") continue;
+          if (legacyRoot && !child.name.startsWith("mem-")) continue;
+          const module = parent ? `${parent}.${child.name}` : child.name;
+          const childDir = path.join(dir, child.name);
+          const resolved = await resolveMemoryMainFileInDirectory(listProjectRoot, childDir);
+          if ((resolved.mainFile.type !== "missing" || await hasChildMemoryCardDirectory(listProjectRoot, childDir, MAX_SCAN_DEPTH - depth)) && !modules.includes(module)) modules.push(module);
+          await collect(childDir, depth + 1, module, false);
         }
-      } catch {
-        /* skills/ 不存在 */
       }
+      await collect(agentsDir, 1, null, false);
+      await collect(path.join(parsed.data.projectRoot, ".agents", "skills"), 1, null, true);
       const fallbackCartridges = await Promise.all(
         modules.map(async (module) => {
           const lookup = await resolveMemoryMainFileForModule(
@@ -679,7 +684,7 @@ export async function handleMemoryList(args: unknown): Promise<McpToolResult> {
           tool: "memory_list",
           readOnly: true,
           projectRoot: parsed.data.projectRoot,
-          status: "ready",
+          status: fallbackCartridges.some((entry) => entry.mainFileType === "conflict") ? "error" : "ready",
           summary: {
             cartridgeCount: modules.length,
             cartridges: fallbackCartridges,
@@ -757,7 +762,9 @@ export async function handleMemoryRead(args: unknown): Promise<McpToolResult> {
       });
     }
     const filePath = lookup.filePath;
-    const content = await fs.readFile(filePath, "utf-8");
+    const content = await fs.readFile(assertPathInsideProject(parsed.data.projectRoot, filePath), "utf-8");
+
+    matter(content); // Reject unsupported frontmatter even on the raw-read surface.
 
     // 嘗試從索引取得父子關係提示
     let parentHint = "";
@@ -767,7 +774,7 @@ export async function handleMemoryRead(args: unknown): Promise<McpToolResult> {
         ".cartridge",
         "index.json",
       );
-      const indexRaw = await fs.readFile(indexPath, "utf-8");
+      const indexRaw = await fs.readFile(assertPathInsideProject(parsed.data.projectRoot, indexPath), "utf-8");
       const index = JSON.parse(indexRaw);
       const entry = index.cartridges?.[parsed.data.moduleName];
       if (entry?.parent) {
@@ -863,7 +870,7 @@ export async function handleMemoryStatus(
 
   // 嘗試從索引檔讀取完整資訊
   try {
-    const indexRaw = await fs.readFile(indexPath, "utf-8");
+    const indexRaw = await fs.readFile(assertPathInsideProject(projectRoot, indexPath), "utf-8");
     const index = JSON.parse(indexRaw);
     const entry = index.cartridges?.[moduleName];
 
@@ -920,9 +927,9 @@ export async function handleMemoryStatus(
             `- ${c.absolutePath} (${c.eventType})`,
         )
         .join("\n");
-      actionRequired = `此記憶卡已過期。更新前請先使用 view_file 讀取以下異動檔案：\n${fileList}\n讀取後再呼叫 memory_update 根據最新原始碼更新記憶內容。`;
+      actionRequired = `來源有變動，需先比較最新相關來源與記憶卡：\n${fileList}\n確認內容或追蹤資訊需要調整且已獲授權後才修改。若 owner、scope、claims 與 tracking 仍正確，可記錄版本與比較證據後得到 memory-attributed-no-write；此結果不會自動清除 stale 或同步索引。`;
     } else if (entry.staleness > 0) {
-      actionRequired = `此記憶卡已過期（staleness: ${entry.staleness}），但無已記錄的異動檔案。請手動檢查追蹤檔案清單中的原始碼。`;
+      actionRequired = `來源狀態需複審（staleness: ${entry.staleness}），但無已記錄的異動檔案。請比較最新相關來源、owner、scope、claims 與 tracking；證據不足時不能推論需要寫卡或 no-write。`;
     }
 
     // 幽靈檔案行動指引
@@ -930,8 +937,8 @@ export async function handleMemoryStatus(
     if (ghostFiles.length > 0) {
       const ghostList = ghostFiles.map((g: string) => `- ${g}`).join("\n");
       actionRequired += actionRequired
-        ? `\n\n此外，以下追蹤檔案已不存在於磁碟（幽靈檔案）：\n${ghostList}\n請從 ## Tracked Files 中移除這些路徑。`
-        : `以下追蹤檔案已不存在於磁碟（幽靈檔案）：\n${ghostList}\n請從 ## Tracked Files 中移除這些路徑，然後呼叫 memory_commit。`;
+        ? `\n\n此外，以下追蹤檔案已不存在於磁碟（幽靈檔案）：\n${ghostList}\n請確認應恢復檔案或在獲授權後修正 Tracked Files；缺檔本身不授權移除追蹤。`
+        : `以下追蹤檔案已不存在於磁碟（幽靈檔案）：\n${ghostList}\n請確認應恢復檔案或在獲授權後修正 Tracked Files；缺檔本身不授權移除追蹤。`;
     }
 
     const status = {
@@ -942,12 +949,15 @@ export async function handleMemoryStatus(
       trackedFiles: entry.trackedFiles ?? [],
       pendingChanges,
       ghostFiles,
+      indirectStaleness: entry.indirectStaleness ?? 0,
+      dependencyDiagnostics: entry.dependencyDiagnostics ?? [],
+      dependencySyncWarning: entry.dependencySyncWarning ?? null,
       mainFile: currentMainFile,
       mainFileType: currentMainFileType,
       mainFilePath:
         lookup.status === "ready"
           ? lookup.relativePath
-          : currentMainFile?.activePath ?? entry.skillPath ?? null,
+          : currentMainFile ? currentMainFile.activePath : null,
       contentQuality: currentContentQuality,
       contentQualityStatus: currentContentQualityStatus,
       migrationRequired: currentMigrationRequired,
@@ -964,6 +974,8 @@ export async function handleMemoryStatus(
           currentMainFileType === "conflict"
             ? "error"
             : entry.staleness > 0 ||
+                entry.dependencySyncWarning ||
+                (entry.dependencyDiagnostics?.length ?? 0) > 0 ||
                 ghostFiles.length > 0 ||
                 currentMainFileType !== "MEMORY.md" ||
                 currentContentQualityStatus !== "complete"
@@ -971,6 +983,8 @@ export async function handleMemoryStatus(
               : "ready",
         summary: status,
         findings: [
+          ...(entry.dependencySyncWarning ? [{ severity: "warning" as const, code: "DERIVED_SYNC_PARTIAL", message: entry.dependencySyncWarning }] : []),
+          ...(entry.dependencyDiagnostics ?? []).map((item: { code: string; message: string }) => ({ severity: "warning" as const, code: item.code, message: item.message })),
           ...(currentMainFileType === "conflict"
             ? [
                 {
@@ -1043,7 +1057,7 @@ export async function handleMemoryStatus(
         });
       }
       const filePath = lookup.filePath;
-      const raw = await fs.readFile(filePath, "utf-8");
+      const raw = await fs.readFile(assertPathInsideProject(projectRoot, filePath), "utf-8");
       const fmMatch = raw.match(/^---\n([\s\S]*?)\n---/);
       let staleness = 0;
       let lastUpdated = "";
@@ -1072,7 +1086,7 @@ export async function handleMemoryStatus(
         legacyCompatibility: lookup.mainFile.legacyCompatibility,
         actionRequired:
           staleness > 0
-            ? `此記憶卡已過期（staleness: ${staleness}）。索引檔不存在，無法提供異動檔案清單。請手動檢查追蹤檔案清單中的原始碼。`
+            ? `來源狀態需複審（staleness: ${staleness}）。索引檔不存在，無法提供異動檔案清單。請比較最新相關來源與卡片；不得只為清 stale 而寫卡。`
             : "",
         _note:
           "索引檔不存在，過期資訊來自作用中主檔 frontmatter。pendingChanges 和 trackedFiles 無法提供。",
@@ -1134,7 +1148,12 @@ export interface CommitReport {
   status: "success";
   module: string;
   trackedFilesCount: number;
+  cardWritten: boolean;
   indexSynchronized: boolean;
+  indexRegistered: boolean;
+  trackingSynchronized: boolean;
+  derivedSynchronized: boolean;
+  synchronizationComplete: boolean;
   warnings: string[];
 }
 
@@ -1266,7 +1285,7 @@ export async function handleMemoryCommit(
     const filePath = lookup.filePath;
 
     // 2. 讀取已寫入的作用中主檔
-    const rawContent = await fs.readFile(filePath, "utf-8");
+    const rawContent = await fs.readFile(assertPathInsideProject(projectRoot, filePath), "utf-8");
 
     // 3. 結構驗證
     const warnings: string[] = [];
@@ -1324,19 +1343,14 @@ export async function handleMemoryCommit(
     try {
       const indexPath = path.join(projectRoot, ".cartridge", "index.json");
       indexForCommit = JSON.parse(
-        await fs.readFile(indexPath, "utf-8"),
+        await fs.readFile(assertPathInsideProject(projectRoot, indexPath), "utf-8"),
       ) as CartridgeIndex;
     } catch {
       indexForCommit = null;
     }
 
     const cartridgeEntry = indexForCommit?.cartridges[moduleName];
-    const dependencies = Array.isArray(frontmatter.dependencies)
-      ? frontmatter.dependencies.filter(
-          (dependency): dependency is string =>
-            typeof dependency === "string" && dependency.trim().length > 0,
-        )
-      : [];
+    const dependencies = normalizeDeclaredDependencies(frontmatter.dependencies);
     warnings.push(
       ...validateDependencySemantics({
         moduleName,
@@ -1361,14 +1375,35 @@ export async function handleMemoryCommit(
     }
     warnings.push(...formatCompactionWarnings(moduleName, preCommitCompaction));
 
-    // 4. 時間戳注入 + staleness 歸零 + 清除殘留警報區塊（修復 #4）
-    let updatedContent = updateFrontmatterFields(rawContent, {
+    // A commit acknowledges reviewed present sources; still-tracked missing or
+    // unsafe sources remain unresolved. Validate before writing metadata so the
+    // card and canonical tracking state tell the same story.
+    const unresolvedTrackedFiles: string[] = [];
+    for (const trackedPath of trackedPathsForValidation) {
+      try {
+        await fs.access(assertPathInsideProject(projectRoot, trackedPath));
+      } catch {
+        unresolvedTrackedFiles.push(trackedPath);
+      }
+    }
+    const config = createConfig(projectRoot);
+    const remainingStaleness = unresolvedTrackedFiles.length > 0
+      ? Math.max(Number(frontmatter.staleness) || 0, unresolvedTrackedFiles.length * config.scoring.fileDeleted)
+      : 0;
+    if (unresolvedTrackedFiles.length > 0) {
+      warnings.push(`⚠️ [TRACKING_SYNC_PARTIAL] 主檔仍追蹤不存在或無法安全驗證的路徑：${unresolvedTrackedFiles.join(", ")}。請確認應恢復檔案或另行核准追蹤修正。`);
+    }
+
+    // Only managed metadata/warnings change; ordinary legacy repairs do not
+    // rename, normalize the schema, or rewrite historical archive content.
+    const originalBody = readMemorySource(rawContent).content;
+    const updatedContent = patchMemorySource(rawContent, {
       last_updated: isoLocal,
-      staleness: 0,
-    });
-    const { data: commitFm, content: commitBody } = matter(updatedContent);
-    commitFm.status = "stable";
-    updatedContent = matter.stringify(stripWarningBlock(commitBody), commitFm);
+      staleness: remainingStaleness,
+      ...(frontmatter.status === undefined || ["stable", "stale"].includes(String(frontmatter.status))
+        ? { status: remainingStaleness > 0 ? "stale" : "stable" } : {}),
+    }, remainingStaleness === 0 ? stripWarningBlock(originalBody) : originalBody);
+    const { data: commitFm } = matter(updatedContent);
     const postCommitCompaction = buildCompactionMetrics(updatedContent, commitFm, {
       cardPath: filePath,
     });
@@ -1377,13 +1412,16 @@ export async function handleMemoryCommit(
       lookup.mainFile,
     );
     warnings.push(...formatQualityWarnings(moduleName, postCommitQuality));
-    await fs.writeFile(filePath, updatedContent, "utf-8");
+    await fs.writeFile(assertPathInsideProject(projectRoot, filePath), updatedContent, "utf-8");
 
     // 5. 索引同步：主檔已成功寫入時，索引失敗需明確回報 partial warning。
-    let trackedFilesCount = 0;
+    let trackedFilesCount = trackedPathsForValidation.length;
     let indexSynchronized = false;
+    let indexRegistered = false;
+    let trackingSynchronized = false;
+    let derivedSynchronized = false;
     try {
-      const manager = new CartridgeIndexManager(createConfig(projectRoot));
+      const manager = new CartridgeIndexManager(config);
       await runProjectIndexTransaction({
         projectRoot,
         indexManager: manager,
@@ -1394,11 +1432,19 @@ export async function handleMemoryCommit(
               `Module "${moduleName}" is absent from the canonical project index.`,
             );
           }
-        // 清除 pendingChanges + staleness
-        index.cartridges[moduleName].pendingChanges = [];
-        index.cartridges[moduleName].staleness = 0;
+        // Never mistake a metadata write for resolution of missing sources.
+        const unresolved = new Set(unresolvedTrackedFiles);
+        const remainingPending = (index.cartridges[moduleName].pendingChanges ?? [])
+          .filter((change) => unresolved.has(change.filePath));
+        for (const filePath of unresolved) {
+          const pending = remainingPending.find((change) => change.filePath === filePath);
+          if (pending) pending.eventType = "unlink";
+          else remainingPending.push({ filePath, eventType: "unlink", timestamp: isoLocal });
+        }
+        index.cartridges[moduleName].pendingChanges = remainingPending;
+        index.cartridges[moduleName].staleness = remainingStaleness;
         index.cartridges[moduleName].lastUpdated = isoLocal;
-        index.cartridges[moduleName].ghostFiles = [];
+        index.cartridges[moduleName].ghostFiles = unresolvedTrackedFiles;
         index.cartridges[moduleName].compaction = postCommitCompaction;
         index.cartridges[moduleName].skillPath = lookup.relativePath;
         index.cartridges[moduleName].mainFile = lookup.mainFile;
@@ -1439,33 +1485,35 @@ export async function handleMemoryCommit(
           index.untrackedFiles ?? [],
         ).filter((entry) => !trackedFiles.includes(entry.filePath));
 
-        for (const cartridge of Object.values(index.cartridges)) {
-          cartridge.indirectStaleness = 0;
-        }
         try {
-          const { buildDependencyGraph, propagateStaleness } = await import(
-            "./dependency-propagator.js"
-          );
-          const graph = buildDependencyGraph(index, projectRoot);
-          const propagated = propagateStaleness(index, graph, 2);
-          for (const [cartridgeId, indirectStaleness] of propagated.entries()) {
-            if (index.cartridges[cartridgeId]) {
-              index.cartridges[cartridgeId].indirectStaleness =
-                indirectStaleness;
-            }
-          }
-        } catch {
-          /* 依賴重算失敗不應阻止核心索引同步 */
+          // Canonical declaration snapshots are already validated on load and
+          // carry no filesystem authority. Use the target's freshly read data;
+          // do not infer trusted custom roots from arbitrary index paths.
+          const declarations = new Map(Object.entries(index.cartridges)
+            .filter(([, cartridge]) => Array.isArray(cartridge.declaredDependencies))
+            .map(([id, cartridge]) => [id, cartridge.declaredDependencies!] as const));
+          declarations.set(moduleName, dependencies);
+          recomputeDependencyState(index, projectRoot, config.dependencyDepth, declarations);
+          derivedSynchronized = true;
+        } catch (error) {
+          // The helper stages all derived values before replacing anything.
+          // A failed recomputation must retain the last trusted graph/scores.
+          const derivedWarning = `依賴衍生狀態未收斂，保留上一份可信結果：${error instanceof Error ? error.message : String(error)}`;
+          for (const cartridge of Object.values(index.cartridges)) cartridge.dependencySyncWarning = derivedWarning;
+          warnings.push(`⚠️ [DERIVED_SYNC_PARTIAL] 卡片已寫入；${derivedWarning}。`);
         }
           manager.markDirty();
         },
       });
       indexSynchronized = true;
+      indexRegistered = true;
+      trackingSynchronized = unresolvedTrackedFiles.length === 0;
     } catch (error) {
+      derivedSynchronized = false;
       warnings.push(
         `⚠️ [INDEX_SYNC_PARTIAL] 記憶主檔已更新，但 canonical index 同步失敗：${
           error instanceof Error ? error.message : String(error)
-        }。請執行 memory_reindex 收斂狀態。`,
+        }。必要時另行取得 memory_reindex 的寫入授權以收斂狀態。`,
       );
     }
 
@@ -1474,7 +1522,12 @@ export async function handleMemoryCommit(
       status: "success",
       module: moduleName,
       trackedFilesCount,
+      cardWritten: true,
       indexSynchronized,
+      indexRegistered,
+      trackingSynchronized,
+      derivedSynchronized,
+      synchronizationComplete: indexSynchronized && indexRegistered && trackingSynchronized && derivedSynchronized,
       warnings,
     };
 
@@ -1501,7 +1554,10 @@ export async function handleMemoryCommit(
         },
         findings: warnings.map((warning) => ({
           severity: "warning",
-          code: "memory_commit_warning",
+          code: warning.includes("[DERIVED_SYNC_PARTIAL]") ? "DERIVED_SYNC_PARTIAL"
+            : warning.includes("[INDEX_SYNC_PARTIAL]") ? "INDEX_SYNC_PARTIAL"
+              : warning.includes("[TRACKING_SYNC_PARTIAL]") ? "TRACKING_SYNC_PARTIAL"
+                : "memory_commit_warning",
           message: warning,
         })),
         legacy: { ...report },
@@ -1658,6 +1714,7 @@ export async function handleMemoryDeps(args: unknown): Promise<McpToolResult> {
 
     const config = createConfig(normalizedPath);
     const manager = new CartridgeIndexManager(config);
+    await manager.load();
     await manager.scan();
 
     const index = manager.getIndex();
@@ -1673,10 +1730,17 @@ export async function handleMemoryDeps(args: unknown): Promise<McpToolResult> {
       );
     }
 
-    // 建構依賴圖
+    if (entry.mainFile?.type === "conflict") {
+      return createMemoryMainConflictResult({ tool: "memory_deps", readOnly: true,
+        projectRoot: normalizedPath, moduleName, candidates: entry.mainFile.candidatePaths });
+    }
+
+    // Preserve the public engineering lens and expose the actual propagation
+    // graph separately so declarations never masquerade as source imports.
     const {
       buildDependencyGraph,
       buildReverseDependencyGraph,
+      buildPropagationGraph,
       detectCycles,
     } = await import("./dependency-propagator.js");
     const graph = buildDependencyGraph(index, normalizedPath);
@@ -1685,29 +1749,31 @@ export async function handleMemoryDeps(args: unknown): Promise<McpToolResult> {
     const dependencies = graph.get(moduleName) ?? [];
     const dependents = reverseGraph.get(moduleName) ?? [];
     let frontmatterDependencies: string[] = [];
+    let declarationReadWarning: string | null = null;
     try {
-      if (entry.mainFile?.type === "conflict") {
-        throw new Error("memory main file conflict");
-      }
       const dependencyMainPath = entry.mainFile?.activePath ?? entry.skillPath;
       const rawSkill = await fs.readFile(
-        path.join(normalizedPath, dependencyMainPath),
+        assertPathInsideProject(normalizedPath, dependencyMainPath),
         "utf-8",
       );
       const { data } = matter(rawSkill);
-      frontmatterDependencies = Array.isArray(data.dependencies)
-        ? data.dependencies.filter(
-            (dependency): dependency is string =>
-              typeof dependency === "string" && dependency.trim().length > 0,
-          )
-        : [];
-    } catch {
-      frontmatterDependencies = entry.dependencies ?? [];
+      frontmatterDependencies = normalizeDeclaredDependencies(data.dependencies);
+    } catch (error) {
+      frontmatterDependencies = entry.declaredDependencies ?? [];
+      declarationReadWarning = `Cannot verify current dependency declarations: ${error instanceof Error ? error.message : String(error)}`;
     }
-    const cycles = detectCycles(graph).filter((c: string[]) =>
+    const { propagationGraph, diagnostics: propagationDiagnostics } =
+      buildPropagationGraph(index, graph, new Map([[moduleName, frontmatterDependencies]]));
+    const propagationReverse = buildReverseDependencyGraph(propagationGraph);
+    const cycles = detectCycles(propagationGraph).filter((c: string[]) =>
       c.includes(moduleName),
     );
     const findings: CartridgeFinding[] = [
+      ...(declarationReadWarning ? [{ severity: "warning" as const, code: "DEPENDENCY_DECLARATIONS_UNVERIFIED", message: declarationReadWarning }] : []),
+      ...propagationDiagnostics.filter((item) => item.module === moduleName)
+        .map((item) => ({ severity: "warning" as const, code: item.code, message: item.message })),
+      ...(entry.dependencySyncWarning ? [{ severity: "warning" as const,
+        code: "DERIVED_SYNC_PARTIAL", message: entry.dependencySyncWarning }] : []),
       ...(cycles.length > 0
         ? [
             {
@@ -1754,6 +1820,12 @@ export async function handleMemoryDeps(args: unknown): Promise<McpToolResult> {
         frontmatter: {
           dependencies: frontmatterDependencies,
           dependencyCount: frontmatterDependencies.length,
+        },
+        propagation: {
+          dependencies: propagationGraph.get(moduleName) ?? [],
+          dependents: propagationReverse.get(moduleName) ?? [],
+          sources: ["engineering", "frontmatter"],
+          excludes: ["Relations", "Applicable Skills", "parent-child navigation"],
         },
       },
       staleness: {

@@ -1,3 +1,4 @@
+import { assertPathInsideProject } from "./file-containment.js";
 /**
  * 記憶卡匣外掛系統 — Git 排除服務
  * Git repository 以 Git CLI 為標準語義來源；失敗時回退根目錄 .gitignore。
@@ -77,7 +78,7 @@ export class GitignoreFilter {
     this.ig = ignore();
     const gitignorePath = path.join(this.projectRoot, ".gitignore");
     if (fs.existsSync(gitignorePath)) {
-      this.ig.add(fs.readFileSync(gitignorePath, "utf-8"));
+      this.ig.add(fs.readFileSync(assertPathInsideProject(this.projectRoot, gitignorePath), "utf-8"));
     }
     this.ig.add(".git");
   }

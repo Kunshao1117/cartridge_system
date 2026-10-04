@@ -1,3 +1,4 @@
+import { projectFileOpenCommand } from "./project-file-command.js";
 /**
  * 記憶卡匣外掛系統 — 側邊欄 TreeView 面板
  * 以樹狀結構展示記憶卡匣、追蹤檔案與幽靈池
@@ -67,18 +68,9 @@ export class CartridgeTreeProvider implements vscode.TreeDataProvider<CartridgeT
       );
       item.tooltip = this.cartridgeTooltip(entry);
       if (entry.mainFile?.type !== "conflict" && entry.mainFile?.type !== "missing") {
-        item.command = {
-          command: "vscode.open",
-          title: "開啟記憶卡",
-          arguments: [
-            vscode.Uri.file(
-              path.resolve(
-                this.projectRoot,
-                entry.mainFile?.activePath ?? entry.skillPath,
-              ),
-            ),
-          ],
-        };
+        item.command = projectFileOpenCommand(
+          this.projectRoot, entry.mainFile?.activePath ?? entry.skillPath, "開啟記憶卡",
+        );
       }
       items.push(item);
     }
@@ -120,18 +112,9 @@ export class CartridgeTreeProvider implements vscode.TreeDataProvider<CartridgeT
         childEntry.mainFile?.type !== "conflict" &&
         childEntry.mainFile?.type !== "missing"
       ) {
-        item.command = {
-          command: "vscode.open",
-          title: "開啟記憶卡",
-          arguments: [
-            vscode.Uri.file(
-              path.resolve(
-                this.projectRoot,
-                childEntry.mainFile?.activePath ?? childEntry.skillPath,
-              ),
-            ),
-          ],
-        };
+        item.command = projectFileOpenCommand(
+          this.projectRoot, childEntry.mainFile?.activePath ?? childEntry.skillPath, "開啟記憶卡",
+        );
       }
       items.push(item);
     }
@@ -155,11 +138,7 @@ export class CartridgeTreeProvider implements vscode.TreeDataProvider<CartridgeT
             arguments: [{ filePath: f, cartridgeId: id }],
           };
         } else {
-          item.command = {
-            command: "vscode.open",
-            title: "開啟檔案",
-            arguments: [vscode.Uri.file(path.resolve(this.projectRoot, f))],
-          };
+          item.command = projectFileOpenCommand(this.projectRoot, f, "開啟檔案");
           item.tooltip = f;
         }
         items.push(item);

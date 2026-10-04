@@ -38,6 +38,27 @@ export function auditContextInventory(
 ): ContextAuditFinding[] {
   const findings: ContextAuditFinding[] = [];
   const assets = inventory.assets;
+  for (const asset of assets) {
+    if (asset.type !== "memory" || !asset.mainFile) continue;
+    const conflict = asset.mainFile.type === "conflict";
+    const missing = asset.mainFile.type === "missing";
+    if (!conflict && !missing) continue;
+    findings.push({
+      severity: "error",
+      code: conflict ? "context_memory_main_file_conflict" : "context_memory_main_file_missing",
+      message: conflict ? "記憶卡同時存在兩個主檔，尚未選定作用中主檔。" : "記憶目錄有子卡，但缺少主檔。",
+      explanation: conflict
+        ? "MEMORY.md 與 legacy SKILL.md 並存；清冊不讀取任一候選作為現行內容。"
+        : "子卡仍保留在清冊中；父卡目前沒有可讀取的主檔。",
+      assets: [asset.id],
+      paths: [...asset.mainFile.candidatePaths],
+      blocking: true,
+      recommendedTool: "memory_audit",
+      recommendedAction: conflict
+        ? "確認兩個候選主檔的內容與授權後再處理衝突，不自動選邊或遷移。"
+        : "確認此目錄是否需要主卡；需要寫入時先取得適用授權。",
+    });
+  }
   const codex = assets.find((asset) => asset.id === "codex.agents");
   const claude = assets.find((asset) => asset.id === "claude.project");
 

@@ -1,146 +1,146 @@
 /**
  * 記憶卡匣外掛系統 — 記憶卡寫入器
- * 主動物理修改記憶卡匣，植入或移除系統警報
+ * 只維護系統警報與衍生過期欄位，不把警報寫入視為來源複審。
  */
 
 import fs from 'node:fs'
 import path from 'node:path'
-import matter from 'gray-matter'
+import { assertPathInsideProject, PathContainmentError } from './file-containment.js'
+import { patchMemorySource, readMemorySource } from './memory-source-patch.js'
 import type { CartridgeConfig, StalenessLevel } from './types.js'
 import { getStalenessLevel } from './staleness.js'
 import { getTaiwanISO } from './timestamp.js'
 
-/** 警報區塊的標記邊界 */
 const WARNING_START = '<!-- CARTRIDGE_SYSTEM_WARNING_START -->'
 const WARNING_END = '<!-- CARTRIDGE_SYSTEM_WARNING_END -->'
 
-/**
- * 產生警報 Markdown 區塊
- */
 function generateWarningBlock(
   changedFiles: string[],
   staleness: number,
   level: StalenessLevel,
+  timestamp: string,
 ): string {
-  const timestamp = getTaiwanISO()
   const emoji = level === 'critical' ? '🔴' : '🟠'
-  const levelText = level === 'critical' ? '嚴重過期' : '顯著過期'
+  const levelText = level === 'critical' ? '高度待複審' : '顯著待複審'
   const fileList = changedFiles.map(f => `\`${f}\``).join('、')
-
   return [
     WARNING_START,
     '',
-    `> [!CAUTION]`,
-    `> ${emoji} **系統強制攔截**：此記憶已過期失真！`,
+    '> [!CAUTION]',
+    `> ${emoji} **來源變動待複審**：stale 不代表卡片內容必然失真。`,
     `> 追蹤檔案異動：${fileList}（${timestamp}）`,
-    `> AI 嚴禁基於此記憶施工，必須優先閱讀最新原始碼並更新此記憶卡。`,
+    '> 請比較最新相關來源與卡片；確認前勿把舊卡當作已驗證的 current truth。',
+    '> 只有內容或追蹤資訊需調整且已獲授權時才修改；不為消除警告而強制改卡或 commit。',
+    '> 有版本與實際比較證據的 no-write 可保留卡片不改，但不會自動清除 stale 或同步索引。',
     `> staleness: ${staleness} | threshold: ${emoji} ${levelText}`,
     '',
     WARNING_END,
-    '',
   ].join('\n')
 }
 
-/**
- * 記憶卡寫入器
- */
+function warningRange(content: string): { start: number; end: number } | null {
+  const start = content.indexOf(WARNING_START)
+  const end = content.indexOf(WARNING_END, start)
+  if (start === -1 || end === -1) return null
+  return { start, end: end + WARNING_END.length }
+}
+
+function systemStatusUpdate(data: Record<string, unknown>, staleness: number): Record<string, string> {
+  // status may be a user lifecycle state; only system-owned values are derived.
+  if (data.status !== undefined && data.status !== 'stable' && data.status !== 'stale') return {}
+  return { status: staleness > 0 ? 'stale' : 'stable' }
+}
+
 export class MemoryWriter {
-  private config: CartridgeConfig
+  constructor(private config: CartridgeConfig) {}
 
-  constructor(config: CartridgeConfig) {
-    this.config = config
-  }
-
-  /**
-   * 在記憶卡中植入警報
-   * @param skillRelPath - 相對於專案根目錄的 SKILL.md 路徑
-   * @param changedFiles - 已異動的檔案清單
-   * @param staleness - 過期指數
-   */
-  async injectWarning(
-    skillRelPath: string,
-    changedFiles: string[],
-    staleness: number,
-  ): Promise<void> {
-    const absPath = path.resolve(this.config.projectRoot, skillRelPath)
-    if (!fs.existsSync(absPath)) return
-
-    const raw = fs.readFileSync(absPath, 'utf-8')
-    const { data: frontmatter, content } = matter(raw)
-
-    // 先移除既有的警報（若有）
-    const cleanContent = this.stripWarning(content)
-
-    // 更新 frontmatter
-    frontmatter.staleness = staleness
-    frontmatter.status = 'stale'
-
-    // 在內文最前方植入警報
-    const level = getStalenessLevel(staleness, this.config)
-    const warningBlock = generateWarningBlock(changedFiles, staleness, level)
-    const newContent = warningBlock + cleanContent
-
-    // 重組檔案
-    const output = matter.stringify(newContent, frontmatter)
-    fs.writeFileSync(absPath, output, 'utf-8')
-  }
-
-  /**
-   * 移除記憶卡中的警報
-   */
-  async removeWarning(skillRelPath: string): Promise<void> {
-    const absPath = path.resolve(this.config.projectRoot, skillRelPath)
-    if (!fs.existsSync(absPath)) return
-
-    const raw = fs.readFileSync(absPath, 'utf-8')
-    const { data: frontmatter, content } = matter(raw)
-
-    const cleanContent = this.stripWarning(content)
-
-    // 如果 frontmatter 中 staleness 已被重設為 0，恢復 status
-    if (frontmatter.staleness === 0) {
-      frontmatter.status = 'stable'
+  private cardPath(relativePath: string): string {
+    const absolute = assertPathInsideProject(this.config.projectRoot, relativePath)
+    if (!['MEMORY.md', 'SKILL.md'].includes(path.basename(absolute))) throw new PathContainmentError(relativePath)
+    const within = (root: string, legacy: boolean) => {
+      const relative = path.relative(assertPathInsideProject(this.config.projectRoot, root), absolute)
+      const parts = relative.split(path.sep)
+      return parts.length >= 2 && !path.isAbsolute(relative) && !parts.includes('..') &&
+        !parts.slice(0, -1).some(part => part.toLowerCase() === 'archive') &&
+        (!legacy || parts[0].startsWith('mem-'))
     }
-
-    const output = matter.stringify(cleanContent, frontmatter)
-    fs.writeFileSync(absPath, output, 'utf-8')
+    if (!within(this.config.memoryDir, false) && !within(this.config.skillsDir, true)) throw new PathContainmentError(relativePath)
+    const otherName = path.basename(absolute) === 'MEMORY.md' ? 'SKILL.md' : 'MEMORY.md'
+    const other = assertPathInsideProject(this.config.projectRoot, path.join(path.dirname(absolute), otherName))
+    if (fs.existsSync(absolute) && fs.existsSync(other)) {
+      throw new Error('MEMORY_MAIN_FILE_CONFLICT: resolve dual Memory main files before writing a warning')
+    }
+    return absolute
   }
 
-  /**
-   * 檢查記憶卡是否需要清除警報
-   * 當 staleness 被手動重設為 0 且仍有警報時觸發
-   */
+  /** Repeated delivery of the same warning must not change bytes or timestamp. */
+  async injectWarning(skillRelPath: string, changedFiles: string[], staleness: number): Promise<void> {
+    const absPath = this.cardPath(skillRelPath)
+    if (!fs.existsSync(absPath)) return
+    const raw = fs.readFileSync(assertPathInsideProject(this.config.projectRoot, absPath), 'utf-8')
+    const { data, content: body } = readMemorySource(raw)
+    const range = warningRange(body)
+    const existing = range ? body.slice(range.start, range.end).replace(/\r\n/g, '\n') : ''
+    const previousTimestamp = /^> 追蹤檔案異動：.*（([^\n]*)）$/m.exec(existing)?.[1]
+    const files = [...new Set(changedFiles)].sort()
+    const level = getStalenessLevel(staleness, this.config)
+    let block = generateWarningBlock(files, staleness, level, previousTimestamp ?? getTaiwanISO())
+    if (existing && existing !== block) block = generateWarningBlock(files, staleness, level, getTaiwanISO())
+    const newline = raw.includes('\r\n') ? '\r\n' : '\n'
+    if (newline === '\r\n') block = block.replace(/\n/g, newline)
+    const newBody = range
+      ? body.slice(0, range.start) + block + body.slice(range.end)
+      : block + newline + body
+    const output = patchMemorySource(raw, { staleness, ...systemStatusUpdate(data, staleness) }, newBody)
+    if (output !== raw) fs.writeFileSync(this.cardPath(skillRelPath), output, 'utf-8')
+  }
+
+  /** Apply an already reconciled index score, never a no-write review assertion. */
+  async syncWarningState(skillRelPath: string, changedFiles: string[], staleness: number): Promise<void> {
+    const level = getStalenessLevel(staleness, this.config)
+    if (level === 'significant' || level === 'critical') {
+      await this.injectWarning(skillRelPath, changedFiles, staleness)
+      return
+    }
+    const absPath = this.cardPath(skillRelPath)
+    if (!fs.existsSync(absPath)) return
+    const raw = fs.readFileSync(assertPathInsideProject(this.config.projectRoot, absPath), 'utf-8')
+    const { data, content: body } = readMemorySource(raw)
+    const range = warningRange(body)
+    if (!range && staleness <= 0 && (data.staleness === undefined || data.staleness === 0)) return
+    const clean = range
+      ? body.slice(0, range.start) + body.slice(range.end).replace(/^\r?\n/, '')
+      : body
+    const output = patchMemorySource(raw, { staleness, ...systemStatusUpdate(data, staleness) }, clean)
+    if (output !== raw) fs.writeFileSync(this.cardPath(skillRelPath), output, 'utf-8')
+  }
+
+  async removeWarning(skillRelPath: string): Promise<void> {
+    const absPath = this.cardPath(skillRelPath)
+    if (!fs.existsSync(absPath)) return
+    const raw = fs.readFileSync(assertPathInsideProject(this.config.projectRoot, absPath), 'utf-8')
+    const { data, content: body } = readMemorySource(raw)
+    const range = warningRange(body)
+    let clean = body
+    if (range) {
+      const after = body.slice(range.end).replace(/^\r?\n/, '')
+      clean = body.slice(0, range.start) + after
+    }
+    const updates: Record<string, unknown> = data.staleness === 0 && data.status === 'stale' ? { status: 'stable' } : {}
+    const output = patchMemorySource(raw, updates, clean)
+    if (output !== raw) fs.writeFileSync(this.cardPath(skillRelPath), output, 'utf-8')
+  }
+
+  /** Caller must first establish that pending/ghost review state is resolved. */
   async checkAndCleanWarning(skillRelPath: string): Promise<boolean> {
-    const absPath = path.resolve(this.config.projectRoot, skillRelPath)
+    const absPath = this.cardPath(skillRelPath)
     if (!fs.existsSync(absPath)) return false
-
-    const raw = fs.readFileSync(absPath, 'utf-8')
-    const { data: frontmatter, content } = matter(raw)
-
-    const hasWarning = content.includes(WARNING_START)
-    const isReset = frontmatter.staleness === 0
-
-    if (hasWarning && isReset) {
+    const raw = fs.readFileSync(assertPathInsideProject(this.config.projectRoot, absPath), 'utf-8')
+    const { data, content } = readMemorySource(raw)
+    if (warningRange(content) && data.staleness === 0) {
       await this.removeWarning(skillRelPath)
       return true
     }
-
     return false
-  }
-
-  /**
-   * 移除內文中的警報區塊
-   */
-  private stripWarning(content: string): string {
-    const startIdx = content.indexOf(WARNING_START)
-    const endIdx = content.indexOf(WARNING_END)
-
-    if (startIdx === -1 || endIdx === -1) return content
-
-    const before = content.substring(0, startIdx)
-    const after = content.substring(endIdx + WARNING_END.length)
-
-    // 清除前後的空行
-    return (before + after).replace(/^\n+/, '\n')
   }
 }

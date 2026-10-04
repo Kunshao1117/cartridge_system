@@ -1,4 +1,4 @@
-import * as path from "node:path";
+import { projectFileOpenCommand } from "./project-file-command.js";
 import * as vscode from "vscode";
 import { auditContextInventory } from "./context-audit.js";
 import { scanContextRegistry } from "./context-registry.js";
@@ -68,7 +68,7 @@ export class ContextTreeProvider implements vscode.TreeDataProvider<ContextNode>
         finding,
         targetPath: finding.assets
           .map((id) => assetById.get(id))
-          .find((asset) => asset?.exists)?.path,
+          .find((asset) => asset?.exists && (!asset.mainFile || Boolean(asset.mainFile.activePath)))?.path,
       }));
   }
 
@@ -112,16 +112,12 @@ export class ContextTreeProvider implements vscode.TreeDataProvider<ContextNode>
     const item = new vscode.TreeItem(asset.id, vscode.TreeItemCollapsibleState.None);
     item.description = asset.path;
     item.tooltip = `${asset.owner} / ${asset.type} / priority=${asset.priority}`;
-    if (asset.exists) this.setOpenCommand(item, asset.path);
+    if (asset.exists && (!asset.mainFile || asset.mainFile.activePath)) this.setOpenCommand(item, asset.path);
     return item;
   }
 
   private setOpenCommand(item: vscode.TreeItem, relativePath: string): void {
-    item.command = {
-      command: "vscode.open",
-      title: "開啟上下文檔案",
-      arguments: [vscode.Uri.file(path.resolve(this.projectRoot, relativePath))],
-    };
+    item.command = projectFileOpenCommand(this.projectRoot, relativePath, "開啟上下文檔案");
   }
 
   private sectionLabel(

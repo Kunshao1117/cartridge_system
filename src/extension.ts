@@ -1,3 +1,4 @@
+import { openProjectFile } from "./project-file-command.js";
 /**
  * 記憶卡匣外掛系統 v2.0 — VS Code 擴充套件入口
  * activate：開啟含 .agents 目錄的工作區時自動執行
@@ -194,10 +195,23 @@ export async function activate(
           for (const f of v.ghostFiles ?? []) {
             ghostChannel.appendLine(`    💀 ${f}`);
           }
-          ghostChannel.appendLine(`  → 修復：更新記憶卡並呼叫 memory_commit`);
+          ghostChannel.appendLine(`  → 複審：確認來源需恢復或經授權調整追蹤；仍追蹤且不存在的來源保留警告`);
           ghostChannel.appendLine("");
         }
         ghostChannel.show(true);
+      }
+    }),
+  );
+
+  context.subscriptions.push(
+    vscode.commands.registerCommand("cartridge.openProjectFile", async (root: string, target: string) => {
+      if (!config || root !== config.projectRoot) return;
+      try {
+        await openProjectFile(config.projectRoot, target, (filePath) =>
+          vscode.commands.executeCommand("vscode.open", vscode.Uri.file(filePath)),
+        );
+      } catch (error) {
+        vscode.window.showWarningMessage(`拒絕開啟不安全路徑：${String(error)}`);
       }
     }),
   );
@@ -218,7 +232,7 @@ export async function activate(
         const choice = await vscode.window.showWarningMessage(
           `💀 幽靈檔案：${path.basename(filePath)}`,
           {
-            detail: `此檔案已從磁碟刪除，仍登記在記憶卡 [${cartridgeId}] 的追蹤清單中。\n\n修復方式：更新記憶卡，從 ## Tracked Files 區段移除此路徑後，呼叫 memory_commit 即可自動清除幽靈標記。`,
+            detail: `目前磁碟上找不到此檔案，仍登記在記憶卡 [${cartridgeId}] 的追蹤清單中。\n\n先確認來源是否暫時不可用；經授權恢復檔案，或在此追蹤不再適用時修正 ## Tracked Files。需同步時另行執行已授權的 memory_commit，並核對索引與依賴結果；仍追蹤且不存在的來源不能視為已解決。`,
             modal: true,
           },
           "開啟記憶卡",
@@ -227,8 +241,9 @@ export async function activate(
         if (choice === "開啟記憶卡" && entry?.skillPath) {
           const targetPath = entry.mainFile?.activePath ?? entry.skillPath;
           await vscode.commands.executeCommand(
-            "vscode.open",
-            vscode.Uri.file(path.resolve(config.projectRoot, targetPath)),
+            "cartridge.openProjectFile",
+            config.projectRoot,
+            targetPath,
           );
         }
       },

@@ -50,6 +50,21 @@ export interface CartridgeEntry {
   ghostFiles: string[];
   /** 此卡匣依賴的其他卡匣 ID（系統自動推導 + AI 手動補充） */
   dependencies: string[];
+  /** Fresh frontmatter declarations, kept distinct from engineering imports. */
+  declaredDependencies?: string[];
+  /** Import-derived dependencies only; never navigation or operational skills. */
+  engineeringDependencies?: string[];
+  /** Non-blocking declaration/graph diagnostics; declarations are not heuristic-gated. */
+  dependencyDiagnostics?: Array<{ code: string; dependency: string; message: string }>;
+  /** A failed recomputation preserves the previous trusted derived values. */
+  dependencySyncWarning?: string;
+  /** Durable fingerprints shared by independent monitors through the canonical index. */
+  memoryContentFingerprint?: string;
+  memoryFileFingerprint?: string;
+  /** Tracking-only reconciliation is bound to exact card bytes; offline reindex
+   * need not rewrite an obsolete warning to prevent its score resurrecting. */
+  trackingReconciliation?: { fileFingerprint: string; staleness: number };
+  sourceFingerprints?: Record<string, string>;
   /** 因上游依賴過期而傳播的間接過期指數 */
   indirectStaleness: number;
   /** 記憶卡壓縮治理度量 */

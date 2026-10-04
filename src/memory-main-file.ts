@@ -1,7 +1,8 @@
+import { assertPathInsideProject, tryProjectPath } from "./file-containment.js";
 import fs from "node:fs";
 import * as fsp from "node:fs/promises";
 import path from "node:path";
-import matter from "gray-matter";
+import matter from "./safe-frontmatter.js";
 
 export const MEMORY_MAIN_FILENAME = "MEMORY.md";
 export const LEGACY_MEMORY_MAIN_FILENAME = "SKILL.md";
@@ -161,6 +162,11 @@ export function resolveMemoryMainFileInDirectorySync(
   projectRoot: string,
   cardDir: string,
 ): MemoryMainFileResolution {
+  if (![cardDir, path.join(cardDir, MEMORY_MAIN_FILENAME), path.join(cardDir, LEGACY_MEMORY_MAIN_FILENAME)]
+    .every((candidate) => tryProjectPath(projectRoot, candidate))) {
+    return { directory: cardDir, relativeDirectory: normalizeRel(projectRoot, cardDir),
+      mainFile: buildMainFileInfo({ type: "missing", activePath: null }) };
+  }
   const memoryAbs = path.join(cardDir, MEMORY_MAIN_FILENAME);
   const legacyAbs = path.join(cardDir, LEGACY_MEMORY_MAIN_FILENAME);
   const listedNames = readDirectoryFileNamesSync(cardDir);
@@ -212,6 +218,11 @@ export async function resolveMemoryMainFileInDirectory(
   projectRoot: string,
   cardDir: string,
 ): Promise<MemoryMainFileResolution> {
+  if (![cardDir, path.join(cardDir, MEMORY_MAIN_FILENAME), path.join(cardDir, LEGACY_MEMORY_MAIN_FILENAME)]
+    .every((candidate) => tryProjectPath(projectRoot, candidate))) {
+    return { directory: cardDir, relativeDirectory: normalizeRel(projectRoot, cardDir),
+      mainFile: buildMainFileInfo({ type: "missing", activePath: null }) };
+  }
   const memoryAbs = path.join(cardDir, MEMORY_MAIN_FILENAME);
   const legacyAbs = path.join(cardDir, LEGACY_MEMORY_MAIN_FILENAME);
   const listedNames = await readDirectoryFileNames(cardDir);
@@ -309,13 +320,18 @@ async function readDirectoryFileNames(cardDir: string): Promise<Set<string> | nu
   }
 }
 
+/** Find a real descendant card within the caller's remaining directory budget.
+ * The default retains the historical immediate-child query. Containers without
+ * main files count only when a descendant main is inside the supported depth. */
 export function hasChildMemoryCardDirectorySync(
   projectRoot: string,
   cardDir: string,
+  remainingDepth = 1,
 ): boolean {
+  if (!Number.isInteger(remainingDepth) || remainingDepth <= 0) return false;
   let entries: fs.Dirent[];
   try {
-    entries = fs.readdirSync(cardDir, { withFileTypes: true });
+    entries = fs.readdirSync(assertPathInsideProject(projectRoot, cardDir), { withFileTypes: true });
   } catch {
     return false;
   }
@@ -326,20 +342,23 @@ export function hasChildMemoryCardDirectorySync(
     }
     const childDir = path.join(cardDir, entry.name);
     const resolution = resolveMemoryMainFileInDirectorySync(projectRoot, childDir);
-    return resolution.mainFile.type !== "missing";
+    return resolution.mainFile.type !== "missing" ||
+      hasChildMemoryCardDirectorySync(projectRoot, childDir, remainingDepth - 1);
   });
 }
 
 export async function hasChildMemoryCardDirectory(
   projectRoot: string,
   cardDir: string,
+  remainingDepth = 1,
 ): Promise<boolean> {
+  if (!Number.isInteger(remainingDepth) || remainingDepth <= 0) return false;
   let entries: Array<{
     name: string;
     isDirectory: () => boolean;
   }>;
   try {
-    entries = await fsp.readdir(cardDir, { withFileTypes: true });
+    entries = await fsp.readdir(assertPathInsideProject(projectRoot, cardDir), { withFileTypes: true });
   } catch {
     return false;
   }
@@ -350,7 +369,8 @@ export async function hasChildMemoryCardDirectory(
     }
     const childDir = path.join(cardDir, entry.name);
     const resolution = await resolveMemoryMainFileInDirectory(projectRoot, childDir);
-    if (resolution.mainFile.type !== "missing") return true;
+    if (resolution.mainFile.type !== "missing" ||
+        await hasChildMemoryCardDirectory(projectRoot, childDir, remainingDepth - 1)) return true;
   }
   return false;
 }

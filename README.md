@@ -2,7 +2,7 @@
 
 > **現實感知 AI 記憶防禦引擎** — 自動偵測記憶卡過期、幽靈檔案、跨模組依賴傳播，確保 AI 不讀取失效的上下文。
 
-[![version](https://img.shields.io/badge/version-5.5.4-blue)](./CHANGELOG.md)
+[![version](https://img.shields.io/badge/version-5.5.5-blue)](./CHANGELOG.md)
 [![tests](https://img.shields.io/badge/tests-387%20passed-brightgreen)](#-執行測試)
 [![license](https://img.shields.io/badge/license-MIT-green)](#)
 
@@ -76,7 +76,7 @@ Cartridge System 是一個為 [Antigravity 框架](https://github.com/Kunshao111
 3. 在 VS Code / Antigravity 使用 **Install from VSIX** 安裝，或使用 CLI：
 
 ```bash
-antigravity --install-extension cartridge-system-5.5.4.vsix --force
+antigravity --install-extension cartridge-system-5.5.5.vsix --force
 ```
 
 ### 方法二：本機打包安裝
@@ -88,7 +88,7 @@ npm run build
 npm run package
 
 # 使用 Antigravity IDE CLI 安裝（注意：不可用 code 指令）
-antigravity --install-extension cartridge-system-5.5.4.vsix --force
+antigravity --install-extension cartridge-system-5.5.5.vsix --force
 ```
 
 ### 方法三：開發模式
@@ -167,6 +167,10 @@ npm run desktop:dist
 
 桌面版會把監控專案清單保存於使用者本機 AppData，不寫入被監控專案。Windows 安裝檔目前未簽章，因此可能出現 SmartScreen 提示；請只安裝從本倉庫正式 Release 取得的成品。
 
+### 記憶複審與最小同步
+
+stale 表示來源需要複審，不能據此推論內容必然失真或自動要求寫卡。比較當前來源、卡片版本、owner、scope、claims 與 tracking 後，流程可得到有證據的 no-write；此結果不會自行清除 stale 或同步索引。一般 legacy 內容／tracking 修正保持最小範圍，不自動改名、重建全卡或修改 archive。memory_commit 分開回報卡片、索引、tracking 與依賴衍生同步；部分成功不等於全部收斂。詳見 [記憶複審與同步契約](docs/memory-review-contract.md)。
+
 ### 同一專案、同一狀態
 
 Desktop Console、VSIX 與 MCP 對同一專案以 `.cartridge/index.json` 為 canonical 持久化狀態。所有寫入會取得跨程序鎖、在修改前重載磁碟最新狀態，再用原子取代完成持久化；專用的外部索引重載路徑會讓其他已開啟入口重讀新狀態。
@@ -179,7 +183,7 @@ Desktop Console、VSIX 與 MCP 對同一專案以 `.cartridge/index.json` 為 ca
 
 Cartridge System 使用 GitHub Actions 自動發布 VSIX。正式版本不需要手動開 GitHub Release 拖檔案。
 
-VSIX 插件、Desktop Console 與 npm MCP runtime 使用不同發布入口：`v5.5.4` 代表 VSIX 插件 release；`desktop-v5.5.4` 代表桌面監控台 release；`npm-v5.5.4` 代表 npm MCP runtime release。三個 tag 必須指向同一份 5.5.4 原始碼 revision，特別是 Desktop 與 VSIX，不得以不同原始碼打包成同一版本。未來版本仍依序使用 `vX.Y.Z`、`desktop-vX.Y.Z` 與 `npm-vX.Y.Z`。
+VSIX 插件、Desktop Console 與 npm MCP runtime 使用不同發布入口：`v5.5.5` 代表 VSIX 插件 release；`desktop-v5.5.5` 代表桌面監控台 release；`npm-v5.5.5` 代表 npm MCP runtime release。三個 tag 必須指向同一份 5.5.5 原始碼 revision，特別是 Desktop 與 VSIX，不得以不同原始碼打包成同一版本。未來版本仍依序使用 `vX.Y.Z`、`desktop-vX.Y.Z` 與 `npm-vX.Y.Z`。
 
 ### 自動發布正式版
 
@@ -204,15 +208,15 @@ npm run package
 3. 推送版本 tag：
 
 ```bash
-git tag v5.5.4
-git push origin v5.5.4
+git tag v5.5.5
+git push origin v5.5.5
 ```
 
 GitHub Actions 會自動執行測試、打包 `cartridge-system-*.vsix`、建立或更新 Release，並把 VSIX 掛到 Release 附件；此流程不會發布 npm MCP runtime。
 
 ### 手動補發
 
-如果需要補發目前版本，進入 GitHub 的 **Actions → Release VSIX → Run workflow**，輸入版本號，例如 `5.5.4` 或 `v5.5.4`。Workflow 會確認輸入版本與 `package.json` 一致，然後重新打包並覆蓋 Release 裡的 VSIX 附件。
+如果需要補發目前版本，進入 GitHub 的 **Actions → Release VSIX → Run workflow**，輸入版本號，例如 `5.5.5` 或 `v5.5.5`。Workflow 會確認輸入版本與 `package.json` 一致，然後重新打包並覆蓋 Release 裡的 VSIX 附件。
 
 ---
 
@@ -232,13 +236,13 @@ npm run desktop:dist
 推送桌面版 tag：
 
 ```bash
-git tag desktop-v5.5.4
-git push origin desktop-v5.5.4
+git tag desktop-v5.5.5
+git push origin desktop-v5.5.5
 ```
 
-GitHub Actions 會在 Windows runner 上重新打包桌面安裝檔，建立 `Cartridge Desktop Console desktop-v5.5.4` Release，並把 `Cartridge Desktop Console Setup 5.5.4.exe` 掛到附件。桌面版 Release 不會標記為 GitHub Latest，避免 VSIX 更新檢查誤讀桌面版本；此流程也不會將 `release/desktop` 產物提交進 Git。
+GitHub Actions 會在 Windows runner 上重新打包桌面安裝檔，建立 `Cartridge Desktop Console desktop-v5.5.5` Release，並把 `Cartridge Desktop Console Setup 5.5.5.exe` 掛到附件。桌面版 Release 不會標記為 GitHub Latest，避免 VSIX 更新檢查誤讀桌面版本；此流程也不會將 `release/desktop` 產物提交進 Git。
 
-若需要手動補發，進入 GitHub 的 **Actions → Release Desktop Console → Run workflow**，輸入版本號，例如 `5.5.4`、`v5.5.4` 或 `desktop-v5.5.4`。Workflow 會確認輸入版本與 `package.json` 一致，然後重新打包並覆蓋桌面版 Release 裡的安裝檔附件。
+若需要手動補發，進入 GitHub 的 **Actions → Release Desktop Console → Run workflow**，輸入版本號，例如 `5.5.5`、`v5.5.5` 或 `desktop-v5.5.5`。Workflow 會確認輸入版本與 `package.json` 一致，然後重新打包並覆蓋桌面版 Release 裡的安裝檔附件。
 
 ---
 
@@ -261,8 +265,8 @@ npm publish --dry-run
 若使用 GitHub Actions Trusted Publishing，請推送 npm 專用 tag，不要使用 VSIX 的 `vX.Y.Z` tag：
 
 ```bash
-git tag npm-v5.5.4
-git push origin npm-v5.5.4
+git tag npm-v5.5.5
+git push origin npm-v5.5.5
 ```
 
 `Publish npm` workflow 會確認 tag/input 版本與 `package.json` 一致；若 npm registry 已有同版本，會成功跳過發布，避免同版本不可覆蓋造成失敗。
@@ -561,7 +565,7 @@ cartridge_system/
 > 💡 **治理備註**：`.agents/` 目錄在 Git 中採取「白名單模式」，追蹤 `memory/` 原始碼記憶、`context/` 專案脈絡與 `project_skills/` 專案衍生技能；其餘框架部署產物預設不納入版本控制以保持儲存庫輕量化。
 
 ├── CHANGELOG.md              # 更新紀錄（含插件更新檢查 Unreleased 紀錄）
-└── package.json              # v5.5.4
+└── package.json              # v5.5.5
 ```
 
 ### 技術堆疊

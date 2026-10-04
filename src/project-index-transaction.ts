@@ -1,3 +1,4 @@
+import { assertPathInsideProject } from "./file-containment.js";
 import { AsyncLocalStorage } from "node:async_hooks";
 import { createHash, randomUUID } from "node:crypto";
 import fs from "node:fs/promises";
@@ -320,7 +321,7 @@ async function acquireLock(
   const cartridgeDir = path.resolve(projectRoot, ".cartridge");
   const lockPath = path.resolve(projectRoot, LOCK_RELATIVE_PATH);
   assertInsideProject(projectRoot, lockPath);
-  await fs.mkdir(cartridgeDir, { recursive: true });
+  await fs.mkdir(assertPathInsideProject(projectRoot, cartridgeDir), { recursive: true });
   const deadline = timing.now() + timing.lockTimeoutMs;
 
   while (true) {
@@ -332,10 +333,10 @@ async function acquireLock(
     };
     let created = false;
     try {
-      await fs.mkdir(lockPath);
+      await fs.mkdir(assertPathInsideProject(projectRoot, lockPath));
       created = true;
       const ownerPath = path.join(lockPath, OWNER_FILENAME);
-      await fs.writeFile(ownerPath, JSON.stringify(owner), {
+      await fs.writeFile(assertPathInsideProject(projectRoot, ownerPath), JSON.stringify(owner), {
         encoding: "utf8",
         flag: "wx",
       });
@@ -352,11 +353,11 @@ async function acquireLock(
       return lock;
     } catch (error) {
       if (created) {
-        await fs.rm(lockPath, { recursive: true, force: true }).catch(() => undefined);
+        await fs.rm(assertPathInsideProject(projectRoot, lockPath), { recursive: true, force: true }).catch(() => undefined);
         throw error;
       }
       if (!isErrorCode(error, "EEXIST")) throw error;
-      if (await canRecoverStaleLock(lockPath, timing)) {
+      if (await canRecoverStaleLock(projectRoot, lockPath, timing)) {
         await recoverStaleLock(projectRoot, lockPath);
         continue;
       }
@@ -370,17 +371,18 @@ async function acquireLock(
 }
 
 async function canRecoverStaleLock(
+  projectRoot: string,
   lockPath: string,
   timing: ProjectIndexTransactionTiming,
 ): Promise<boolean> {
   let owner: LockOwner | null = null;
   try {
     owner = JSON.parse(
-      await fs.readFile(path.join(lockPath, OWNER_FILENAME), "utf8"),
+      await fs.readFile(assertPathInsideProject(projectRoot, path.join(lockPath, OWNER_FILENAME)), "utf8"),
     ) as LockOwner;
   } catch {
     try {
-      const stat = await fs.stat(lockPath);
+      const stat = await fs.stat(assertPathInsideProject(projectRoot, lockPath));
       return timing.now() - stat.mtimeMs >= timing.remoteStaleMs;
     } catch {
       return false;
@@ -389,7 +391,7 @@ async function canRecoverStaleLock(
   if (!isLockOwner(owner)) return false;
   let ownerMtime = owner.createdAt;
   try {
-    ownerMtime = (await fs.stat(path.join(lockPath, OWNER_FILENAME))).mtimeMs;
+    ownerMtime = (await fs.stat(assertPathInsideProject(projectRoot, path.join(lockPath, OWNER_FILENAME)))).mtimeMs;
   } catch {
     return false;
   }
@@ -406,18 +408,18 @@ async function recoverStaleLock(
   const stalePath = `${lockPath}.stale-${process.pid}-${randomUUID()}`;
   assertInsideProject(projectRoot, stalePath);
   try {
-    await fs.rename(lockPath, stalePath);
+    await fs.rename(assertPathInsideProject(projectRoot, lockPath), assertPathInsideProject(projectRoot, stalePath));
   } catch (error) {
     if (isErrorCode(error, "ENOENT")) return;
     throw error;
   }
-  await fs.rm(stalePath, { recursive: true, force: true });
+  await fs.rm(assertPathInsideProject(projectRoot, stalePath), { recursive: true, force: true });
 }
 
 async function assertLockOwnership(lock: HeldLock): Promise<void> {
   let current: LockOwner;
   try {
-    current = JSON.parse(await fs.readFile(lock.ownerPath, "utf8")) as LockOwner;
+    current = JSON.parse(await fs.readFile(assertPathInsideProject(lock.projectRoot, lock.ownerPath), "utf8")) as LockOwner;
   } catch {
     throw new Error("Project index lock ownership was lost before commit.");
   }
@@ -448,7 +450,7 @@ function startLockHeartbeat(
         if (lock.released) return;
         await assertLockOwnership(lock);
         const heartbeat = new Date(timing.now());
-        await fs.utimes(lock.ownerPath, heartbeat, heartbeat);
+        await fs.utimes(assertPathInsideProject(lock.projectRoot, lock.ownerPath), heartbeat, heartbeat);
       })
       .catch(() => undefined);
   }, timing.heartbeatMs);
@@ -488,7 +490,7 @@ async function atomicReplaceIndex(
     for (let attempt = 0; ; attempt += 1) {
       await assertLockOwnership(lock);
       try {
-        await fs.rename(tempPath, indexPath);
+        await fs.rename(assertPathInsideProject(projectRoot, tempPath), assertPathInsideProject(projectRoot, indexPath));
         return;
       } catch (error) {
         if (
@@ -501,7 +503,7 @@ async function atomicReplaceIndex(
       }
     }
   } finally {
-    await fs.rm(tempPath, { force: true }).catch(() => undefined);
+    await fs.rm(assertPathInsideProject(projectRoot, tempPath), { force: true }).catch(() => undefined);
   }
 }
 
@@ -512,7 +514,7 @@ async function cleanupStaleTemps(
   const cartridgeDir = path.resolve(projectRoot, ".cartridge");
   let names: string[];
   try {
-    names = await fs.readdir(cartridgeDir);
+    names = await fs.readdir(assertPathInsideProject(projectRoot, cartridgeDir));
   } catch {
     return;
   }
@@ -520,9 +522,9 @@ async function cleanupStaleTemps(
     if (!/^index\.\d+\.[0-9a-f-]+\.tmp$/i.test(name)) continue;
     const candidate = path.join(cartridgeDir, name);
     try {
-      const stat = await fs.stat(candidate);
+      const stat = await fs.stat(assertPathInsideProject(projectRoot, candidate));
       if (timing.now() - stat.mtimeMs < timing.remoteStaleMs) continue;
-      await fs.rm(candidate, { force: true });
+      await fs.rm(assertPathInsideProject(projectRoot, candidate), { force: true });
     } catch {
       // A stale temp is diagnostic debris only; never fail the canonical commit.
     }
@@ -573,10 +575,5 @@ function transactionFailureWarning(error: unknown): string {
 }
 
 function assertInsideProject(projectRoot: string, candidate: string): void {
-  const root = path.resolve(projectRoot);
-  const resolved = path.resolve(candidate);
-  const relative = path.relative(root, resolved);
-  if (relative.startsWith("..") || path.isAbsolute(relative)) {
-    throw new Error(`Project index path escaped project root: ${resolved}`);
-  }
+  assertPathInsideProject(projectRoot, candidate);
 }

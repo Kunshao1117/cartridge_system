@@ -1,3 +1,4 @@
+import path from "node:path";
 /**
  * 記憶卡匣外掛系統 — MCP 工具商業邏輯單元測試
  * 使用 vi.mock 模擬 fs/promises，不觸及實際磁碟
@@ -38,7 +39,7 @@ import * as fs from "fs/promises";
 import { refreshMemoryIndex } from "../memory-reindex.js";
 import { runProjectIndexTransaction } from "../project-index-transaction.js";
 
-const PROJECT_ROOT = "/mock/other-project";
+const PROJECT_ROOT = path.resolve("/mock/other-project").replace(/\\/g, "/");
 
 function parseEnvelope(result: { content: Array<{ text: string }> }) {
   return JSON.parse(result.content[0].text);
@@ -80,6 +81,23 @@ function completeMemory(moduleName = "mem-test"): string {
     "- src/test.ts",
     "",
   ].join("\n");
+}
+
+function mockLegacyMemoryDirectories(names: string[]): void {
+  vi.mocked(fs.readdir).mockImplementation(async (target) => {
+    const directory = String(target).replace(/\\/g, "/");
+    const entries = directory === `${PROJECT_ROOT}/.agents/memory`
+      ? names.map((name) => ({ name, isDirectory: () => true, isFile: () => false }))
+      : names.some((name) => directory === `${PROJECT_ROOT}/.agents/memory/${name}`)
+        ? [{ name: "SKILL.md", isDirectory: () => false, isFile: () => true }]
+        : [];
+    return entries as unknown as Awaited<ReturnType<typeof fs.readdir>>;
+  });
+  vi.mocked(fs.readFile).mockImplementation(async (target) => {
+    const file = String(target).replace(/\\/g, "/");
+    if (file.endsWith("/SKILL.md")) return completeMemory();
+    throw new Error("ENOENT");
+  });
 }
 
 function handleMemoryCommit(args: unknown) {
@@ -128,7 +146,7 @@ beforeEach(() => {
   // 預設模擬相容期：只有 legacy SKILL.md 存在，MEMORY.md 需由個別測試明確開啟。
   vi.mocked(fs.access).mockImplementation(async (target) => {
     const filePath = String(target).replace(/\\/g, "/");
-    if (filePath.endsWith("/SKILL.md")) return;
+    if (filePath.endsWith("/SKILL.md") || filePath.includes("/src/")) return;
     throw new Error("ENOENT");
   });
 });
@@ -138,11 +156,7 @@ beforeEach(() => {
 // ---------------------------------------------------------------------------
 describe("handleMemoryList", () => {
   it("應正確列出指定專案的所有 mem-* 目錄", async () => {
-    vi.mocked(fs.readdir).mockResolvedValue([
-      { isDirectory: () => true, name: "mem-_system" },
-      { isDirectory: () => true, name: "mem-analyzer" },
-      { isDirectory: () => false, name: "browser-testing" }, // 非記憶卡匣，應被過濾
-    ] as unknown as Awaited<ReturnType<typeof fs.readdir>>);
+    mockLegacyMemoryDirectories(["mem-_system", "mem-analyzer"]);
 
     const result = await handleMemoryList({ projectRoot: PROJECT_ROOT });
 
@@ -466,7 +480,8 @@ describe("handleMemoryStatus", () => {
     expect(status.level).toBe("significant");
     expect(status.pendingChanges).toHaveLength(1);
     expect(status.pendingChanges[0].absolutePath).toContain("analyzer.ts");
-    expect(status.actionRequired).toContain("view_file");
+    expect(status.actionRequired).toContain("比較最新相關來源");
+    expect(status.actionRequired).not.toMatch(/memory_update|view_file/);
   });
 
   it("索引檔不存在時應回退讀 SKILL.md frontmatter", async () => {
@@ -613,10 +628,7 @@ describe("handleMemoryList — 增強回傳", () => {
   });
 
   it("索引不存在時應回退到純文字模式", async () => {
-    vi.mocked(fs.readdir).mockResolvedValue([
-      { isDirectory: () => true, name: "mem-_system" },
-    ] as unknown as Awaited<ReturnType<typeof fs.readdir>>);
-    vi.mocked(fs.readFile).mockRejectedValue(new Error("ENOENT"));
+    mockLegacyMemoryDirectories(["mem-_system"]);
 
     const result = await handleMemoryList({ projectRoot: PROJECT_ROOT });
 
@@ -1539,7 +1551,7 @@ describe("handleMemoryReindex — Git exclusion diagnostics", () => {
     const envelope = parseEnvelope(result);
 
     expect(refreshMemoryIndex).toHaveBeenCalledWith({
-      projectRoot: PROJECT_ROOT,
+      projectRoot: path.normalize(PROJECT_ROOT),
       detectMissedChanges: true,
       includeProjectFiles: true,
       persist: true,

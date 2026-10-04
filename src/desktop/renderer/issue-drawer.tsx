@@ -376,7 +376,7 @@ function formatCompactionSummary(cartridge: DesktopCartridgeSnapshot): string {
     metrics.needsCompaction
       ? "需要先彙整或拆卡"
       : metrics.isLegacy
-        ? "待懶升級"
+        ? "舊格式相容"
         : cartridge.trackedFiles.length > 8
           ? "建議評估拆分"
           : metrics.reasons.includes("highChineseRatio")

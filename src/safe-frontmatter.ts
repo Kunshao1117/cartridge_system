@@ -29,9 +29,12 @@ function parse(input: string) {
 }
 
 function stringify(content: string, data: object, original?: string): string {
-  // Object form is important: string form reparses a possible second frontmatter
-  // block at the start of the body, including gray-matter's JavaScript engine.
-  let output = grayMatter.stringify({ content }, data, { language: "yaml", engines });
+  // Serialize data directly: gray-matter.stringify reparses string bodies and
+  // its object form copies data through Object.assign({}, data), losing an own
+  // __proto__ field. Neither behavior belongs at this data-only boundary.
+  const header = yaml.stringify(data).trim();
+  const body = content.endsWith("\n") ? content : `${content}\n`;
+  let output = (header === "{}" ? "" : `---\n${header}\n---\n`) + body;
   if (original?.includes("\r\n")) output = output.replace(/\r?\n/g, "\r\n");
   if (original?.startsWith("\uFEFF")) output = `\uFEFF${output}`;
   return output;

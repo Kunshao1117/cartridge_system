@@ -1540,7 +1540,7 @@ describe("handleMemoryReindex — Git exclusion diagnostics", () => {
     const envelope = parseEnvelope(result);
 
     expect(refreshMemoryIndex).toHaveBeenCalledWith({
-      projectRoot: PROJECT_ROOT,
+      projectRoot: path.normalize(PROJECT_ROOT),
       detectMissedChanges: true,
       includeProjectFiles: true,
       persist: true,

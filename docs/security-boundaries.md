@@ -2,7 +2,7 @@
 
 本批只處理 frontmatter 求值與專案檔案邊界，不調整 stale、人工 dependency 傳播、主檔遷移或發布版本。
 
-- 全部 production gray-matter 呼叫集中至 safe-frontmatter：只接受 YAML/YML/JSON 資料型 frontmatter，保留 safe YAML 日期、未知欄位及 BOM/CRLF 更新相容；不開放自訂 engine。stringify 使用物件內文，避免再次解析內文的第二個 frontmatter。
+- 全部 production gray-matter 呼叫集中至 safe-frontmatter：只接受 YAML/YML/JSON 資料型 frontmatter，保留 safe YAML 日期、未知欄位及 BOM/CRLF 更新相容；不開放自訂 engine。stringify 直接使用資料型 YAML serializer，避免再次解析內文的第二個 frontmatter，並保留 __proto__ 等未知資料欄位。
 - final read/write/open 使用共同 lexical + realpath guard；包含索引 activePath/skillPath/candidatePaths、resolver fallback、metadata、來源依賴掃描、writer、索引交易、context、Desktop openFile，以及 VS Code 開檔命令。VS Code TreeItem 把驗證延至實際命令執行，避免建立項目時的檢查被當成最後一次檢查。
 - projectRoot 是信任邊界。工作區內任意設定的 memoryDir/skillsDir 仍有效；不能藉設定或索引跨出工作區。projectRoot 自身的合法 alias，以及仍指向專案內的 link 可以使用。
 - guard 阻擋現有越界 symlink/junction、懸空 link、跨根／不同磁碟的 drive/UNC 路徑、drive-relative／device 特殊形式及新檔案父目錄越界；不是對抗其他程序持續惡意替換 ancestor 的 OS sandbox，不宣稱消除所有 TOCTOU race。

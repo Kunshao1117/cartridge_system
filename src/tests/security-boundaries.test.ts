@@ -90,6 +90,16 @@ describe("data-only frontmatter boundary", () => {
     expect(() => matter("---\n!!js/function 'function() {}'\n---")).toThrow();
   });
 
+  it("preserves prototype-named data keys without unsafe object merging", () => {
+    const data = JSON.parse('{"__proto__":{"kept":true},"constructor":"kept","prototype":[1,2],"unknown":1}');
+    expect(Object.hasOwn(Object.assign({}, data), "__proto__")).toBe(false); // Previous vendor stringify merge loses this key.
+    const roundTrip = matter(matter.stringify("body", data)).data;
+    expect(Object.hasOwn(roundTrip, "__proto__")).toBe(true);
+    expect(roundTrip).toEqual(data);
+    expect(matter.stringify("", {})).toBe("\n");
+    expect(matter.stringify("body\n", {})).toBe("body\n");
+  });
+
   it("never reparses the body during stringify", () => {
     const body = malicious("javascript");
     const output = matter.stringify(body, { name: "outer", unknown: [1, 2] });

@@ -83,6 +83,23 @@ function completeMemory(moduleName = "mem-test"): string {
   ].join("\n");
 }
 
+function mockLegacyMemoryDirectories(names: string[]): void {
+  vi.mocked(fs.readdir).mockImplementation(async (target) => {
+    const directory = String(target).replace(/\\/g, "/");
+    const entries = directory === `${PROJECT_ROOT}/.agents/memory`
+      ? names.map((name) => ({ name, isDirectory: () => true, isFile: () => false }))
+      : names.some((name) => directory === `${PROJECT_ROOT}/.agents/memory/${name}`)
+        ? [{ name: "SKILL.md", isDirectory: () => false, isFile: () => true }]
+        : [];
+    return entries as unknown as Awaited<ReturnType<typeof fs.readdir>>;
+  });
+  vi.mocked(fs.readFile).mockImplementation(async (target) => {
+    const file = String(target).replace(/\\/g, "/");
+    if (file.endsWith("/SKILL.md")) return completeMemory();
+    throw new Error("ENOENT");
+  });
+}
+
 function handleMemoryCommit(args: unknown) {
   if (typeof args !== "object" || args === null) {
     return handleMemoryCommitRaw(args);
@@ -139,11 +156,7 @@ beforeEach(() => {
 // ---------------------------------------------------------------------------
 describe("handleMemoryList", () => {
   it("應正確列出指定專案的所有 mem-* 目錄", async () => {
-    vi.mocked(fs.readdir).mockResolvedValue([
-      { isDirectory: () => true, name: "mem-_system" },
-      { isDirectory: () => true, name: "mem-analyzer" },
-      { isDirectory: () => false, name: "browser-testing" }, // 非記憶卡匣，應被過濾
-    ] as unknown as Awaited<ReturnType<typeof fs.readdir>>);
+    mockLegacyMemoryDirectories(["mem-_system", "mem-analyzer"]);
 
     const result = await handleMemoryList({ projectRoot: PROJECT_ROOT });
 
@@ -615,10 +628,7 @@ describe("handleMemoryList — 增強回傳", () => {
   });
 
   it("索引不存在時應回退到純文字模式", async () => {
-    vi.mocked(fs.readdir).mockResolvedValue([
-      { isDirectory: () => true, name: "mem-_system" },
-    ] as unknown as Awaited<ReturnType<typeof fs.readdir>>);
-    vi.mocked(fs.readFile).mockRejectedValue(new Error("ENOENT"));
+    mockLegacyMemoryDirectories(["mem-_system"]);
 
     const result = await handleMemoryList({ projectRoot: PROJECT_ROOT });
 

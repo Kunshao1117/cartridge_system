@@ -2,6 +2,7 @@
 node_modules/
 dist/
 release/
+prepublication-artifacts/
 *.vsix
 .vscode-test/
 .DS_Store

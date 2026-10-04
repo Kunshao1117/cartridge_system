@@ -2,6 +2,41 @@
 
 ## [Unreleased]
 
+## [desktop-v5.5.8] — 2026-10-04
+
+### fix
+
+- 收錄本輪 37 項稽核與 CORE-R1 修復、5.5.7 的 fixture／發布器修補，並修正正常多程序鎖交接時的實體路徑驗證誤拒絕。
+- 普通 lock／owner 在 lstat 與 realpath 之間正常消失時，最多完整重新解析三次，每次重查原路徑與祖先；不沿用舊安全判定。持續變動、非 ENOENT、dangling／越界 symlink 仍拒絕。
+- 正式發版前的 PR CI 額外執行完整 npm prepublishOnly、實際 VSIX 打包與 Windows installer --publish never；產物的版本、來源 SHA／tree 和 SHA256 留存供核對，不把 PR 產物宣稱為已正式發布。
+
+### upgrade / limits
+
+- 請將 MCP、VSIX 與 Desktop 一起更新至 5.5.8。5.5.6 僅 npm 已發布；5.5.7 因發布前測試失敗，沒有完成 npm／VSIX／Desktop 成品交付。舊 tag 保留不移動，不推薦混搭。
+- 升級或回退前先停止所有相關用戶端並等待作業排空，再以同版三端啟動。卡片與 index 格式不遷移，未知鎖不得直接刪除。
+- Windows installer 未簽章；已安裝 GUI、真實 Gateway、UNC share／高 DPI 人工驗收未執行。Production audit 0，完整開發／建置樹仍有 29 findings（25 high、4 moderate），不宣稱零風險。
+
+## [5.5.8] — 2026-10-04
+
+### fix
+
+- 修正兩個正常程序交接鎖時，路徑檢查的 lstat 成功而 realpath 遇到已移除鎖所產生的誤拒絕。只對 realpath 的原始 ENOENT 作最多三次完整重解析，每次從原候選路徑重新 lstat，不沿用舊祖先或不存在路徑的 tail。
+- 保持安全邊界：非 ENOENT 不重試，持續 churn 達上限仍 fail-closed；dangling symlink、越界 symlink 及重試期間被替換的路徑仍須通過完整 lexical／physical containment。
+- 新增正常 lock／owner／祖先消失、重試期間 symlink 替換、持續變動與真實雙程序確定性交錯回歸，保留兩次 mutation 都落盤的斷言及完整 child 錯誤診斷。
+- 本版仍包含先前 37 項稽核、CORE-R1、5.5.7 測試 fixture 及 Desktop 資產正規化修復；不進行依賴升級、資料格式遷移或其他功能變更。
+
+### prepublication verification
+
+- PR CI 在正式 tag 建立前執行雙 OS 全套測試、lint、TypeScript、三端 bundles、MCP stdio smoke 與完整 npm prepublishOnly；另實際打包 Linux VSIX 與 Windows installer（--publish never）。
+- 發布前包裝成品檢查 manifest／installer ProductVersion、來源 commit／tree 與 SHA256，僅保存經驗證成品為 CI artifacts。正式 Release 仍從相同凍結 revision 建構，另核對正式成品，不假設安裝檔可逐位元重建。
+- 原實作確定性反例與新實作通過、安全負例及多程序壓力證據一併保留；測試數量、平台 skip 及各階段結論以最終 exact-head CI 為準。
+
+### release / upgrade / limits
+
+- 5.5.6 npm 成品已發布且保留；5.5.7 在 npm prepublishOnly 的第二輪測試被擋下，未上傳 npm，也未啟動 VSIX／Desktop 發布。既有 tag／說明保留，僅更正未交付狀態，不覆寫或刪除成品。
+- 請以同 revision 的三端 5.5.8 作為本輪更新。升級與回退前關閉所有 MCP、Desktop、VS Code／Antigravity 用戶端，等待作業結束再重啟；新舊鎖不得混跑，復原限制見 docs/LOCK_PROTOCOL.md。
+- 依賴內容不變：production audit 0；完整開發／建置樹仍有 29 findings（25 high、4 moderate、0 critical）。未宣稱已安裝 GUI、真實 Gateway、UNC share／高 DPI 人工驗收，也不宣稱 OS sandbox、任意非合作寫入者 CAS、零風險或獨立密碼學 provenance 簽章驗證。
+
 ## [desktop-v5.5.7] — 2026-10-04
 
 ### fix

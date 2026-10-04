@@ -402,6 +402,22 @@ describe('read-only npm source gate', () => {
 });
 
 describe('workflow wiring (without running a release workflow)', () => {
+  it('checks real packages in read-only PR CI before any release trigger', () => {
+    const workflow = fs.readFileSync(path.join(projectRoot, '.github/workflows/security-regression.yml'), 'utf8');
+    expect(workflow).toContain('ref: ${{ github.event.pull_request.head.sha }}');
+    expect(workflow).toContain('run: npm run prepublishOnly');
+    expect(workflow).toContain('run: npm run package');
+    expect(workflow).toContain('run: npm run desktop:dist -- --publish never');
+    expect(workflow).toContain('node scripts/verify-prepublication-artifact.mjs vsix');
+    expect(workflow).toContain('node scripts/verify-prepublication-artifact.mjs desktop');
+    expect(workflow).toContain('PREPUBLICATION_SHA: ${{ github.event.pull_request.head.sha }}');
+    expect(workflow).toContain('path: prepublication-artifacts/*');
+    expect(workflow).toContain('if-no-files-found: error');
+    expect(workflow).toContain('contents: read');
+    expect(workflow).not.toContain('contents: write');
+    expect(workflow).not.toContain('run: npm publish');
+  });
+
   it.each([['release.yml', 'vsix'], ['desktop-release.yml', 'desktop'], ['npm-publish.yml', 'npm']])('%s uses the tested helper before dependencies and publication', (file, surface) => {
     const workflow = fs.readFileSync(path.join(projectRoot, '.github/workflows', file), 'utf8');
     expect(workflow).toContain('ref: ${{ github.sha }}');

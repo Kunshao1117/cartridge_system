@@ -5,6 +5,7 @@ import path from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { handleMemoryCommit } from "../mcp-handlers.js";
 import * as transactions from "../project-index-transaction.js";
+import * as memoryPatch from "../memory-source-patch.js";
 import type { CartridgeEntry, CartridgeIndex } from "../types.js";
 
 let root: string;
@@ -38,9 +39,22 @@ describe("MCP-01 revision-bound memory_commit", () => {
       return realTransaction(options);
     });
     const result = envelope(await commit());
-    expect(result.status).toBe("error");
-    expect(fs.readFileSync(path.join(root, main), "utf8")).toBe(text.replace("Reviewed body", "Newer body must survive"));
-    expect(persisted().cartridges.safe.pendingChanges).toHaveLength(1);
+    expect.soft(result.status).toBe("error");
+    expect.soft(fs.readFileSync(path.join(root, main), "utf8")).toBe(text.replace("Reviewed body", "Newer body must survive"));
+    expect.soft(persisted().cartridges.safe.pendingChanges).toHaveLength(1);
+  });
+
+  it("never overwrites an external edit after preparing a replacement from the old body", async () => {
+    const realPatch = memoryPatch.patchMemorySource;
+    vi.spyOn(memoryPatch, "patchMemorySource").mockImplementationOnce((...args) => {
+      const candidate = realPatch(...args);
+      write(main, text.replace("Reviewed body", "External newer body"));
+      return candidate;
+    });
+    const result = envelope(await commit());
+    expect.soft(fs.readFileSync(path.join(root, main), "utf8")).toBe(text.replace("Reviewed body", "External newer body"));
+    expect.soft(persisted().cartridges.safe.pendingChanges).toHaveLength(1);
+    expect.soft(result.status).toBe("error");
   });
 
   it("does not acknowledge a pending event added after the reviewed snapshot", async () => {
@@ -53,10 +67,10 @@ describe("MCP-01 revision-bound memory_commit", () => {
       return realTransaction(options);
     });
     const result = envelope(await commit());
-    expect(result.status).toBe("error");
-    expect(fs.readFileSync(path.join(root, main), "utf8")).toBe(text);
-    expect(persisted().cartridges.safe.pendingChanges).toHaveLength(2);
-    expect(persisted().cartridges.safe.staleness).toBe(20);
+    expect.soft(result.status).toBe("error");
+    expect.soft(fs.readFileSync(path.join(root, main), "utf8")).toBe(text);
+    expect.soft(persisted().cartridges.safe.pendingChanges).toHaveLength(2);
+    expect.soft(persisted().cartridges.safe.staleness).toBe(20);
   });
 
   it("does not acknowledge changed source bytes before the pending event is delivered", async () => {
@@ -66,18 +80,58 @@ describe("MCP-01 revision-bound memory_commit", () => {
       return realTransaction(options);
     });
     const result = envelope(await commit());
-    expect(result.status).toBe("error");
-    expect(fs.readFileSync(path.join(root, main), "utf8")).toBe(text);
-    expect(persisted().cartridges.safe.pendingChanges).toHaveLength(1);
+    expect.soft(result.status).toBe("error");
+    expect.soft(fs.readFileSync(path.join(root, main), "utf8")).toBe(text);
+    expect.soft(persisted().cartridges.safe.pendingChanges).toHaveLength(1);
   });
 
   it("does not write the card when acquiring the transaction fails", async () => {
     vi.spyOn(transactions, "runProjectIndexTransaction").mockRejectedValueOnce(new Error("lock unavailable"));
     const before = fs.readFileSync(path.join(root, ".cartridge/index.json"), "utf8");
     const result = envelope(await commit());
-    expect(result.status).toBe("error");
-    expect(fs.readFileSync(path.join(root, main), "utf8")).toBe(text);
-    expect(fs.readFileSync(path.join(root, ".cartridge/index.json"), "utf8")).toBe(before);
+    expect.soft(result.status).toBe("error");
+    expect.soft(fs.readFileSync(path.join(root, main), "utf8")).toBe(text);
+    expect.soft(fs.readFileSync(path.join(root, ".cartridge/index.json"), "utf8")).toBe(before);
+  });
+
+  it("keeps the original card and index when atomic card replacement fails", async () => {
+    const realRename = fs.renameSync;
+    vi.spyOn(fs, "renameSync").mockImplementation((from, to) => {
+      if (String(to) === path.join(root, main)) throw new Error("injected card replacement failure");
+      return realRename(from, to);
+    });
+    const before = fs.readFileSync(path.join(root, ".cartridge/index.json"), "utf8");
+    expect.soft(envelope(await commit()).status).toBe("error");
+    expect.soft(fs.readFileSync(path.join(root, main), "utf8")).toBe(text);
+    expect.soft(fs.readFileSync(path.join(root, ".cartridge/index.json"), "utf8")).toBe(before);
+    expect.soft(fs.readdirSync(path.dirname(path.join(root, main)))).toEqual(["MEMORY.md"]);
+  });
+
+  it("rechecks source revision after staging the replacement", async () => {
+    const realOpen = fsp.open;
+    vi.spyOn(fsp, "open").mockImplementation(async (...args) => {
+      if (String(args[0]).includes(".cartridge-review-")) write("src/safe.ts", "export const safe = 3;\n");
+      return realOpen(...args);
+    });
+    expect.soft(envelope(await commit()).status).toBe("error");
+    expect.soft(fs.readFileSync(path.join(root, main), "utf8")).toBe(text);
+    expect.soft(persisted().cartridges.safe.pendingChanges).toHaveLength(1);
+  });
+
+  it("preserves directory tracking declarations and token-free legacy CRLF cards", async () => {
+    const legacy = ".agents/memory/safe/SKILL.md";
+    fs.renameSync(path.join(root, main), path.join(root, legacy));
+    fs.mkdirSync(path.join(root, "src/templates"));
+    const original = text.replace("staleness: 10", "staleness: 10\nunknown: preserved").replace("- src/safe.ts", "- src/safe.ts\n- src/templates/").replace(/\n/g, "\r\n");
+    write(legacy, original);
+    const index = persisted(); index.cartridges.safe.skillPath = legacy; save(index);
+    const result = envelope(await commit());
+    expect.soft(result.summary.synchronizationComplete).toBe(true);
+    const updated = fs.readFileSync(path.join(root, legacy), "utf8");
+    expect.soft(updated).toContain("unknown: preserved\r\n");
+    expect.soft(updated.slice(updated.indexOf("# Reviewed body"))).toBe(original.slice(original.indexOf("# Reviewed body")));
+    expect.soft(fs.existsSync(path.join(root, main))).toBe(false);
+    expect.soft(persisted().cartridges.safe.trackedFiles).toContain("src/templates/");
   });
 
   it("reports partial persistence after a real index replacement failure without hiding pending state", async () => {
@@ -87,9 +141,9 @@ describe("MCP-01 revision-bound memory_commit", () => {
       return realRename(from, to);
     });
     const result = envelope(await commit());
-    expect(result.summary).toMatchObject({ cardWritten: true, indexSynchronized: false, synchronizationComplete: false });
-    expect(result.findings.some((finding: { code: string }) => finding.code === "INDEX_SYNC_PARTIAL")).toBe(true);
-    expect(persisted().cartridges.safe.pendingChanges).toHaveLength(1);
+    expect.soft(result.summary).toMatchObject({ cardWritten: true, indexSynchronized: false, synchronizationComplete: false });
+    expect.soft(result.findings.some((finding: { code: string }) => finding.code === "INDEX_SYNC_PARTIAL")).toBe(true);
+    expect.soft(persisted().cartridges.safe.pendingChanges).toHaveLength(1);
   });
 });
 
@@ -103,8 +157,8 @@ describe("MCP-02 main file identity", () => {
     save(index);
     const before = fs.readFileSync(path.join(root, ".cartridge/index.json"), "utf8");
     const result = envelope(await commit());
-    expect(result.status).toBe("error");
-    expect(fs.readFileSync(path.join(root, target), "utf8")).toBe(content);
-    expect(fs.readFileSync(path.join(root, ".cartridge/index.json"), "utf8")).toBe(before);
+    expect.soft(result.status).toBe("error");
+    expect.soft(fs.readFileSync(path.join(root, target), "utf8")).toBe(content);
+    expect.soft(fs.readFileSync(path.join(root, ".cartridge/index.json"), "utf8")).toBe(before);
   });
 });

@@ -504,7 +504,8 @@ export async function handleMemoryList(args: unknown): Promise<McpToolResult> {
     });
   }
 
-  const agentsDir = path.join(parsed.data.projectRoot, ".agents", "memory");
+  const listProjectRoot = parsed.data.projectRoot;
+  const agentsDir = path.join(listProjectRoot, ".agents", "memory");
   try {
     // 優先從索引檔讀取全部卡匣（含巢狀子卡）
     const indexPath = path.join(
@@ -621,15 +622,15 @@ export async function handleMemoryList(args: unknown): Promise<McpToolResult> {
         if (depth > 4) return;
         let files: Array<{ name: string; isDirectory: () => boolean }>;
         try {
-          files = await fs.readdir(assertPathInsideProject(parsed.data.projectRoot, dir), { withFileTypes: true });
+          files = await fs.readdir(assertPathInsideProject(listProjectRoot, dir), { withFileTypes: true });
         } catch { return; }
         for (const child of files) {
           if (!child.isDirectory() || child.name.startsWith(".") || child.name.toLowerCase() === "archive") continue;
           if (legacyRoot && !child.name.startsWith("mem-")) continue;
           const module = parent ? `${parent}.${child.name}` : child.name;
           const childDir = path.join(dir, child.name);
-          const resolved = await resolveMemoryMainFileInDirectory(parsed.data.projectRoot, childDir);
-          if ((resolved.mainFile.type !== "missing" || await hasChildMemoryCardDirectory(parsed.data.projectRoot, childDir)) && !modules.includes(module)) modules.push(module);
+          const resolved = await resolveMemoryMainFileInDirectory(listProjectRoot, childDir);
+          if ((resolved.mainFile.type !== "missing" || await hasChildMemoryCardDirectory(listProjectRoot, childDir)) && !modules.includes(module)) modules.push(module);
           await collect(childDir, depth + 1, module, false);
         }
       }
@@ -1749,9 +1750,6 @@ export async function handleMemoryDeps(args: unknown): Promise<McpToolResult> {
     let frontmatterDependencies: string[] = [];
     let declarationReadWarning: string | null = null;
     try {
-      if (entry.mainFile?.type === "conflict") {
-        throw new Error("memory main file conflict");
-      }
       const dependencyMainPath = entry.mainFile?.activePath ?? entry.skillPath;
       const rawSkill = await fs.readFile(
         assertPathInsideProject(normalizedPath, dependencyMainPath),

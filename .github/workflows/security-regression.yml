@@ -53,5 +53,3 @@ jobs:
         run: node scripts/release-readiness-check.mjs
       - name: Exercise verifier against the existing published release
         run: PUBLISH_VERSION=5.5.4 GITHUB_SHA=659f2e92da1b22d9162460995b861c006846dfc7 node scripts/verify-npm-publication.mjs
-      - name: Prepare targeted security lock candidate without repository writes
-        run: node scripts/prepare-security-lock.mjs

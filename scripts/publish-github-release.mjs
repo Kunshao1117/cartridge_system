@@ -1,3 +1,4 @@
+import { createHash } from 'node:crypto';
 import { mkdtempSync, readFileSync, rmSync, statSync, writeFileSync } from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
@@ -56,6 +57,11 @@ export async function publishGitHubRelease(surface, { cwd = process.cwd(), env =
   const assetName = path.basename(asset);
   const expectedName = surface === 'vsix' ? `cartridge-system-${source.version}.vsix` : `Cartridge Desktop Console Setup ${source.version}.exe`;
   if (assetName !== expectedName) throw new Error(`Unexpected release artifact: ${assetName}`);
+  // GitHub normalizes spaces in uploaded asset names to dots. Accept only the
+  // exact local name or this fixed Desktop mapping, never fuzzy/suffix matches.
+  const acceptedNames = new Set([assetName, surface === 'desktop' ? assetName.replaceAll(' ', '.') : assetName]);
+  const matching = current => (current.assets ?? []).filter(item => acceptedNames.has(item.name));
+  const sourceLabel = `cartridge-source-sha:${source.revision}`;
   const releaseArgs = ['--repo', source.repository];
   let release = readRelease(source, run, options);
   if (!release) {
@@ -78,7 +84,7 @@ export async function publishGitHubRelease(surface, { cwd = process.cwd(), env =
   // bound to the exact immutable target SHA may recover in that state.
   const draftOwnsPendingTag = releaseSourceVerified && release.draft && release.target_commitish === source.revision;
   await checkSource(!draftOwnsPendingTag);
-  const matchingAssets = (release.assets ?? []).filter(item => item.name === assetName);
+  const matchingAssets = matching(release);
   if (matchingAssets.length > 1) throw new Error('Duplicate release artifact names');
   if (matchingAssets.length === 0) {
     await checkSource(!draftOwnsPendingTag);
@@ -89,7 +95,7 @@ export async function publishGitHubRelease(surface, { cwd = process.cwd(), env =
     if (!release) throw new Error('Uploaded release could not be verified');
     requireReleaseSource(release, source);
   }
-  const uploaded = (release.assets ?? []).filter(item => item.name === assetName);
+  const uploaded = matching(release);
   if (uploaded.length !== 1 || uploaded[0].state !== 'uploaded' || !(uploaded[0].size > 0)) {
     throw new Error('Release asset is incomplete; refusing to overwrite or publish it');
   }
@@ -97,7 +103,43 @@ export async function publishGitHubRelease(surface, { cwd = process.cwd(), env =
   if (label.startsWith('cartridge-source-sha:') && label !== `cartridge-source-sha:${source.revision}`) {
     throw new Error('Existing artifact source mismatch; refusing to overwrite it');
   }
-  const assetSourceVerified = releaseSourceVerified || label === `cartridge-source-sha:${source.revision}`;
+  const assetSourceVerified = releaseSourceVerified || label === sourceLabel;
+  if (release.draft && releaseSourceVerified && label !== sourceLabel) {
+    throw new Error('Draft asset source label is missing; refusing publication');
+  }
+  if (assetSourceVerified) {
+    const saved = uploaded[0];
+    if (!Number.isSafeInteger(saved.id) || saved.id <= 0 || !/^sha256:[a-f0-9]{64}$/.test(saved.digest ?? '')) {
+      throw new Error('Release asset has no stable ID or SHA256 digest');
+    }
+    const digest = bytes => `sha256:${createHash('sha256').update(bytes).digest('hex')}`;
+    if (matchingAssets.length === 0 && (label !== sourceLabel || saved.digest !== digest(readFileSync(asset)))) {
+      throw new Error('Uploaded artifact bytes or source label mismatch');
+    }
+    // An existing same-source installer need not be reproducible by a rebuild.
+    // Verify its own downloaded bytes against GitHub's digest, never overwrite it.
+    const temporary = mkdtempSync(path.join(os.tmpdir(), 'cartridge-asset-verify-'));
+    try {
+      await checkSource(!draftOwnsPendingTag);
+      run('gh', ['release', 'download', source.tag, ...releaseArgs, '--pattern', saved.name, '--dir', temporary], options);
+      const downloaded = readFileSync(path.join(temporary, saved.name));
+      if (downloaded.length !== saved.size || digest(downloaded) !== saved.digest) {
+        throw new Error('Downloaded release asset digest or size mismatch');
+      }
+    } finally {
+      rmSync(temporary, { recursive: true, force: true });
+    }
+    release = readRelease(source, run, options);
+    if (!release) throw new Error('Verified release could not be read back');
+    if (requireReleaseSource(release, source) !== releaseSourceVerified) {
+      throw new Error('Release provenance changed during asset verification');
+    }
+    const readback = matching(release);
+    const identity = value => JSON.stringify([value.id, value.name, value.digest, value.label, value.state, value.size]);
+    if (readback.length !== 1 || identity(readback[0]) !== identity(saved)) {
+      throw new Error('Release asset identity changed during verification');
+    }
+  }
   // Do not publish someone else's unmarked legacy draft as a side effect of
   // missing-asset recovery. Its title, notes and draft status remain unchanged.
   if (release.draft && releaseSourceVerified) {
@@ -110,7 +152,7 @@ export async function publishGitHubRelease(surface, { cwd = process.cwd(), env =
     await checkSource(true);
   }
   return {
-    ...sourceRecord(source), asset: assetName, retainedExistingAsset: matchingAssets.length === 1,
+    ...sourceRecord(source), asset: uploaded[0].name, assetId: uploaded[0].id ?? null, assetDigest: uploaded[0].digest ?? null, retainedExistingAsset: matchingAssets.length === 1,
     releaseSourceVerified, assetSourceVerified, draft: release.draft,
     warnings: releaseSourceVerified ? [] : ['Legacy release source record is absent; original asset provenance is unverified. Existing assets, title and notes were retained.'],
   };

@@ -1,4 +1,5 @@
 import fs from 'node:fs';
+import { createHash } from 'node:crypto';
 import os from 'node:os';
 import path from 'node:path';
 import { spawnSync } from 'node:child_process';
@@ -164,7 +165,9 @@ function publishingFixture(surface = 'vsix', selectedTag = true) {
   test.env[surface === 'vsix' ? 'VSIX_PATH' : 'DESKTOP_INSTALLER_PATH'] = name;
   fs.writeFileSync(path.join(test.cwd, name), 'fixture artifact');
   fs.writeFileSync(path.join(test.cwd, surface === 'vsix' ? 'RELEASE_NOTES.md' : 'DESKTOP_RELEASE_NOTES.md'), '# Fixture notes');
-  const state = { release: null, calls: [], failUpload: false };
+  const artifact = Buffer.from('fixture artifact');
+  const digest = `sha256:${createHash('sha256').update(artifact).digest('hex')}`;
+  const state = { release: null, calls: [], failUpload: false, artifact, digest, nextAssetId: 101, transformAsset: asset => asset };
   const run = (program, args, options) => {
     if (program === 'git') return command(program, args, options);
     if (program !== 'gh') throw new Error('Unexpected command');
@@ -176,7 +179,11 @@ function publishingFixture(surface = 'vsix', selectedTag = true) {
     }
     if (args[1] === 'upload') {
       if (state.failUpload) throw new Error('simulated interrupted upload');
-      state.release.assets.push({ name, state: 'uploaded', size: 16, label: args[3].split('#')[1] });
+      state.release.assets.push(state.transformAsset({ id: state.nextAssetId++, name: name.replaceAll(' ', '.'), state: 'uploaded', size: artifact.length, digest, label: args[3].split('#')[1] }));
+      return '';
+    }
+    if (args[1] === 'download') {
+      fs.writeFileSync(path.join(args[args.indexOf('--dir') + 1], args[args.indexOf('--pattern') + 1]), state.artifact);
       return '';
     }
     if (args[1] === 'edit') {
@@ -189,7 +196,7 @@ function publishingFixture(surface = 'vsix', selectedTag = true) {
   return { ...test, source, name, state, run, fetchImpl: async () => new Response(null, { status: 404 }) };
 }
 
-const writes = state => state.calls.filter(args => args[0] === 'release');
+const writes = state => state.calls.filter(args => args[0] === 'release' && args[1] !== 'download');
 
 describe('safe GitHub release helper with simulated GitHub transport', () => {
   it.each(['vsix', 'desktop'])('%s saves identity in the initial draft, uploads once, and safely retains it on rerun', async (surface) => {
@@ -213,6 +220,49 @@ describe('safe GitHub release helper with simulated GitHub transport', () => {
     expect(create).not.toContain('--verify-tag');
     expect(create[create.indexOf('--target') + 1]).toBe(test.revision);
     expect(verifyReleaseSource(surface, test).selectedTagExists).toBe(true);
+  });
+
+  it('accepts the real GitHub Desktop space-to-dot name and verifies exact uploaded bytes', async () => {
+    const test = publishingFixture('desktop', false);
+    const result = await publishGitHubRelease('desktop', test);
+    expect(result).toMatchObject({ asset: test.name.replaceAll(' ', '.'), assetId: 101, assetDigest: test.state.digest, draft: false });
+    expect(test.state.calls.find(args => args[1] === 'download')).toContain(test.name.replaceAll(' ', '.'));
+  });
+
+  it.each(['digest', 'id', 'label', 'name'])('refuses a newly uploaded asset with mismatched %s', async (field) => {
+    const test = publishingFixture('desktop', false);
+    test.state.transformAsset = asset => ({ ...asset, [field]: { digest: `sha256:${'f'.repeat(64)}`, id: null, label: 'missing-source', name: 'unrelated.exe' }[field] });
+    await expect(publishGitHubRelease('desktop', test)).rejects.toThrow(/artifact bytes|stable ID|source label|incomplete/);
+    expect(test.state.release.draft).toBe(true);
+    expect(writes(test.state).some(args => args[1] === 'edit')).toBe(false);
+  });
+
+  it('rejects collisions between exact and GitHub-normalized Desktop names', async () => {
+    const test = publishingFixture('desktop');
+    test.state.release = { tag_name: test.source.tag, draft: true, body: sourceNotes('notes', test.source), assets: [test.name, test.name.replaceAll(' ', '.')].map((name, index) => ({ id: index + 1, name, state: 'uploaded', size: 16, digest: test.state.digest, label: `cartridge-source-sha:${test.revision}` })) };
+    await expect(publishGitHubRelease('desktop', test)).rejects.toThrow('Duplicate release artifact names');
+    expect(writes(test.state)).toEqual([]);
+  });
+
+  it('verifies retained asset bytes against its own digest without comparing a new rebuild', async () => {
+    const test = publishingFixture('desktop');
+    await publishGitHubRelease('desktop', test);
+    test.state.artifact = Buffer.from('corrupted remote bytes');
+    test.state.calls.length = 0;
+    await expect(publishGitHubRelease('desktop', test)).rejects.toThrow('Downloaded release asset digest or size mismatch');
+    expect(writes(test.state)).toEqual([]);
+  });
+
+  it('rejects an asset whose stable identity changes during download verification', async () => {
+    const test = publishingFixture('desktop');
+    const run = (program, args, options) => {
+      const value = test.run(program, args, options);
+      if (program === 'gh' && args[1] === 'download') test.state.release.assets = test.state.release.assets.map(asset => ({ ...asset, id: asset.id + 1 }));
+      return value;
+    };
+    await expect(publishGitHubRelease('desktop', { ...test, run })).rejects.toThrow('Release asset identity changed');
+    expect(test.state.release.draft).toBe(true);
+    expect(writes(test.state).some(args => args[1] === 'edit')).toBe(false);
   });
 
   it('recovers a missing asset after an interrupted upload using the original draft source', async () => {

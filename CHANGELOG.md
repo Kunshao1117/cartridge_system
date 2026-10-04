@@ -2,6 +2,38 @@
 
 ## [Unreleased]
 
+## [desktop-v5.5.7] — 2026-10-04
+
+### fix
+
+- 包含 5.5.6 的 37 項原始碼稽核修復與 CORE-R1 鎖競態修復，並修正正式發布前核對發現的 Desktop 資產名稱問題。
+- GitHub 會將 Windows 安裝檔名中的空格轉成點；發布流程使用精確名稱映射、asset ID、同來源 label、下載內容與 SHA256 核對，保留來源 gate、既有成品及同來源可恢復草稿，不以模糊名稱或覆寫繞過檢查。
+- 停止監控的回歸 fixture 改為只釋放自己建立的 UUID owner，再等待 startup／stop 排空；保留全部卡片與索引位元組不變斷言，避免測試清理遞迴刪除鎖時與新世代競態。
+
+### upgrade / limits
+
+- 三端請統一使用 5.5.7。5.5.6 僅 npm runtime 已送出並完成核驗，未完成 VSIX／Desktop 三端正式交付，不建議混搭。
+- 升級或回退前，停止所有 MCP、Desktop 及 VS Code／Antigravity 用戶端並等待作業結束，再以同版三端重啟；新舊鎖協定不得混跑。記憶卡及 index 格式不遷移，未知鎖不得直接刪除。
+- Windows 安裝檔仍未簽章；已安裝 GUI、真實 Gateway、UNC share／高 DPI 人工驗收未執行。Production audit 0，完整開發／建置樹仍有 29 findings（25 high、4 moderate），不宣稱零風險。
+
+## [5.5.7] — 2026-10-04
+
+### fix
+
+- 收錄 5.5.6 所列 37 項原始碼稽核修復及 CORE-R1；僅增加必要發布流程與測試 fixture 修復，產品功能與依賴版本不變。
+- 修正 startup-warning 回歸測試的清理競態：測試原本在監控交易尚未排空時遞迴刪除共用鎖，可能與新 owner 的 rename 交錯而出現 ENOTEMPTY。改為只釋放 fixture 的唯一 owner marker、非遞迴移除空目錄、等待工作排空，再清理測試目錄；不略過案例或放寬資料不變斷言。
+- 修正 GitHub Desktop 資產名稱正規化處理，新增真實空格→點行為、名稱碰撞、錯誤來源／digest／ID、下載損毀及讀回身分漂移的反例。新上傳核對本次 bytes；同來源重跑核對已發布成品自身的 digest，不要求重建安裝檔完全相同，亦不覆寫既有成品。
+
+### release / upgrade
+
+- 5.5.6 npm 已由固定來源發布並通過重跑核驗（重跑明確跳過 publish）；該版本未完成三端交付，既有 tag／npm 成品保留不覆寫。請以 5.5.7 作為本輪三端一致更新版本，不混搭不同版本。
+- npm MCP、VSIX 與 Desktop 5.5.7 的三個 tag 由同一 merged revision 發布。升級與回退前先關閉所有相關用戶端，等待作業結束，再以同版重啟；記憶卡與 index 格式不遷移。鎖復原限制見 docs/LOCK_PROTOCOL.md。
+
+### verification / limits
+
+- 正式最終提交須重新通過 Linux／Windows 完整測試、lint、TypeScript、三端 builds、MCP stdio smoke 及發布前稽核；新增測試保留原 725 項回歸的安全／資料完整性條件。最終數量與平台 skip 以對應 GitHub Actions 為準。
+- 依賴版本未變更：production audit 0；完整開發／建置樹仍有 29 findings（25 high、4 moderate、0 critical）。不宣稱已安裝 Electron／VSIX GUI、真實 Gateway、UNC share／高 DPI 人工驗收，亦不宣稱 OS sandbox、任意非合作寫入者 CAS 或獨立密碼學 provenance 簽章驗證。
+
 ## [desktop-v5.5.6] — 2026-10-04
 
 ### fix

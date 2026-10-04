@@ -17,8 +17,13 @@ function write(relative, content) {
 write(".agents/memory/safe/MEMORY.md", "---\nname: safe\ndescription: SAFE_BUNDLE_SENTINEL\n---\n# Safe\n");
 fs.writeFileSync(path.join(sandbox, "outside.md"), "OUTSIDE_BUNDLE_SENTINEL");
 write(".cartridge/index.json", JSON.stringify({ cartridges: { poison: { skillPath: "../outside.md" } } }));
+const maliciousModules = [];
 for (const language of ["js", "javascript"]) {
-  write(`.agents/memory/mal-${language}/MEMORY.md`, `---${language}\n({ name: (require('node:fs').writeFileSync(${JSON.stringify(marker)}, 'executed'), 'bad') })\n---\n# body\n`);
+  for (const bomCount of [0, 1, 2, 3]) {
+    const moduleName = `mal-${language}-${bomCount}`;
+    maliciousModules.push(moduleName);
+    write(`.agents/memory/${moduleName}/MEMORY.md`, `${"\uFEFF".repeat(bomCount)}---${language}\n({ name: (require('node:fs').writeFileSync(${JSON.stringify(marker)}, 'executed'), 'bad') })\n---\n# body\n`);
+  }
 }
 
 async function checkServer(number) {
@@ -33,7 +38,7 @@ async function checkServer(number) {
       return JSON.parse(block.text);
     };
     assert.match(JSON.stringify(await read("safe")), /SAFE_BUNDLE_SENTINEL/);
-    for (const id of ["poison", "mal-js", "mal-javascript"]) {
+    for (const id of ["poison", ...maliciousModules]) {
       const result = await read(id);
       assert.equal(result.status, "error");
       assert.doesNotMatch(JSON.stringify(result), /OUTSIDE_BUNDLE_SENTINEL/);

@@ -73,6 +73,21 @@ describe("data-only frontmatter boundary", () => {
     expect(sentinel.cartridgeSecuritySentinel).toBeUndefined();
   });
 
+  it.each([1, 2, 3])("normalizes %s leading BOMs before checking engines", (count) => {
+    const prefix = "\uFEFF".repeat(count);
+    for (const language of ["js", "javascript", "constructor", "toml"]) {
+      for (const newline of ["\n", "\r\n"]) {
+        expect(() => matter(prefix + malicious(language).replace(/\n/g, newline))).toThrow();
+        expect(() => matter(prefix + `---${language}${newline}${newline}---${newline}`)).toThrow();
+      }
+      expect(sentinel.cartridgeSecuritySentinel).toBeUndefined();
+    }
+    const safeYaml = prefix + "---\nname: yaml\n---\nbody";
+    expect(matter(safeYaml).data.name).toBe("yaml");
+    expect(updateFrontmatterFields(safeYaml, { staleness: 0 }).startsWith(prefix + "---")).toBe(true);
+    expect(matter(prefix + '---json\n{"name":"json"}\n---\nbody').data.name).toBe("json");
+  });
+
   it("preserves pure YAML/JSON data, dates, unknown fields, BOM and CRLF", () => {
     const raw = "\uFEFF---\r\nname: safe\r\nlast_reviewed: 2026-10-04\r\nquoted_date: '2026-10-04'\r\nunknown:\r\n  nested: [a, b]\r\ndescription: |\r\n  第一行\r\n  第二行\r\n---\r\n# body\r\n";
     const target = write(cardPath, raw);

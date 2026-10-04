@@ -6,14 +6,23 @@ type DataEngine = { parse: (input: string) => object; stringify: (data: object) 
 // Capture only the safe engine; never accept caller-provided parsers or options.
 const yaml = { ...(grayMatter as typeof grayMatter & { engines: { yaml: DataEngine } }).engines.yaml };
 const json: DataEngine = { parse: JSON.parse, stringify: (data) => JSON.stringify(data, null, 2) };
-const engines = { yaml, yml: yaml, json };
+const dataEngines = { yaml, yml: yaml, json };
+function rejectExecutableFrontmatter(): never {
+  throw new Error("Executable frontmatter is not supported");
+}
+// gray-matter merges options with built-ins; shadow both executable names as a
+// second barrier, even if a future delimiter/normalization change misses a header.
+const engines = { ...dataEngines,
+  javascript: { parse: rejectExecutableFrontmatter, stringify: rejectExecutableFrontmatter },
+  js: { parse: rejectExecutableFrontmatter, stringify: rejectExecutableFrontmatter },
+};
 
 function checkedInput(input: string): string {
-  const text = input.replace(/^\uFEFF/, "");
+  const text = input.replace(/^\uFEFF+/, "");
   if (!text.startsWith("---") || text[3] === "-") return text;
   const end = text.indexOf("\n");
   const header = text.slice(3, end < 0 ? undefined : end).trim();
-  if (header && !Object.prototype.hasOwnProperty.call(engines, header)) {
+  if (header && !Object.prototype.hasOwnProperty.call(dataEngines, header)) {
     throw new Error(`Unsupported frontmatter language: ${header}`);
   }
   return text;
@@ -36,7 +45,8 @@ function stringify(content: string, data: object, original?: string): string {
   const body = content.endsWith("\n") ? content : `${content}\n`;
   let output = (header === "{}" ? "" : `---\n${header}\n---\n`) + body;
   if (original?.includes("\r\n")) output = output.replace(/\r?\n/g, "\r\n");
-  if (original?.startsWith("\uFEFF")) output = `\uFEFF${output}`;
+  const bom = original?.match(/^\uFEFF+/)?.[0] ?? "";
+  if (bom) output = bom + output;
   return output;
 }
 

@@ -31,7 +31,10 @@ async function buildWorker(root: string): Promise<string> {
   return script;
 }
 
-type Message = { kind: string; ok?: boolean; error?: string };
+type Message = { kind: string; ok?: boolean; error?: string; stack?: string };
+function expectSuccess(result: Message): void {
+  expect(result, JSON.stringify(result, null, 2)).toMatchObject({ ok: true });
+}
 function child(script: string, root: string, role: string) {
   const process: ChildProcess = fork(script, [root, role], { stdio: ["ignore", "ignore", "pipe", "ipc"] });
   const queued: Message[] = [];
@@ -81,7 +84,7 @@ it("CORE-R1 a delayed stale reaper never removes a different process's fresh liv
     const freshResult = await fresh.next("result");
     expect.soft(delayedResult).toMatchObject({ ok: false, error: expect.stringMatching(/Timed out waiting/) });
     expect.soft(ownerAfter).toMatchObject({ token: freshOwner!.token });
-    expect.soft(freshResult).toMatchObject({ ok: true });
+    expect.soft(freshResult, JSON.stringify(freshResult, null, 2)).toMatchObject({ ok: true });
     const indexRaw = await fs.readFile(path.join(root, ".cartridge/index.json"), "utf8").catch(() => "null");
     const index = JSON.parse(indexRaw) as { untrackedFiles?: Array<{ filePath: string }> } | null;
     const committedFiles = index?.untrackedFiles?.map((entry) => entry.filePath) ?? [];
@@ -102,8 +105,8 @@ it("CORE-R1 two independent processes serialize and retain both committed mutati
     const script = await buildWorker(root);
     const first = child(script, root, "first"); const second = child(script, root, "second");
     children.push(first.process, second.process);
-    expect(await first.next("result")).toMatchObject({ ok: true });
-    expect(await second.next("result")).toMatchObject({ ok: true });
+    expectSuccess(await first.next("result"));
+    expectSuccess(await second.next("result"));
     const index = JSON.parse(await fs.readFile(path.join(root, ".cartridge/index.json"), "utf8")) as { untrackedFiles: Array<{ filePath: string }> };
     expect(index.untrackedFiles.map(entry => entry.filePath).sort()).toEqual(["first.ts", "second.ts"]);
   } finally { await Promise.all(children.map(stopChild)); await fs.rm(root, { recursive: true, force: true }); }
@@ -119,10 +122,34 @@ it.each(["crash-candidate", "crash-recovery"])("CORE-R1 recovers safely after pr
     await doomed.next(role === "crash-candidate" ? "candidate-ready" : "unlinked");
     await stopChild(doomed.process);
     const survivor = child(script, root, "survivor"); children.push(survivor.process);
-    expect(await survivor.next("result")).toMatchObject({ ok: true });
+    expectSuccess(await survivor.next("result"));
     const artifacts = await fs.readdir(path.join(root, ".cartridge"));
     expect(artifacts.filter(name => name.startsWith("index.lock"))).toEqual([]);
     const index = JSON.parse(await fs.readFile(path.join(root, ".cartridge/index.json"), "utf8")) as { untrackedFiles: Array<{ filePath: string }> };
     expect(index.untrackedFiles.map(entry => entry.filePath)).toEqual(["survivor.ts"]);
   } finally { await Promise.all(children.map(stopChild)); await fs.rm(root, { recursive: true, force: true }); }
+}, 30_000);
+
+
+it("CORE-R1 normal release between containment lstat and realpath retains both process mutations", async () => {
+  const root = await fs.mkdtemp(path.join(os.tmpdir(), "cartridge-lock-containment-"));
+  const children: ChildProcess[] = [];
+  try {
+    const script = await buildWorker(root);
+    const first = child(script, root, "containment-owner"); children.push(first.process);
+    await first.next("acquired");
+    const second = child(script, root, "containment-observer"); children.push(second.process);
+    await second.next("containment-observed");
+    expect(await readOwner(root)).not.toBeNull();
+    first.process.send("commit");
+    expectSuccess(await first.next("result"));
+    expect(await fs.lstat(path.join(root, ".cartridge/index.lock")).then(() => "exists", (error: NodeJS.ErrnoException) => error.code)).toBe("ENOENT");
+    await fs.writeFile(path.join(root, "continue-containment"), "released");
+    expectSuccess(await second.next("result"));
+    const index = JSON.parse(await fs.readFile(path.join(root, ".cartridge/index.json"), "utf8")) as { untrackedFiles: Array<{ filePath: string }> };
+    expect(index.untrackedFiles.map(entry => entry.filePath).sort()).toEqual(["containment-observer.ts", "containment-owner.ts"]);
+  } finally {
+    await Promise.all(children.map(stopChild));
+    await fs.rm(root, { recursive: true, force: true });
+  }
 }, 30_000);

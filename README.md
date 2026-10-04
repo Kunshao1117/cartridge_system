@@ -2,7 +2,7 @@
 
 > **現實感知 AI 記憶防禦引擎** — 自動偵測記憶卡過期、幽靈檔案、跨模組依賴傳播，確保 AI 不讀取失效的上下文。
 
-[![version](https://img.shields.io/badge/version-5.5.7-blue)](./CHANGELOG.md)
+[![version](https://img.shields.io/badge/version-5.5.8-blue)](./CHANGELOG.md)
 [![tests](https://github.com/Kunshao1117/cartridge_system/actions/workflows/security-regression.yml/badge.svg)](https://github.com/Kunshao1117/cartridge_system/actions/workflows/security-regression.yml)
 [![license](https://img.shields.io/badge/license-MIT-green)](#)
 
@@ -69,7 +69,7 @@ Cartridge System 是一個為 [Antigravity 框架](https://github.com/Kunshao111
 
 ## 🚀 安裝方式
 
-> **5.5.7 升級／回退必讀**：本版修正專案跨程序寫入鎖。變更版本前先關閉所有 MCP、Desktop 與 VS Code／Antigravity 用戶端，等待進行中作業結束，再讓三端使用同一版本重新啟動；新舊版本不得混跑。記憶卡及 index 格式不遷移。若鎖無法安全回收，勿直接刪除，請依本文末尾的復原說明處理。
+> **5.5.8 升級／回退必讀**：本版修正專案跨程序寫入鎖。變更版本前先關閉所有 MCP、Desktop 與 VS Code／Antigravity 用戶端，等待進行中作業結束，再讓三端使用同一版本重新啟動；新舊版本不得混跑。記憶卡及 index 格式不遷移。若鎖無法安全回收，勿直接刪除，請依本文末尾的復原說明處理。
 
 ### 方法一：下載正式版 VSIX（推薦）
 
@@ -78,7 +78,7 @@ Cartridge System 是一個為 [Antigravity 框架](https://github.com/Kunshao111
 3. 在 VS Code / Antigravity 使用 **Install from VSIX** 安裝，或使用 CLI：
 
 ```bash
-antigravity --install-extension cartridge-system-5.5.7.vsix --force
+antigravity --install-extension cartridge-system-5.5.8.vsix --force
 ```
 
 ### 方法二：本機打包安裝
@@ -90,7 +90,7 @@ npm run build
 npm run package
 
 # 使用 Antigravity IDE CLI 安裝（注意：不可用 code 指令）
-antigravity --install-extension cartridge-system-5.5.7.vsix --force
+antigravity --install-extension cartridge-system-5.5.8.vsix --force
 ```
 
 ### 方法三：開發模式
@@ -185,7 +185,7 @@ Desktop Console、VSIX 與 MCP 對同一專案以 `.cartridge/index.json` 為 ca
 
 Cartridge System 使用 GitHub Actions 自動發布 VSIX。正式版本不需要手動開 GitHub Release 拖檔案。
 
-VSIX 插件、Desktop Console 與 npm MCP runtime 使用不同發布入口：`v5.5.7` 代表 VSIX 插件 release；`desktop-v5.5.7` 代表桌面監控台 release；`npm-v5.5.7` 代表 npm MCP runtime release。三個 tag 必須指向同一份 5.5.7 原始碼 revision，特別是 Desktop 與 VSIX，不得以不同原始碼打包成同一版本。未來版本仍依序使用 `vX.Y.Z`、`desktop-vX.Y.Z` 與 `npm-vX.Y.Z`。
+VSIX 插件、Desktop Console 與 npm MCP runtime 使用不同發布入口：`v5.5.8` 代表 VSIX 插件 release；`desktop-v5.5.8` 代表桌面監控台 release；`npm-v5.5.8` 代表 npm MCP runtime release。三個 tag 必須指向同一份 5.5.8 原始碼 revision，特別是 Desktop 與 VSIX，不得以不同原始碼打包成同一版本。未來版本仍依序使用 `vX.Y.Z`、`desktop-vX.Y.Z` 與 `npm-vX.Y.Z`。
 
 ### 自動發布正式版
 
@@ -210,8 +210,8 @@ npm run package
 3. 推送版本 tag：
 
 ```bash
-git tag v5.5.7
-git push origin v5.5.7
+git tag v5.5.8
+git push origin v5.5.8
 ```
 
 GitHub Actions 會自動執行測試、打包 `cartridge-system-*.vsix`、建立或更新 Release，並把 VSIX 掛到 Release 附件；此流程不會發布 npm MCP runtime。
@@ -242,11 +242,11 @@ npm run desktop:dist
 推送桌面版 tag：
 
 ```bash
-git tag desktop-v5.5.7
-git push origin desktop-v5.5.7
+git tag desktop-v5.5.8
+git push origin desktop-v5.5.8
 ```
 
-GitHub Actions 會在 Windows runner 上重新打包桌面安裝檔，建立 `Cartridge Desktop Console desktop-v5.5.7` Release，並把 `Cartridge Desktop Console Setup 5.5.7.exe` 掛到附件。桌面版 Release 不會標記為 GitHub Latest，避免 VSIX 更新檢查誤讀桌面版本；此流程也不會將 `release/desktop` 產物提交進 Git。
+GitHub Actions 會在 Windows runner 上重新打包桌面安裝檔，建立 `Cartridge Desktop Console desktop-v5.5.8` Release，並把 `Cartridge Desktop Console Setup 5.5.8.exe` 掛到附件。桌面版 Release 不會標記為 GitHub Latest，避免 VSIX 更新檢查誤讀桌面版本；此流程也不會將 `release/desktop` 產物提交進 Git。
 
 若需要補齊桌面版附件，進入 GitHub 的 **Actions → Release Desktop Console → Run workflow**，選擇原 release tag 所在的 revision，輸入相同版本。它採用與 VSIX 相同的遠端 tag／checkout SHA 檢查與附件保留規則，不會覆寫現有安裝檔。
 
@@ -271,8 +271,8 @@ npm publish --dry-run
 若使用 GitHub Actions Trusted Publishing，請推送 npm 專用 tag，不要使用 VSIX 的 `vX.Y.Z` tag：
 
 ```bash
-git tag npm-v5.5.7
-git push origin npm-v5.5.7
+git tag npm-v5.5.8
+git push origin npm-v5.5.8
 ```
 
 `Publish npm` workflow 與 VSIX/Desktop 使用相同的遠端 tag／固定 checkout SHA gate，並在發布前重新檢查。若 npm registry 已有同版本，會跳過寫入；只有後續驗證確認 `gitHead` 等於此次 SHA、tarball 完整性與內容正確時才算成功，來源不同仍會失敗。npm 同一版本不會覆寫。
@@ -574,7 +574,7 @@ cartridge_system/
 > 💡 **治理備註**：`.agents/` 目錄在 Git 中採取「白名單模式」，追蹤 `memory/` 原始碼記憶、`context/` 專案脈絡與 `project_skills/` 專案衍生技能；其餘框架部署產物預設不納入版本控制以保持儲存庫輕量化。
 
 ├── CHANGELOG.md              # 更新紀錄（含插件更新檢查 Unreleased 紀錄）
-└── package.json              # v5.5.7
+└── package.json              # v5.5.8
 ```
 
 ### 技術堆疊

@@ -15,22 +15,31 @@ function isInside(root: string, candidate: string): boolean {
 
 /** Canonicalize even a not-yet-created leaf without following dangling links. */
 function physicalPath(candidate: string): string {
-  let current = candidate;
-  const tail: string[] = [];
-  for (;;) {
-    try {
-      fs.lstatSync(current);
-    } catch (error) {
-      if ((error as NodeJS.ErrnoException).code !== "ENOENT") throw error;
-      const parent = path.dirname(current);
-      if (parent === current) throw error;
-      tail.unshift(path.basename(current));
-      current = parent;
-      continue;
+  // A cooperating writer may remove a lock entry between lstat and realpath.
+  // Retry the complete resolution so no stale ancestor or missing tail survives.
+  // Every retry still lstats existing entries: dangling links never become leaves.
+  for (let attempt = 0; ; attempt += 1) {
+    let current = candidate;
+    const tail: string[] = [];
+    for (;;) {
+      try {
+        fs.lstatSync(current);
+      } catch (error) {
+        if ((error as NodeJS.ErrnoException).code !== "ENOENT") throw error;
+        const parent = path.dirname(current);
+        if (parent === current) throw error;
+        tail.unshift(path.basename(current));
+        current = parent;
+        continue;
+      }
+      try {
+        return path.resolve(fs.realpathSync(current), ...tail);
+      } catch (error) {
+        // Only a vanished entry merits retry, and persistent churn fails closed.
+        if ((error as NodeJS.ErrnoException).code !== "ENOENT" || attempt >= 2) throw error;
+        break;
+      }
     }
-    // lstat succeeded: a dangling symlink must fail here, not be treated as a
-    // missing leaf whose parent would otherwise pass the containment check.
-    return path.resolve(fs.realpathSync(current), ...tail);
   }
 }
 

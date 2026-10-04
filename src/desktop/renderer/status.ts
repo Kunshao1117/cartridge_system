@@ -37,8 +37,9 @@ export function buildProjectActionItems(
       },
     ];
   }
+  const uncertain = Boolean(project.error || project.syncWarning || project.status === "paused");
   const counts = project.counts;
-  return [
+  const items: ActionItem[] = [
     {
       key: "blocking",
       kind: counts.blocking > 0 ? "warning" : "ok",
@@ -64,10 +65,10 @@ export function buildProjectActionItems(
     {
       key: "ghost",
       kind: counts.ghostFiles > 0 ? "warning" : "ok",
-      title: counts.ghostFiles > 0 ? "清理幽靈檔案" : "沒有幽靈檔案",
+      title: counts.ghostFiles > 0 ? "複審缺失來源" : "沒有幽靈檔案",
       description:
         counts.ghostFiles > 0
-          ? "這個專案的記憶卡仍追蹤已不存在的路徑，應該開卡清理。"
+          ? "先確認來源是否暫時不可用；需恢復或經授權調整不再適用的追蹤路徑。"
           : "這個專案目前沒有已刪除但仍被追蹤的檔案。",
       count: counts.ghostFiles,
       tone: counts.ghostFiles > 0 ? "danger" : "success",
@@ -87,6 +88,13 @@ export function buildProjectActionItems(
       tone: counts.review > 0 || counts.advisory > 0 ? "warning" : "success",
     },
   ];
+  return uncertain ? items.map((item): ActionItem => ({
+    ...item,
+    kind: "warning",
+    tone: item.count > 0 ? item.tone : "warning",
+    title: item.count > 0 ? `上次資料：${item.title}` : "尚未確認目前狀態",
+    description: project.error ?? project.syncWarning ?? "監控已暫停，恢復並重新掃描後才能確認目前狀態。",
+  })) : items;
 }
 
 export function getProjectStatus(status: DesktopProjectSnapshot["status"]): {
@@ -107,6 +115,12 @@ export function getCartridgeStatus(cartridge: DesktopCartridgeSnapshot): {
   label: string;
   tone: Tone;
 } {
+  if (cartridge.warnings) {
+    if (cartridge.warnings.some(item => item.tier === "blocking")) return { label: "阻塞", tone: "danger" };
+    if (cartridge.warnings.some(item => item.tier === "review")) return { label: "複審", tone: "warning" };
+    if (cartridge.warnings.some(item => item.tier === "advisory")) return { label: "建議", tone: "warning" };
+    return { label: "健康", tone: "success" };
+  }
   if (
     cartridge.mainFileType === "conflict" ||
     cartridge.mainFileType === "missing" ||
@@ -114,7 +128,7 @@ export function getCartridgeStatus(cartridge: DesktopCartridgeSnapshot): {
   ) {
     return { label: "阻塞", tone: "danger" };
   }
-  if (cartridge.compaction?.needsCompaction) {
+  if (cartridge.compaction?.needsCompaction || cartridge.compaction?.archiveVolumes?.some(item => item.needsCompaction)) {
     return { label: "阻塞", tone: "danger" };
   }
   if (
@@ -143,33 +157,26 @@ export function cartridgesForIssue(
   project: DesktopProjectSnapshot,
   issue: IssueKind,
 ): DesktopCartridgeSnapshot[] {
-  if (issue === "review") {
-    return project.cartridges.filter(
-      (item) =>
-        Boolean(item.dependencySyncWarning) ||
-        (item.dependencyDiagnostics?.length ?? 0) > 0 ||
-        item.indirectStaleness > 0 ||
-        item.legacyCompatibility ||
-        item.contentQualityStatus !== "complete" ||
-        hasCompactionAdvisory(item),
-    );
-  }
-  if (issue === "ghost") {
-    return project.cartridges.filter((item) => item.ghostFiles > 0);
-  }
-  if (issue === "blocking") {
-    return project.cartridges.filter(
-      (item) =>
-        item.staleness > 0 ||
-        item.pendingChanges > 0 ||
-        item.ghostFiles > 0 ||
-        item.mainFileType === "conflict" ||
-        item.mainFileType === "missing" ||
-        item.contentQualityStatus === "conflict" ||
-        Boolean(item.compaction?.needsCompaction),
-    );
-  }
-  return [];
+  return project.cartridges.filter(item => cartridgeMatchesIssue(item, issue));
+}
+
+function cartridgeMatchesIssue(item: DesktopCartridgeSnapshot, issue: IssueKind): boolean {
+  if (issue === "ghost") return item.ghostFiles > 0;
+  if (item.warnings) return item.warnings.some(warning =>
+    issue === "review" ? warning.tier === "review" || warning.tier === "advisory" : warning.tier === issue,
+  );
+  if (issue === "blocking") return getCartridgeStatus(item).tone === "danger";
+  if (issue === "review") return Boolean(item.dependencySyncWarning) || (item.dependencyDiagnostics?.length ?? 0) > 0 ||
+    item.indirectStaleness > 0 || item.legacyCompatibility || item.contentQualityStatus !== "complete" || hasCompactionAdvisory(item);
+  return false;
+}
+
+export function pickIssueForCartridge(cartridge: DesktopCartridgeSnapshot, preferred: IssueKind): IssueKind {
+  if (cartridgeMatchesIssue(cartridge, preferred)) return preferred;
+  if (cartridgeMatchesIssue(cartridge, "ghost")) return "ghost";
+  if (cartridgeMatchesIssue(cartridge, "blocking")) return "blocking";
+  if (cartridgeMatchesIssue(cartridge, "review")) return "review";
+  return "blocking";
 }
 
 function hasCompactionAdvisory(cartridge: DesktopCartridgeSnapshot): boolean {

@@ -139,8 +139,12 @@ describe("data-only frontmatter boundary", () => {
     expect(JSON.parse(readResult.content[0].text).status).toBe("error");
     await handleMemoryCommit({ projectRoot: root, moduleName: "safe", confirm: true });
     await handleMemoryDeps({ projectRoot: root, moduleName: "safe" });
-    await expect(buildMemoryAuditReport(root)).rejects.toThrow();
-    await expect(scanContextRegistry(root)).rejects.toThrow();
+    expect((await buildMemoryAuditReport(root)).findings).toContainEqual(
+      expect.objectContaining({ code: "MEMORY_CARD_PARSE_ERROR", file: cardPath }),
+    );
+    expect((await scanContextRegistry(root)).assets).toContainEqual(
+      expect.objectContaining({ path: cardPath, signals: ["context:parse-error"], trackedFiles: [], dependencies: [] }),
+    );
     await expect(scanProjectContextCards(root)).rejects.toThrow();
     expect(fs.readFileSync(target, "utf8")).toBe(raw);
     expect(sentinel.cartridgeSecuritySentinel).toBeUndefined();

@@ -97,7 +97,7 @@ async function readGitStatus(projectRoot: string) {
   const stdout = await new Promise<string>((resolve, reject) => {
     execFile(
       "git",
-      ["status", "--porcelain=v1"],
+      ["status", "--porcelain=v1", "-z"],
       { cwd: projectRoot, windowsHide: true },
       (error, stdoutValue, stderrValue) => {
         if (error) {
@@ -117,18 +117,19 @@ async function readGitStatus(projectRoot: string) {
 
 function getDirtyMemoryModules(
   index: PreflightIndex,
-  gitStatus: Array<{ path: string }>,
+  gitStatus: Array<{ path: string; originalPath?: string }>,
 ): string[] {
   const modules = new Set<string>();
   for (const entry of gitStatus) {
-    for (const owner of index.fileMap?.[entry.path] ?? []) {
-      modules.add(owner);
+    const paths = [entry.path, entry.originalPath].filter((value): value is string => value !== undefined);
+    for (const file of paths) {
+      for (const owner of index.fileMap && Object.hasOwn(index.fileMap, file) ? index.fileMap[file] : []) modules.add(owner);
     }
     for (const [moduleName, cartridge] of Object.entries(
       index.cartridges ?? {},
     )) {
       const mainPath = cartridge.mainFile?.activePath ?? cartridge.skillPath;
-      if (mainPath === entry.path || cartridge.skillPath === entry.path) {
+      if (paths.some(file => mainPath === file || cartridge.skillPath === file)) {
         modules.add(moduleName);
       }
     }
@@ -139,7 +140,7 @@ function getDirtyMemoryModules(
 async function buildDependencySemanticSummary(
   projectRoot: string,
   index: PreflightIndex,
-  gitStatus: Array<{ path: string }>,
+  gitStatus: Array<{ path: string; originalPath?: string }>,
 ): Promise<DependencySemanticSummary> {
   const modules = getDirtyMemoryModules(index, gitStatus);
   const items: DependencySemanticSummary["modules"] = [];

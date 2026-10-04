@@ -1,4 +1,4 @@
-import type { CartridgeConfig, StalenessLevel } from "./types.js";
+import type { CartridgeConfig, CartridgeEntry, StalenessLevel } from "./types.js";
 import type { MemoryCompactionMetrics } from "./memory-compaction.js";
 import type {
   MemoryContentQualityStatus,
@@ -402,4 +402,22 @@ export function classifyMemoryWarnings(
 
 function sortWarnings(items: MemoryWarningItem[]): MemoryWarningItem[] {
   return [...items].sort((a, b) => b.score - a.score || a.target.localeCompare(b.target));
+}
+
+/** Shared live/offline scoring. Invalid/future timestamps never yield NaN or
+ * negative scores; age only contributes while a source change awaits review. */
+export function calculatePendingStaleness(
+  entry: Pick<CartridgeEntry, "pendingChanges" | "lastUpdated">,
+  scoring: CartridgeConfig["scoring"],
+  now = Date.now(),
+): number {
+  if (entry.pendingChanges.length === 0) return 0;
+  const nonnegative = (value: number) => Number.isFinite(value) ? Math.max(0, value) : 0;
+  const base = entry.pendingChanges.reduce((score, change) => score + nonnegative(
+    change.eventType === "unlink" ? scoring.fileDeleted : change.eventType === "add" ? scoring.fileAdded : scoring.fileChanged,
+  ), 0);
+  const updated = Date.parse(entry.lastUpdated);
+  const days = Number.isFinite(updated) && Number.isFinite(now)
+    ? Math.max(0, Math.floor((now - updated) / 86_400_000)) : 0;
+  return Math.min(Number.MAX_SAFE_INTEGER, base + days * nonnegative(scoring.dailyDecay));
 }

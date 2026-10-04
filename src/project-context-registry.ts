@@ -157,13 +157,10 @@ export async function readProjectContextCard(
   assertSafeProjectContextTarget(target);
   const normalizedTarget = target.replace(/\\/g, "/").replace(/^\.\//, "");
   const cards = await scanProjectContextCards(projectRoot);
-  return (
-    cards.find(
-      (card) =>
-        card.id === normalizedTarget ||
-        card.name === normalizedTarget ||
-        card.path === normalizedTarget ||
-        card.path.endsWith(`/${normalizedTarget}`),
-    ) ?? null
-  );
+  const exact = cards.filter(card => card.id === normalizedTarget || card.path === normalizedTarget);
+  if (exact.length === 1) return exact[0];
+  if (exact.length > 1) throw new Error(`Ambiguous project context target: ${target}`);
+  const aliases = cards.filter(card => card.name === normalizedTarget || card.path.endsWith(`/${normalizedTarget}`));
+  if (aliases.length > 1) throw new Error(`Ambiguous project context alias: ${target}`);
+  return aliases[0] ?? null;
 }

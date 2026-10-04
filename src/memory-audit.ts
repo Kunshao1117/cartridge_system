@@ -1,4 +1,5 @@
-import { assertPathInsideProject } from "./file-containment.js";
+import { normalizeCardMetadata } from "./card-metadata.js";
+import { assertPathInsideProject, PathContainmentError } from "./file-containment.js";
 import * as fs from "fs/promises";
 import * as path from "path";
 import * as z from "zod";
@@ -87,6 +88,7 @@ export interface MemoryAuditReport {
     missingQualitySections: number;
     evidenceWarnings: number;
     pendingQualityReview: number;
+    qualityConflicts: number;
     supersededQuality: number;
     granularityAdvisories: number;
     languageWarnings: number;
@@ -121,6 +123,12 @@ interface AuditIndex {
   untrackedFiles?: unknown[];
 }
 
+function ownIndexEntry(index: AuditIndex, module: string): AuditIndexEntry | undefined {
+  return index.cartridges && Object.hasOwn(index.cartridges, module)
+    ? index.cartridges[module]
+    : undefined;
+}
+
 interface MemoryCard {
   module: string;
   skillPath: string;
@@ -133,6 +141,7 @@ interface MemoryCard {
   mainFile: MemoryMainFileInfo;
   contentQuality: MemoryQualityReport;
   legacyPathReferenceCount: number;
+  readDiagnostic?: MemoryAuditFinding;
 }
 
 const projectRootField = z
@@ -281,11 +290,8 @@ async function readMemoryCards(projectRoot: string): Promise<MemoryCard[]> {
     const absolutePath = mainFile.activePath
       ? path.join(projectRoot, mainFile.activePath)
       : cardDir;
-    const archiveVolumes = await readArchiveVolumes(projectRoot, cardDir);
-    const archiveMigrationWarnings = await findLegacyArchiveSkillPaths(
-      projectRoot,
-      cardDir,
-    );
+    let archiveVolumes: MemoryArchiveVolumeMetrics[] = [];
+    let archiveMigrationWarnings: string[] = [];
     if (mainFile.type === "conflict" || !mainFile.activePath) {
       const raw = "";
       const contentQuality = analyzeMemoryContentQuality(raw, mainFile);
@@ -309,8 +315,42 @@ async function readMemoryCards(projectRoot: string): Promise<MemoryCard[]> {
       continue;
     }
 
-    const raw = await fs.readFile(assertPathInsideProject(projectRoot, absolutePath), "utf-8");
-    const parsed = matter(raw);
+    let raw = "";
+    let parsed: { data: Record<string, unknown>; content: string };
+    let diagnosticCode = "MEMORY_CARD_READ_ERROR";
+    try {
+      // Keep I/O and parse failures local to this card. Boundary violations still
+      // fail closed rather than being disguised as ordinary unreadable content.
+      archiveVolumes = await readArchiveVolumes(projectRoot, cardDir);
+      archiveMigrationWarnings = await findLegacyArchiveSkillPaths(projectRoot, cardDir);
+      raw = await fs.readFile(assertPathInsideProject(projectRoot, absolutePath), "utf-8");
+      diagnosticCode = "MEMORY_CARD_PARSE_ERROR";
+      parsed = matter(raw);
+    } catch (error) {
+      if (error instanceof PathContainmentError) throw error;
+      const module = moduleNameFromMemoryMainPath(activeRelativePath);
+      cards.push({
+        module,
+        skillPath: activeRelativePath,
+        absolutePath,
+        raw: "",
+        body: "",
+        frontmatter: {},
+        trackedFiles: [],
+        compaction: buildCompactionMetrics("", {}, { cardPath: absolutePath }),
+        mainFile,
+        contentQuality: analyzeMemoryContentQuality(diagnosticCode === "MEMORY_CARD_PARSE_ERROR" ? raw : null, mainFile),
+        legacyPathReferenceCount: 0,
+        readDiagnostic: {
+          severity: "error",
+          code: diagnosticCode,
+          message: `${module} 記憶卡${diagnosticCode === "MEMORY_CARD_PARSE_ERROR" ? "無法解析" : "無法讀取"}；內容不可視為現行依據，其他卡片仍獨立檢查。`,
+          module,
+          file: activeRelativePath,
+        },
+      });
+      continue;
+    }
     const frontmatter = parsed.data as Record<string, unknown>;
     const contentQuality = analyzeMemoryContentQuality(raw, mainFile);
     cards.push({
@@ -417,7 +457,7 @@ function parseTrackedFilesLoosely(content: string): string[] {
 }
 
 function auditFrontmatter(card: MemoryCard): MemoryAuditFinding[] {
-  if (card.mainFile.type === "conflict" || card.mainFile.type === "missing") {
+  if (card.readDiagnostic || card.mainFile.type === "conflict" || card.mainFile.type === "missing") {
     return [];
   }
   const findings: MemoryAuditFinding[] = [];
@@ -445,7 +485,7 @@ function auditFrontmatter(card: MemoryCard): MemoryAuditFinding[] {
 }
 
 function auditTrackedFiles(card: MemoryCard): MemoryAuditFinding[] {
-  if (card.mainFile.type === "conflict" || card.mainFile.type === "missing") {
+  if (card.readDiagnostic || card.mainFile.type === "conflict" || card.mainFile.type === "missing") {
     return [];
   }
   const findings: MemoryAuditFinding[] = [];
@@ -513,6 +553,7 @@ function auditTrackedFiles(card: MemoryCard): MemoryAuditFinding[] {
 
 function auditMemoryMainFileAndQuality(card: MemoryCard): MemoryAuditFinding[] {
   const findings: MemoryAuditFinding[] = [];
+  if (card.readDiagnostic) return [card.readDiagnostic];
   if (card.mainFile.type === "conflict") {
     findings.push({
       severity: "error",
@@ -541,6 +582,11 @@ function auditMemoryMainFileAndQuality(card: MemoryCard): MemoryAuditFinding[] {
       module: card.module,
       file: card.skillPath,
     });
+  }
+  const metadataWarnings = normalizeCardMetadata(card.frontmatter).warnings;
+  if (metadataWarnings.length > 0) {
+    findings.push({ severity: "warning", code: "MEMORY_METADATA_INVALID", module: card.module, file: card.skillPath,
+      message: `${card.module} metadata 無效：${metadataWarnings.join(" ")}` });
   }
   if (card.contentQuality.missingFields.length > 0) {
     findings.push({
@@ -578,6 +624,15 @@ function auditMemoryMainFileAndQuality(card: MemoryCard): MemoryAuditFinding[] {
       file: card.skillPath,
     });
   }
+  if (card.contentQuality.status === "conflict") {
+    findings.push({
+      severity: "error",
+      code: "MEMORY_QUALITY_CONFLICT",
+      message: `${card.module} 記憶內容標記為衝突，解決衝突並重新驗證前不可視為現行依據。`,
+      module: card.module,
+      file: card.skillPath,
+    });
+  }
   if (card.contentQuality.status === "superseded") {
     findings.push({
       severity: "warning",
@@ -606,7 +661,7 @@ function auditIndexEntries(
   const findings: MemoryAuditFinding[] = [];
   const cardModules = new Set(cards.map((card) => card.module));
   for (const card of cards) {
-    const entry = index.cartridges?.[card.module];
+    const entry = ownIndexEntry(index, card.module);
     if (!entry) {
       findings.push({
         severity: "warning",
@@ -678,7 +733,7 @@ function auditDependencySemantics(cards: MemoryCard[]): MemoryAuditFinding[] {
 }
 
 function auditCompaction(card: MemoryCard): MemoryAuditFinding[] {
-  if (card.mainFile.type === "conflict" || card.mainFile.type === "missing") {
+  if (card.readDiagnostic || card.mainFile.type === "conflict" || card.mainFile.type === "missing") {
     return [];
   }
   const findings: MemoryAuditFinding[] = [];
@@ -791,7 +846,7 @@ function buildPersistedIndexGraph(index: AuditIndex, cards: MemoryCard[]): Depen
     ...Object.keys(index.cartridges ?? {}),
   ]);
   for (const moduleName of modules) {
-    const deps = index.cartridges?.[moduleName]?.dependencies ?? [];
+    const deps = ownIndexEntry(index, moduleName)?.dependencies ?? [];
     graph.set(moduleName, deps);
   }
   return graph;
@@ -814,11 +869,12 @@ function buildEngineeringIndex(
   index: AuditIndex,
   cards: MemoryCard[],
 ): CartridgeIndex {
-  const cartridges: Record<string, CartridgeEntry> = {};
-  const fileMap: Record<string, string[]> = {};
+  const cartridges: Record<string, CartridgeEntry> = Object.create(null);
+  const fileMap: Record<string, string[]> = Object.create(null);
 
   for (const card of cards) {
-    const persisted = index.cartridges?.[card.module];
+    if (card.readDiagnostic) continue;
+    const persisted = ownIndexEntry(index, card.module);
     const trackedFiles =
       card.trackedFiles.length > 0
         ? card.trackedFiles
@@ -913,7 +969,7 @@ function buildReport(
     ].includes(finding.code),
   );
   const activeCards = cards.filter(
-    (card) => card.mainFile.type !== "conflict" && card.mainFile.type !== "missing",
+    (card) => !card.readDiagnostic && card.mainFile.type !== "conflict" && card.mainFile.type !== "missing",
   );
   const compactionMetrics = activeCards.map((card) => card.compaction);
   const qualityReports = cards.map((card) => card.contentQuality);
@@ -995,6 +1051,9 @@ function buildReport(
       ),
       pendingQualityReview: qualityReports.filter(
         (quality) => quality.status === "pending_review",
+      ).length,
+      qualityConflicts: cards.filter(
+        (card) => card.mainFile.type !== "conflict" && card.contentQuality.status === "conflict",
       ).length,
       supersededQuality: qualityReports.filter(
         (quality) => quality.status === "superseded",
@@ -1088,6 +1147,14 @@ function buildRecommendedActions(report: MemoryAuditReport) {
       reason: `mainFileConflicts=${report.summary.mainFileConflicts}`,
     });
   }
+  if (report.summary.qualityConflicts > 0) {
+    actions.push({
+      priority: "P1",
+      action: "resolve_memory_quality_conflicts",
+      target: "workspace",
+      reason: `qualityConflicts=${report.summary.qualityConflicts}; 衝突解決並重新驗證前不可視為現行依據。`,
+    });
+  }
   if (report.summary.legacyMainFiles > 0) {
     actions.push({
       priority: "P2",
@@ -1155,9 +1222,27 @@ export async function buildMemoryAuditReport(
     readIndex(projectRoot),
     readMemoryCards(projectRoot),
   ]);
-  const frontmatterCycles = detectCycles(buildFrontmatterGraph(cards));
+  const pathsByModule = new Map<string, Set<string>>();
+  for (const card of cards) {
+    const paths = pathsByModule.get(card.module) ?? new Set<string>();
+    paths.add(card.skillPath);
+    pathsByModule.set(card.module, paths);
+  }
+  const ambiguousModules = new Set([...pathsByModule].filter(([, paths]) => paths.size > 1).map(([module]) => module));
+  const usableCards = cards.filter(card =>
+    !ambiguousModules.has(card.module) && !card.readDiagnostic &&
+    card.mainFile.type !== "conflict" && card.mainFile.type !== "missing",
+  );
+  const identityFindings: MemoryAuditFinding[] = [...ambiguousModules].map(module => ({
+    severity: "error",
+    code: "MEMORY_ID_CONFLICT",
+    message: `${module} 對應多個記憶卡路徑，無法唯一識別；不合併這些卡片的來源歸屬或依賴。`,
+    module,
+    file: [...pathsByModule.get(module)!].sort().join(", "),
+  }));
+  const frontmatterCycles = detectCycles(buildFrontmatterGraph(usableCards));
   const engineeringCycles = detectCycles(
-    buildEngineeringGraph(index, cards, projectRoot),
+    buildEngineeringGraph(index, usableCards, projectRoot),
   );
   const persistedIndexCycles = detectCycles(buildPersistedIndexGraph(index, cards));
   const cycles = [
@@ -1166,6 +1251,7 @@ export async function buildMemoryAuditReport(
   ];
   const findings = [
     ...indexFindings,
+    ...identityFindings,
     ...cards.flatMap(auditMemoryMainFileAndQuality),
     ...cards.flatMap(auditFrontmatter),
     ...cards.flatMap(auditTrackedFiles),

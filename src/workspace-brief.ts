@@ -178,7 +178,8 @@ export async function handleWorkspaceBrief(
         ? "blocked"
         : brief.readiness.status === "warning" ||
             brief.compatibility.mode === "compatibility" ||
-            contextReadiness.status === "warning"
+            contextReadiness.status === "warning" ||
+            brief.startupReadiness.status === "needs_review"
           ? "warning"
           : "ready";
     return toMcpTextResult(

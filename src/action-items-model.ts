@@ -1,6 +1,6 @@
 import type { ContextAuditFinding, ContextInventory } from "./context-types.js";
 import { createVisibleCartridgeIndex } from "./visible-index.js";
-import { classifyMemoryWarnings } from "./staleness.js";
+import { classifyMemoryWarnings, type MemoryWarningItem } from "./staleness.js";
 import type { CartridgeEntry, CartridgeIndex } from "./types.js";
 
 export type ActionItemKind =
@@ -25,7 +25,8 @@ export interface GovernanceActionItem {
 }
 
 function memoryMainTargetPath(entry: CartridgeEntry | undefined): string | undefined {
-  if (!entry || entry.mainFile?.type === "conflict" || entry.mainFile?.type === "missing") {
+  const mainType = entry?.mainFile?.type ?? entry?.mainFileType;
+  if (!entry || mainType === "conflict" || mainType === "missing" || entry.idConflictPaths?.length) {
     return undefined;
   }
   return entry.mainFile?.activePath ?? entry.skillPath;
@@ -57,7 +58,7 @@ export function buildGovernanceActionItems(args: {
     for (const filePath of entry.ghostFiles ?? []) {
       items.push({
         kind: "ghost",
-        label: `清理幽靈檔案：${filePath}`,
+        label: `複審缺失來源：${filePath}`,
         description: id,
         reason: "記憶卡仍追蹤這個檔案，但磁碟上已找不到它。",
         recommendedAction: "先確認來源是否暫時不可用；經授權恢復檔案或修正不再適用的追蹤路徑。",
@@ -82,89 +83,29 @@ export function buildGovernanceActionItems(args: {
     });
   }
 
-  for (const item of memoryWarnings.blocking) {
-    if (
-      ![
-        "memory_compaction_due",
-        "memory_compaction_invalid",
-        "memory_archive_volume_due",
-      ].includes(item.code)
-    ) {
-      continue;
+  for (const item of [...memoryWarnings.blocking, ...memoryWarnings.review, ...memoryWarnings.advisory]) {
+    // These warnings already have richer per-file entries above.
+    if (item.code === "memory_stale" || item.code === "memory_ghost_files" || item.code === "memory_untracked_files") continue;
+    const target = index.cartridges[item.target];
+    if (item.code === "memory_main_file_conflict" || item.code === "memory_main_file_missing") {
+      const expectedCode = item.code === "memory_main_file_conflict" ? "context_memory_main_file_conflict" : "context_memory_main_file_missing";
+      const targetPaths = new Set([target?.skillPath, target?.skillPath.replace(/\/[^/]*$/, ""), ...(target?.mainFile?.candidatePaths ?? [])]);
+      if (args.contextFindings.some(finding => finding.code === expectedCode && (
+        finding.paths?.some(file => targetPaths.has(file)) ||
+        finding.assets.some(id => targetPaths.has(assetById.get(id)?.path))
+      ))) continue;
     }
-    const target = index.cartridges[item.target];
+    const guidance = warningGuidance(item);
     items.push({
-      kind: "compaction",
+      kind: item.tier === "blocking" ? (item.code.includes("compaction") || item.code === "memory_archive_volume_due" ? "compaction" : "review") : item.tier === "advisory" ? "advisory" : "review",
       label: item.label,
-      description: item.code === "memory_archive_volume_due" ? "歸檔卷超限" : "壓縮治理阻擋",
+      description: guidance.description,
       reason: item.reason,
-      recommendedAction:
-        item.code === "memory_archive_volume_due"
-          ? "開啟下一個 archive-###.md 歸檔卷。"
-          : "先彙整 Cycle Events 或拆分/歸檔主卡內容，再同步記憶卡。",
+      recommendedAction: guidance.action,
       affectedPath: item.target,
       targetPath: memoryMainTargetPath(target),
       cartridgeId: item.target,
-      severity: "error",
-    });
-  }
-
-  for (const item of memoryWarnings.review) {
-    const target = index.cartridges[item.target];
-    items.push({
-      kind: "review",
-      label: item.label,
-      description:
-        item.code === "memory_dependency_sync_partial" ? "依賴同步未完成"
-          : item.code === "memory_dependency_diagnostic" ? "依賴宣告待複審"
-          : item.code === "memory_child_review" ? "子卡需要檢查" : "上游影響待複審",
-      reason:
-        item.code === "memory_dependency_sync_partial" || item.code === "memory_dependency_diagnostic"
-          ? item.reason
-          : item.code === "memory_child_review"
-            ? "子卡存在待檢查訊號，父卡只顯示衍生提醒。"
-            : "這張記憶卡的上游依賴有變動，請判斷是否真的影響本卡內容。",
-      recommendedAction:
-        item.code === "memory_dependency_sync_partial"
-          ? "檢查依賴重算診斷；保留上一個可信衍生值，不能視為完整同步成功。修正後僅執行已授權的同步。"
-          : item.code === "memory_dependency_diagnostic"
-            ? "比較來源與 Current Truth/Active Constraints 中的依賴理由；純 Relations 或 Applicable Skills 不代表傳播邊。"
-            : item.code === "memory_child_review"
-              ? "檢查子卡狀態；父卡內容未必需要更新。"
-              : "使用 memory_deps 檢查上游來源；僅在內容或追蹤資訊需調整且已獲授權時修改，no-write 不會自動清除 stale 或同步索引。",
-      affectedPath: item.target,
-      targetPath: memoryMainTargetPath(target),
-      cartridgeId: item.target,
-      severity: "warning",
-    });
-  }
-
-  for (const item of memoryWarnings.advisory) {
-    const target = index.cartridges[item.target];
-    items.push({
-      kind: "advisory",
-      label: item.label,
-      description:
-        item.code === "memory_granularity_advisory"
-          ? "拆分建議"
-          : item.code === "memory_legacy_schema"
-            ? "舊卡相容提醒"
-            : item.code === "memory_archive_migration"
-              ? "舊式歸檔路徑"
-              : "記憶卡內容建議",
-      reason: item.reason,
-      recommendedAction:
-        item.code === "memory_granularity_advisory"
-          ? "只在維護困難或語義混雜時拆卡；此提醒不阻擋提交。"
-          : item.code === "memory_legacy_schema"
-            ? "舊卡仍可讀取；僅在需要且已核准結構標準化時升級，一般修正維持最小範圍。"
-            : item.code === "memory_archive_migration"
-              ? "將 archive/001/SKILL.md 類路徑改為 archive-001.md 平面檔名。"
-              : "將主體維持英文，中文保留在摘要與觸發描述。",
-      affectedPath: item.target,
-      targetPath: memoryMainTargetPath(target),
-      cartridgeId: item.target,
-      severity: "warning",
+      severity: item.tier === "blocking" ? "error" : "warning",
     });
   }
 
@@ -188,4 +129,29 @@ export function buildGovernanceActionItems(args: {
   }
 
   return items;
+}
+
+function warningGuidance(item: MemoryWarningItem): { description: string; action: string } {
+  switch (item.code) {
+    case "memory_main_file_conflict": return { description: "雙主檔衝突", action: "比較候選主檔與授權後再處理，不自動選邊或遷移。" };
+    case "memory_main_file_missing": return { description: "缺少記憶主檔", action: "確認需恢復的 MEMORY.md 或 legacy SKILL.md，僅執行已授權的修正。" };
+    case "memory_quality_conflict": return { description: "品質衝突", action: "比較主卡主張、來源及驗證證據，確認衝突後僅執行已授權的修正。" };
+    case "memory_quality_missing_fields": return { description: "品質缺欄位", action: "依缺漏原因檢查主卡 frontmatter 欄位與來源，確認後補齊已授權的內容。" };
+    case "memory_quality_missing_sections": return { description: "品質缺段落", action: "依缺漏原因檢查主卡段落與來源，確認後補齊已授權的內容。" };
+    case "memory_quality_pending_review": return { description: "品質證據待複審", action: "檢查 verification_status 與驗證證據；不可只為清除警告宣告已驗證。" };
+    case "memory_quality_superseded": return { description: "確認已取代主卡", action: "確認替代卡、作用範圍與目前來源，再決定需授權的追蹤調整。" };
+    case "memory_dependency_sync_partial": return { description: "依賴同步未完成", action: "檢查依賴重算診斷；保留上一個可信衍生值，不能視為完整同步成功。修正後僅執行已授權的同步。" };
+    case "memory_dependency_diagnostic": return { description: "依賴宣告待複審", action: "比較來源與 Current Truth/Active Constraints 中的依賴理由；純 Relations 或 Applicable Skills 不代表傳播邊。" };
+    case "memory_child_review": return { description: "子卡需要檢查", action: "檢查原因列出的子卡；父卡內容未必需要更新。" };
+    case "memory_indirect_stale": return { description: "上游影響待複審", action: "使用 memory_deps 檢查上游來源；僅在內容或追蹤資訊需調整且已獲授權時修改，no-write 不會自動清除 stale 或同步索引。" };
+    case "memory_compaction_due":
+    case "memory_compaction_invalid": return { description: "壓縮治理阻擋", action: "先確認需彙整的 Cycle Events 或主卡內容，再執行已授權的整理與同步。" };
+    case "memory_archive_volume_due": return { description: "歸檔卷超限", action: "確認原因列出的歸檔卷，經授權後開啟下一個 archive-###.md 歸檔卷。" };
+    case "memory_main_file_legacy":
+    case "memory_legacy_schema": return { description: "舊卡相容提醒", action: "舊卡仍可讀取；僅在需要且已核准結構標準化時升級，一般修正維持最小範圍。" };
+    case "memory_archive_migration": return { description: "舊式歸檔路徑", action: "確認舊歸檔引用，僅在已授權遷移時改為 archive-001.md 平面檔名。" };
+    case "memory_language_ratio": return { description: "記憶卡語言建議", action: "檢查主體語言，中文保留在摘要與觸發描述；需要且已授權才調整。" };
+    case "memory_granularity_advisory": return { description: "拆分建議", action: "只在維護困難或語義混雜時拆卡；此提醒不阻擋提交。" };
+    default: return { description: item.label, action: "依具體原因比較來源與記憶卡；僅執行已授權的修正，不為清除警告直接改卡。" };
+  }
 }

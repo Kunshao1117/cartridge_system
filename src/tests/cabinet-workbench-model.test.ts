@@ -74,7 +74,7 @@ describe("cabinet workbench model", () => {
     expect(model.cards.find((card) => card.id === "core.child")?.ghostFiles).toEqual(["src/missing.ts"]);
     expect(model.cards.find((card) => card.id === "core.child")).toEqual(
       expect.objectContaining({
-        status: "healthy",
+        status: "critical",
         maintenanceScore: 20,
         reviewScore: 12,
       }),
@@ -82,7 +82,7 @@ describe("cabinet workbench model", () => {
     expect(model.summary.lenses.maintenance.primaryLabel).toBe("發熱卡");
     expect(model.summary.lenses.maintenance.primaryValue).toBe(2);
     expect(model.summary.lenses.maintenance.secondaryLabel).toBe("複審");
-    expect(model.summary.lenses.maintenance.secondaryValue).toBe(1);
+    expect(model.summary.lenses.maintenance.secondaryValue).toBe(2);
     expect(model.summary.lenses.memory.primaryLabel).toBe("決策");
     expect(model.summary.lenses.structure.primaryLabel).toBe("追蹤檔");
     expect(model.lines.map((line) => line.type)).toEqual(["slot", "signal", "heat"]);

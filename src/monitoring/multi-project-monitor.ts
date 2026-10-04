@@ -1,4 +1,5 @@
 import path from "node:path";
+import { canonicalProjectRoot } from "./project-identity.js";
 import { CartridgeProjectMonitor } from "./project-monitor.js";
 import type { DesktopProjectSnapshot } from "./project-snapshot.js";
 
@@ -15,7 +16,7 @@ export class MultiProjectMonitor {
     options?: { start?: boolean },
   ): Promise<DesktopProjectSnapshot[]> {
     const normalizedRoot = path.resolve(projectRoot);
-    const existing = this.monitors.get(normalizedRoot);
+    const existing = this.monitors.get(canonicalProjectRoot(normalizedRoot));
     if (existing) {
       if (options?.start !== false) await existing.start();
       this.notify();
@@ -24,7 +25,7 @@ export class MultiProjectMonitor {
 
     const monitor = new CartridgeProjectMonitor(normalizedRoot);
     monitor.subscribe(() => this.notify());
-    this.monitors.set(normalizedRoot, monitor);
+    this.monitors.set(canonicalProjectRoot(normalizedRoot), monitor);
     if (options?.start === false) {
       await monitor.stop();
     } else {
@@ -36,31 +37,31 @@ export class MultiProjectMonitor {
 
   async removeProject(projectRoot: string): Promise<DesktopProjectSnapshot[]> {
     const normalizedRoot = path.resolve(projectRoot);
-    const monitor = this.monitors.get(normalizedRoot);
+    const monitor = this.monitors.get(canonicalProjectRoot(normalizedRoot));
     if (monitor) {
       await monitor.stop();
-      this.monitors.delete(normalizedRoot);
+      this.monitors.delete(canonicalProjectRoot(normalizedRoot));
     }
     this.notify();
     return this.getSnapshots();
   }
 
   async pauseProject(projectRoot: string): Promise<DesktopProjectSnapshot[]> {
-    const monitor = this.monitors.get(path.resolve(projectRoot));
+    const monitor = this.monitors.get(canonicalProjectRoot(projectRoot));
     await monitor?.stop();
     this.notify();
     return this.getSnapshots();
   }
 
   async resumeProject(projectRoot: string): Promise<DesktopProjectSnapshot[]> {
-    const monitor = this.monitors.get(path.resolve(projectRoot));
+    const monitor = this.monitors.get(canonicalProjectRoot(projectRoot));
     await monitor?.start();
     this.notify();
     return this.getSnapshots();
   }
 
   async rescanProject(projectRoot: string): Promise<DesktopProjectSnapshot[]> {
-    const monitor = this.monitors.get(path.resolve(projectRoot));
+    const monitor = this.monitors.get(canonicalProjectRoot(projectRoot));
     await monitor?.rescan();
     this.notify();
     return this.getSnapshots();
@@ -78,7 +79,7 @@ export class MultiProjectMonitor {
   }
 
   getProjectRoots(): string[] {
-    return [...this.monitors.keys()];
+    return this.getSnapshots().map(snapshot => snapshot.root);
   }
 
   getSnapshots(): DesktopProjectSnapshot[] {

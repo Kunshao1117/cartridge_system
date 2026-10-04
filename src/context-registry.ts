@@ -1,4 +1,4 @@
-import { assertPathInsideProject } from "./file-containment.js";
+import { assertPathInsideProject, PathContainmentError } from "./file-containment.js";
 import * as fs from "fs/promises";
 import * as path from "path";
 import {
@@ -18,6 +18,37 @@ import {
 
 function contextId(relativeDirectory: string): string {
   return relativeDirectory.replace(/\\/g, "/").replace(/[/.]/g, ".").replace(/^\.+/, "");
+}
+
+function diagnosticContextAsset(
+  args: Omit<Parameters<typeof buildSkillContextAsset>[0], "content">,
+  signal: "context:parse-error" | "context:read-error",
+): ContextAsset {
+  return {
+    id: args.id,
+    type: args.owner === "cartridge" ? "memory" : "skill",
+    path: args.relativePath,
+    exists: true,
+    owner: args.owner,
+    scope: args.owner === "cartridge" ? "module" : "directory",
+    priority: args.priority,
+    supportedAgents: args.owner === "cartridge" ? ["cartridge-system"] : [args.owner],
+    trackedFiles: [],
+    dependencies: [],
+    staleness: 0,
+    risk: "high",
+    signals: [signal],
+  };
+}
+
+function buildDiagnosedContextAsset(args: Parameters<typeof buildSkillContextAsset>[0]): ContextAsset {
+  try {
+    return buildSkillContextAsset(args);
+  } catch (error) {
+    if (error instanceof PathContainmentError) throw error;
+    // Failed parsing cannot contribute declarations or policy signals.
+    return diagnosticContextAsset(args, "context:parse-error");
+  }
 }
 
 async function scanSkillDir(args: {
@@ -43,19 +74,26 @@ async function scanSkillDir(args: {
       if (depth === 1 && args.excludeLegacyMemory && entry.name.startsWith("mem-")) continue;
       const dir = path.join(current, entry.name);
       const skillPath = path.join(dir, "SKILL.md");
+      const relativePath = path.relative(args.projectRoot, skillPath);
+      const common = {
+        id: contextId(path.dirname(relativePath)),
+        relativePath,
+        owner: args.owner,
+        priority: args.priority,
+      };
       const content = await readContextText(args.projectRoot, skillPath);
-      if (content) {
-        const relativePath = path.relative(args.projectRoot, skillPath);
-        const id = contextId(path.dirname(relativePath));
-        results.push(
-          buildSkillContextAsset({
-            id,
-            relativePath,
-            owner: args.owner,
-            priority: args.priority,
-            content,
-          }),
-        );
+      if (content !== null) {
+        results.push(buildDiagnosedContextAsset({ ...common, content }));
+      } else {
+        // A known file that failed to read must not silently disappear. Ordinary
+        // directories without SKILL.md are still just containers.
+        try {
+          if ((await fs.stat(assertPathInsideProject(args.projectRoot, skillPath))).isFile()) {
+            results.push(diagnosticContextAsset(common, "context:read-error"));
+          }
+        } catch (error) {
+          if (error instanceof PathContainmentError) throw error;
+        }
       }
       await walk(dir, depth + 1);
     }
@@ -104,8 +142,10 @@ async function scanMemoryDir(args: {
         priority: 60,
       };
       // Conflicts expose both candidates without reading either one as truth.
-      const asset: ContextAsset = raw !== null && mainFile.activePath
-        ? buildSkillContextAsset({ ...common, relativePath: mainFile.activePath, content: raw })
+      const asset: ContextAsset = mainFile.activePath
+        ? raw !== null
+          ? buildDiagnosedContextAsset({ ...common, relativePath: mainFile.activePath, content: raw })
+          : diagnosticContextAsset({ ...common, relativePath: mainFile.activePath }, "context:read-error")
         : {
           ...common,
           type: "memory",

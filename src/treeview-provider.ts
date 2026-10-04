@@ -6,6 +6,7 @@ import { projectFileOpenCommand } from "./project-file-command.js";
 
 import * as vscode from "vscode";
 import path from "node:path";
+import { classifyMemoryWarnings } from "./staleness.js";
 import type { CartridgeEntry, CartridgeIndex } from "./types.js";
 import type { CartridgeIndexManager } from "./index-manager.js";
 
@@ -59,15 +60,15 @@ export class CartridgeTreeProvider implements vscode.TreeDataProvider<CartridgeT
     const items: CartridgeTreeItem[] = [];
     for (const [id, entry] of Object.entries(index.cartridges)) {
       if (entry.depth !== 1) continue;
-      const icon = this.cartridgeIcon(entry);
+      const icon = this.cartridgeIcon(id, index);
       const item = new CartridgeTreeItem(
         `${icon} ${id}`,
         "cartridge",
         vscode.TreeItemCollapsibleState.Collapsed,
         { cartridgeId: id },
       );
-      item.tooltip = this.cartridgeTooltip(entry);
-      if (entry.mainFile?.type !== "conflict" && entry.mainFile?.type !== "missing") {
+      item.tooltip = this.cartridgeTooltip(entry, id, index);
+      if (canOpenMemory(entry)) {
         item.command = projectFileOpenCommand(
           this.projectRoot, entry.mainFile?.activePath ?? entry.skillPath, "開啟記憶卡",
         );
@@ -100,18 +101,15 @@ export class CartridgeTreeProvider implements vscode.TreeDataProvider<CartridgeT
     // 子卡
     for (const [childId, childEntry] of Object.entries(index.cartridges)) {
       if (childEntry.parent !== id) continue;
-      const icon = this.cartridgeIcon(childEntry);
+      const icon = this.cartridgeIcon(childId, index);
       const item = new CartridgeTreeItem(
         `${icon} ${childId.split(".").pop()}`,
         "cartridge",
         vscode.TreeItemCollapsibleState.Collapsed,
         { cartridgeId: childId },
       );
-      item.tooltip = this.cartridgeTooltip(childEntry);
-      if (
-        childEntry.mainFile?.type !== "conflict" &&
-        childEntry.mainFile?.type !== "missing"
-      ) {
+      item.tooltip = this.cartridgeTooltip(childEntry, childId, index);
+      if (canOpenMemory(childEntry)) {
         item.command = projectFileOpenCommand(
           this.projectRoot, childEntry.mainFile?.activePath ?? childEntry.skillPath, "開啟記憶卡",
         );
@@ -163,37 +161,14 @@ export class CartridgeTreeProvider implements vscode.TreeDataProvider<CartridgeT
     });
   }
 
-  /** 過期指數 → 圖示對應 */
-  private stalenessIcon(s: number): string {
-    if (s >= 100) return "🔴";
-    if (s >= 60) return "🟠";
-    if (s >= 30) return "🟡";
-    if (s >= 10) return "🔵";
+  private cartridgeIcon(id: string, index: CartridgeIndex): string {
+    const warnings = classifyMemoryWarnings(index);
+    if (warnings.blocking.some(item => item.target === id)) return "🔴";
+    if ([...warnings.review, ...warnings.advisory].some(item => item.target === id)) return "🟡";
     return "🟢";
   }
 
-  private cartridgeIcon(entry: CartridgeEntry): string {
-    if (entry.mainFile?.type === "conflict" || entry.mainFile?.type === "missing") {
-      return "🔴";
-    }
-    if (
-      entry.legacyCompatibility ||
-      entry.contentQualityStatus !== "complete"
-    ) {
-      return "🟡";
-    }
-    if (entry.compaction?.needsCompaction) return "🔴";
-    if (
-      entry.compaction?.isLegacy ||
-      entry.compaction?.reasons.includes("highChineseRatio") ||
-      (entry.trackedFiles?.length ?? 0) > 8
-    ) {
-      return "🟡";
-    }
-    return this.stalenessIcon(entry.staleness);
-  }
-
-  private cartridgeTooltip(entry: CartridgeEntry): string {
+  private cartridgeTooltip(entry: CartridgeEntry, id: string, index: CartridgeIndex): string {
     const parts = [
       `主檔: ${entry.mainFile?.type ?? entry.mainFileType ?? "legacy SKILL.md"}`,
       `品質: ${entry.contentQuality?.label ?? entry.contentQualityStatus ?? "待審"}`,
@@ -214,6 +189,9 @@ export class CartridgeTreeProvider implements vscode.TreeDataProvider<CartridgeT
     if ((entry.trackedFiles?.length ?? 0) > 8) {
       parts.push("拆分建議：檔案數偏高但不阻擋");
     }
+    const warnings = classifyMemoryWarnings(index);
+    parts.push(...[...warnings.blocking, ...warnings.review, ...warnings.advisory]
+      .filter(item => item.target === id).map(item => `${item.label}: ${item.reason}`));
     return parts.join(" | ");
   }
 
@@ -221,4 +199,9 @@ export class CartridgeTreeProvider implements vscode.TreeDataProvider<CartridgeT
   dispose(): void {
     this._onDidChange.dispose();
   }
+}
+
+function canOpenMemory(entry: CartridgeEntry): boolean {
+  const mainType = entry.mainFile?.type ?? entry.mainFileType;
+  return mainType !== "conflict" && mainType !== "missing" && !entry.idConflictPaths?.length;
 }

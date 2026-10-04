@@ -4,11 +4,14 @@ const mocks = vi.hoisted(() => ({
   refreshMemoryIndex: vi.fn(),
   flushIfDirty: vi.fn(),
   getVisibleIndex: vi.fn(),
+  getIndex: vi.fn(),
   getSyncWarning: vi.fn(),
   injectWarning: vi.fn(),
   handleProjectFileEvent: vi.fn(),
   reloadProjectIndexFromDisk: vi.fn(),
+  runProjectIndexTransaction: vi.fn(),
   buildDesktopProjectSnapshot: vi.fn(),
+  watcherStart: vi.fn(),
   watcherInstances: [] as Array<{
     options: unknown;
     start: ReturnType<typeof vi.fn>;
@@ -28,12 +31,17 @@ vi.mock("../index-manager.js", () => ({
   CartridgeIndexManager: class {
     flushIfDirty = mocks.flushIfDirty;
     getVisibleIndex = mocks.getVisibleIndex;
+    getIndex = mocks.getIndex;
     getSyncWarning = mocks.getSyncWarning;
   },
 }));
 
 vi.mock("../memory-reindex.js", () => ({
-  refreshMemoryIndex: mocks.refreshMemoryIndex,
+  refreshMemoryIndex: async (...args: unknown[]) => {
+    const result = await mocks.refreshMemoryIndex(...args);
+    mocks.getIndex.mockReturnValue(result.index);
+    return result;
+  },
 }));
 
 vi.mock("../analyzer.js", () => ({
@@ -52,7 +60,7 @@ vi.mock("../monitoring/project-event-handler.js", () => ({
 
 vi.mock("../monitoring/node-project-watcher.js", () => ({
   NodeProjectWatcher: class {
-    readonly start = vi.fn();
+    readonly start = vi.fn(() => mocks.watcherStart());
     readonly stop = vi.fn();
 
     constructor(readonly options: unknown) {
@@ -63,6 +71,7 @@ vi.mock("../monitoring/node-project-watcher.js", () => ({
 
 vi.mock("../project-index-transaction.js", () => ({
   reloadProjectIndexFromDisk: mocks.reloadProjectIndexFromDisk,
+  runProjectIndexTransaction: mocks.runProjectIndexTransaction,
 }));
 
 vi.mock("../monitoring/project-snapshot.js", () => ({
@@ -128,9 +137,12 @@ describe("CartridgeProjectMonitor lifecycle", () => {
   beforeEach(() => {
     vi.useFakeTimers();
     mocks.watcherInstances.length = 0;
+    mocks.watcherStart.mockReset();
     mocks.refreshMemoryIndex.mockReset().mockResolvedValue(scanResult());
     mocks.flushIfDirty.mockReset().mockResolvedValue(undefined);
     mocks.getVisibleIndex.mockReset().mockReturnValue({ cartridges: {} });
+    mocks.getIndex.mockReset().mockReturnValue({ cartridges: {} });
+    mocks.runProjectIndexTransaction.mockReset().mockImplementation(async ({ mutation }: { mutation: () => Promise<unknown> }) => ({ value: await mutation() }));
     mocks.getSyncWarning.mockReset().mockReturnValue(null);
     mocks.injectWarning.mockReset().mockResolvedValue(undefined);
     mocks.handleProjectFileEvent.mockReset().mockResolvedValue(undefined);
@@ -187,6 +199,82 @@ describe("CartridgeProjectMonitor lifecycle", () => {
     await monitor.start();
 
     expect(mocks.injectWarning).toHaveBeenCalledTimes(2);
+  });
+
+  it("CORE-02 never injects startup warnings into ambiguous or missing main files", async () => {
+    const stale = {
+      staleness: 50,
+      pendingChanges: [{ filePath: "src/changed.ts" }],
+      skillPath: "C:/project/.agents/skills/stale/SKILL.md",
+      mainFile: { activePath: "C:/project/src/stale.ts" },
+    };
+    mocks.refreshMemoryIndex.mockResolvedValue(scanResult({
+      valid: stale,
+      conflict: { ...stale, mainFile: { type: "conflict", activePath: null } },
+      missing: { ...stale, mainFile: { type: "missing", activePath: null } },
+      ambiguous: { ...stale, idConflictPaths: ["one/MEMORY.md", "two/MEMORY.md"] },
+    }));
+    const monitor = new CartridgeProjectMonitor("C:/project");
+    await monitor.start();
+    expect(mocks.injectWarning).toHaveBeenCalledTimes(1);
+  });
+
+  it.each(["source event", "index reload", "heartbeat"])("CORE-R2 drains in-flight %s before stop resolves", async operation => {
+    const monitor = new CartridgeProjectMonitor("C:/project");
+    await monitor.start();
+    const gate = deferred<unknown>();
+    const callbacks = mocks.watcherInstances[0].options as {
+      onEvent: (file: string, event: string) => void;
+      onIndexChanged: () => void;
+    };
+    if (operation === "source event") {
+      mocks.handleProjectFileEvent.mockReturnValueOnce(gate.promise);
+      callbacks.onEvent("C:/project/src/changed.ts", "change");
+    } else if (operation === "index reload") {
+      mocks.reloadProjectIndexFromDisk.mockReturnValueOnce(gate.promise);
+      callbacks.onIndexChanged();
+    } else {
+      mocks.flushIfDirty.mockReturnValueOnce(gate.promise);
+      await vi.advanceTimersByTimeAsync(300_000);
+    }
+    let stopped = false;
+    const stop = monitor.stop().then(() => { stopped = true; });
+    await settlePromises();
+    expect(stopped).toBe(false);
+    gate.resolve({ status: "self-write" });
+    await stop;
+    expect(stopped).toBe(true);
+    expect(vi.getTimerCount()).toBe(0);
+  });
+
+  it("CORE-R3 rejects watcher startup failure and retries cleanly on start", async () => {
+    mocks.watcherStart.mockImplementationOnce(() => { throw new Error("watch unavailable"); });
+    const monitor = new CartridgeProjectMonitor("C:/project");
+    await expect(monitor.start()).rejects.toThrow("watch unavailable");
+    expect(monitor.getSnapshot().error).toBe("watch unavailable");
+    expect(vi.getTimerCount()).toBe(0);
+    await monitor.start();
+    expect(monitor.getSnapshot().error).toBeNull();
+    expect(mocks.watcherInstances).toHaveLength(2);
+    expect(vi.getTimerCount()).toBe(2);
+  });
+
+  it("CORE-R3 keeps watcher failure visible until a rescan actually reopens the watcher", async () => {
+    const monitor = new CartridgeProjectMonitor("C:/project");
+    await monitor.start();
+    const callbacks = mocks.watcherInstances[0].options as { onError: (error: Error) => void };
+    callbacks.onError(new Error("watch resource exhausted"));
+    expect(monitor.getSnapshot().error).toBe("watch resource exhausted");
+    expect(mocks.watcherInstances[0].stop).toHaveBeenCalledTimes(1);
+    mocks.watcherStart.mockImplementationOnce(() => { throw new Error("still unavailable"); });
+    await monitor.rescan();
+    expect(monitor.getSnapshot().error).not.toBeNull();
+    expect(mocks.watcherInstances).toHaveLength(2);
+    await monitor.rescan();
+    expect(monitor.getSnapshot().error).toBeNull();
+    expect(mocks.watcherInstances).toHaveLength(3);
+    callbacks.onError(new Error("late error from old watcher"));
+    expect(monitor.getSnapshot().error).toBeNull();
   });
 
   it("does not inject startup warnings during manual or periodic rescans", async () => {

@@ -59,7 +59,7 @@
       },
       {
         "command": "cartridge.attributeFile",
-        "title": "記憶卡匣：歸屬到記憶卡…"
+        "title": "記憶卡匣：選擇歸屬建議…"
       },
       {
         "command": "cartridge.showGhostFileInfo",

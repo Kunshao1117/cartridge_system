@@ -1,10 +1,14 @@
 import path from "node:path";
+import nativeFs from "node:fs";
+import os from "node:os";
+import { assertPathInsideProject } from "../file-containment.js";
+import { parseTrackedFiles } from "../index-manager.js";
 /**
  * 記憶卡匣外掛系統 — MCP 工具商業邏輯單元測試
- * 使用 vi.mock 模擬 fs/promises，不觸及實際磁碟
+ * 讀取格式案例使用合成 I/O；commit 案例將明確 fixture 實體化並執行真實交易／原子替換
  */
 
-import { describe, it, expect, vi, beforeEach } from "vitest";
+import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import {
   handleMemoryList,
   handleMemoryRead,
@@ -13,12 +17,14 @@ import {
   handleMemoryReindex,
   handleMemoryDeps,
   updateFrontmatterFields,
+  memoryCommitSchema,
 } from "../mcp-handlers.js";
 import { stalenessToLevel } from "../staleness.js";
 import type { CartridgeIndex } from "../types.js";
 
-// 模擬 fs/promises，隔離所有磁碟操作
-vi.mock("fs/promises", () => ({
+// Read-only format fixtures mock these reads; commit temporarily delegates to real temp-project I/O.
+vi.mock("fs/promises", async (importOriginal) => ({
+  ...await importOriginal<typeof import("fs/promises")>(),
   readdir: vi.fn(),
   readFile: vi.fn(),
   writeFile: vi.fn(),
@@ -37,9 +43,12 @@ vi.mock("../project-index-transaction.js", () => ({
 
 import * as fs from "fs/promises";
 import { refreshMemoryIndex } from "../memory-reindex.js";
-import { runProjectIndexTransaction } from "../project-index-transaction.js";
+import { fingerprintContent, persistProjectIndexManager, runProjectIndexTransaction } from "../project-index-transaction.js";
 
-const PROJECT_ROOT = path.resolve("/mock/other-project").replace(/\\/g, "/");
+let PROJECT_ROOT: string;
+const writeObserver = vi.fn<(target: unknown, data: unknown) => Promise<void>>();
+
+afterEach(() => { nativeFs.rmSync(PROJECT_ROOT, { recursive: true, force: true }); });
 
 function parseEnvelope(result: { content: Array<{ text: string }> }) {
   return JSON.parse(result.content[0].text);
@@ -100,15 +109,101 @@ function mockLegacyMemoryDirectories(names: string[]): void {
   });
 }
 
-function handleMemoryCommit(args: unknown) {
-  if (typeof args !== "object" || args === null) {
-    return handleMemoryCommitRaw(args);
+/** Keep the historical formatting fixtures, but exercise commit against real
+ * files and the real transaction/atomic-replacement path. writeObserver reports
+ * an observed before/after disk change; it is not a fake successful writer. */
+async function handleMemoryCommit(args: unknown) {
+  const request = typeof args === "object" && args !== null ? { ...args, confirm: true } : args;
+  const validated = memoryCommitSchema.safeParse(request);
+  if (!validated.success || validated.data.projectRoot !== PROJECT_ROOT) return handleMemoryCommitRaw(request);
+  const { moduleName } = validated.data;
+  const original = {
+    readFile: vi.mocked(fs.readFile).getMockImplementation(),
+    readdir: vi.mocked(fs.readdir).getMockImplementation(),
+    access: vi.mocked(fs.access).getMockImplementation(),
+    writeFile: vi.mocked(fs.writeFile).getMockImplementation(),
+  };
+  let fixtureIndex: Partial<CartridgeIndex> | undefined;
+  let rawIndex: string | undefined;
+  try {
+    rawIndex = String(await fs.readFile(path.join(PROJECT_ROOT, ".cartridge/index.json"), "utf8"));
+    const parsed = JSON.parse(rawIndex);
+    if (parsed && typeof parsed.cartridges === "object") fixtureIndex = parsed;
+  } catch {
+    // Broad card-read mocks do not declare an index. Explicit malformed JSON
+    // fixtures remain malformed on disk instead of being converted to healthy.
+    if (rawIndex && /^[\s]*[\[{]/.test(rawIndex)) {
+      nativeFs.mkdirSync(path.join(PROJECT_ROOT, ".cartridge"), { recursive: true });
+      nativeFs.writeFileSync(path.join(PROJECT_ROOT, ".cartridge/index.json"), rawIndex);
+    }
   }
-
-  return handleMemoryCommitRaw({ ...args, confirm: true });
+  const cached = fixtureIndex?.cartridges?.[moduleName];
+  const cardDirectory = cached?.skillPath && /\/(?:MEMORY|SKILL)\.md$/.test(cached.skillPath)
+    ? path.dirname(assertPathInsideProject(PROJECT_ROOT, cached.skillPath))
+    : path.join(PROJECT_ROOT, ".agents/memory", moduleName);
+  let names: string[] | null = null;
+  try {
+    const listed = await fs.readdir(cardDirectory, { withFileTypes: true });
+    if (Array.isArray(listed)) names = listed.filter(item => typeof item.isFile === "function" && item.isFile()).map(item => item.name);
+  } catch { /* Fall back to the fixture's access declarations. */ }
+  const cards = new Map<string, string>();
+  for (const name of ["MEMORY.md", "SKILL.md"]) {
+    const target = path.join(cardDirectory, name);
+    try {
+      if (names !== null ? !names.includes(name) : (await fs.access(target), false)) continue;
+      const content = String(await fs.readFile(target, "utf8"));
+      nativeFs.mkdirSync(cardDirectory, { recursive: true });
+      nativeFs.writeFileSync(target, content);
+      cards.set(target, content);
+      for (const tracked of parseTrackedFiles(content)) {
+        try {
+          const source = assertPathInsideProject(PROJECT_ROOT, tracked);
+          await fs.access(source);
+          if (tracked.endsWith("/")) nativeFs.mkdirSync(source, { recursive: true });
+          else { nativeFs.mkdirSync(path.dirname(source), { recursive: true }); nativeFs.writeFileSync(source, "export const fixture = true;\n"); }
+        } catch { /* Missing/unsafe source fixtures remain missing, never escape. */ }
+      }
+    } catch { /* Missing main-file fixtures remain missing. */ }
+  }
+  if (fixtureIndex) {
+    const entries = Object.fromEntries(Object.entries(fixtureIndex.cartridges ?? {}).map(([id, entry]) => [id, {
+      skillPath: path.relative(PROJECT_ROOT, [...cards.keys()][0] ?? path.join(cardDirectory, "SKILL.md")).replace(/\\/g, "/"),
+      description: "fixture", trackedFiles: [], staleness: 0, lastUpdated: "", depth: 1, parent: null,
+      ghostFiles: [], dependencies: [], indirectStaleness: 0, ...entry,
+      pendingChanges: entry.pendingChanges === undefined ? [] : Array.isArray(entry.pendingChanges)
+        ? entry.pendingChanges.map(change => ({ eventType: "change", timestamp: "2026-01-01T00:00:00Z", ...change })) : entry.pendingChanges,
+    }]));
+    nativeFs.mkdirSync(path.join(PROJECT_ROOT, ".cartridge"), { recursive: true });
+    const untracked = fixtureIndex.untrackedFiles === undefined ? [] : Array.isArray(fixtureIndex.untrackedFiles)
+      ? fixtureIndex.untrackedFiles.map(item => ({ suggestedOwner: null, detectedAt: "2026-01-01T00:00:00Z", lastEvent: "add", ...item })) : fixtureIndex.untrackedFiles;
+    nativeFs.writeFileSync(path.join(PROJECT_ROOT, ".cartridge/index.json"), JSON.stringify({ version: 1, lastScanned: "fixture", fileMap: {}, ...fixtureIndex, untrackedFiles: untracked, cartridges: entries }));
+  }
+  const realFs = await vi.importActual<typeof import("node:fs/promises")>("node:fs/promises");
+  const realTransactions = await vi.importActual<typeof import("../project-index-transaction.js")>("../project-index-transaction.js");
+  vi.mocked(fs.readFile).mockImplementation(realFs.readFile);
+  vi.mocked(fs.readdir).mockImplementation(realFs.readdir);
+  vi.mocked(fs.access).mockImplementation(realFs.access);
+  vi.mocked(fs.writeFile).mockImplementation(realFs.writeFile);
+  vi.mocked(fingerprintContent).mockImplementation(realTransactions.fingerprintContent);
+  vi.mocked(persistProjectIndexManager).mockImplementation(realTransactions.persistProjectIndexManager);
+  vi.mocked(runProjectIndexTransaction).mockImplementation(realTransactions.runProjectIndexTransaction);
+  try {
+    const result = await handleMemoryCommitRaw(request);
+    for (const [target, before] of cards) {
+      const after = nativeFs.readFileSync(target, "utf8");
+      if (after !== before) await writeObserver(target, after);
+    }
+    return result;
+  } finally {
+    if (original.readFile) vi.mocked(fs.readFile).mockImplementation(original.readFile);
+    if (original.readdir) vi.mocked(fs.readdir).mockImplementation(original.readdir);
+    if (original.access) vi.mocked(fs.access).mockImplementation(original.access);
+    if (original.writeFile) vi.mocked(fs.writeFile).mockImplementation(original.writeFile);
+  }
 }
 
 beforeEach(() => {
+  PROJECT_ROOT = nativeFs.mkdtempSync(path.join(os.tmpdir(), "cartridge-other-project-")).replace(/\\/g, "/");
   vi.resetAllMocks();
   vi.mocked(runProjectIndexTransaction).mockImplementation(async (options) => {
     try {
@@ -146,7 +241,7 @@ beforeEach(() => {
   // 預設模擬相容期：只有 legacy SKILL.md 存在，MEMORY.md 需由個別測試明確開啟。
   vi.mocked(fs.access).mockImplementation(async (target) => {
     const filePath = String(target).replace(/\\/g, "/");
-    if (filePath.endsWith("/SKILL.md") || filePath.includes("/src/")) return;
+    if ((filePath.includes("/.agents/memory/") && filePath.endsWith("/SKILL.md")) || filePath.includes("/src/")) return;
     throw new Error("ENOENT");
   });
 });
@@ -167,9 +262,9 @@ describe("handleMemoryList", () => {
   });
 
   it("應使用 projectRoot 組合正確的掃描路徑", async () => {
-    vi.mocked(fs.readdir).mockResolvedValue(
-      [] as unknown as Awaited<ReturnType<typeof fs.readdir>>,
-    );
+    vi.mocked(fs.readdir).mockImplementation(async (target) => (
+      String(target).replace(/\\/g, "/").includes("/.agents/memory") ? [] : []
+    ) as unknown as Awaited<ReturnType<typeof fs.readdir>>);
 
     await handleMemoryList({ projectRoot: PROJECT_ROOT });
 
@@ -451,9 +546,11 @@ describe("handleMemoryStatus", () => {
         { filePath: ".agents/memory/mem-_system" },
       ],
     };
-    vi.mocked(fs.readdir).mockResolvedValue([
+    vi.mocked(fs.readdir).mockImplementation(async (target) => (
+      String(target).replace(/\\/g, "/").includes("/.agents/memory") ? [
       { isFile: () => true, name: "MEMORY.md" },
-    ] as unknown as Awaited<ReturnType<typeof fs.readdir>>);
+    ] : []
+    ) as unknown as Awaited<ReturnType<typeof fs.readdir>>);
     vi.mocked(fs.readFile).mockImplementation(async (target) => {
       const filePath = String(target).replace(/\\/g, "/");
       if (filePath.endsWith(".cartridge/index.json")) {
@@ -559,10 +656,12 @@ describe("handleMemoryStatus", () => {
 // ---------------------------------------------------------------------------
 describe("handleMemoryList — 增強回傳", () => {
   it("有索引時應回傳含過期狀態的 JSON 陣列", async () => {
-    vi.mocked(fs.readdir).mockResolvedValue([
+    vi.mocked(fs.readdir).mockImplementation(async (target) => (
+      String(target).replace(/\\/g, "/").includes("/.agents/memory") ? [
       { isDirectory: () => true, name: "mem-_system" },
       { isDirectory: () => true, name: "mem-analyzer" },
-    ] as unknown as Awaited<ReturnType<typeof fs.readdir>>);
+    ] : []
+    ) as unknown as Awaited<ReturnType<typeof fs.readdir>>);
 
     const indexData = {
       cartridges: {
@@ -573,9 +672,11 @@ describe("handleMemoryList — 增強回傳", () => {
         },
       },
     };
-    vi.mocked(fs.readdir).mockResolvedValue([
+    vi.mocked(fs.readdir).mockImplementation(async (target) => (
+      String(target).replace(/\\/g, "/").includes("/.agents/memory") ? [
       { isFile: () => true, name: "MEMORY.md" },
-    ] as unknown as Awaited<ReturnType<typeof fs.readdir>>);
+    ] : []
+    ) as unknown as Awaited<ReturnType<typeof fs.readdir>>);
     vi.mocked(fs.readFile).mockImplementation(async (target) => {
       const filePath = String(target).replace(/\\/g, "/");
       if (filePath.endsWith(".cartridge/index.json")) {
@@ -621,7 +722,8 @@ describe("handleMemoryList — 增強回傳", () => {
     const result = await handleMemoryList({ projectRoot: PROJECT_ROOT });
     const envelope = parseEnvelope(result);
 
-    expect(envelope.status).toBe("ready");
+    expect(envelope.status).toBe("warning"); // This fixture has no complete main-card evidence (MCP-04).
+    expect(envelope.findings).toEqual(expect.arrayContaining([expect.objectContaining({ code: "memory_content_quality" })]));
     expect(envelope.metadata.tool).toBe("memory_list");
     expect(envelope.summary.cartridgeCount).toBe(1);
     expect(envelope.legacy.cartridges[0].module).toBe("mem-_system");
@@ -682,9 +784,11 @@ describe("MCP envelope 收斂", () => {
         },
       },
     };
-    vi.mocked(fs.readdir).mockResolvedValue([
+    vi.mocked(fs.readdir).mockImplementation(async (target) => (
+      String(target).replace(/\\/g, "/").includes("/.agents/memory") ? [
       { isFile: () => true, name: "MEMORY.md" },
-    ] as unknown as Awaited<ReturnType<typeof fs.readdir>>);
+    ] : []
+    ) as unknown as Awaited<ReturnType<typeof fs.readdir>>);
     vi.mocked(fs.readFile).mockImplementation(async (target) => {
       const filePath = String(target).replace(/\\/g, "/");
       if (filePath.endsWith(".cartridge/index.json")) {
@@ -738,9 +842,11 @@ describe("MCP envelope 收斂", () => {
         },
       },
     };
-    vi.mocked(fs.readdir).mockResolvedValue([
+    vi.mocked(fs.readdir).mockImplementation(async (target) => (
+      String(target).replace(/\\/g, "/").includes("/.agents/memory") ? [
       { isFile: () => true, name: "MEMORY.md" },
-    ] as unknown as Awaited<ReturnType<typeof fs.readdir>>);
+    ] : []
+    ) as unknown as Awaited<ReturnType<typeof fs.readdir>>);
     vi.mocked(fs.readFile).mockImplementation(async (target) => {
       const filePath = String(target).replace(/\\/g, "/");
       if (filePath.endsWith(".cartridge/index.json")) {
@@ -796,9 +902,11 @@ describe("MCP envelope 收斂", () => {
       "## Evidence Base\n- src/test.ts",
       "## Evidence Base\n- None.",
     );
-    vi.mocked(fs.readdir).mockResolvedValue([
+    vi.mocked(fs.readdir).mockImplementation(async (target) => (
+      String(target).replace(/\\/g, "/").includes("/.agents/memory") ? [
       { isFile: () => true, name: "MEMORY.md" },
-    ] as unknown as Awaited<ReturnType<typeof fs.readdir>>);
+    ] : []
+    ) as unknown as Awaited<ReturnType<typeof fs.readdir>>);
     vi.mocked(fs.readFile).mockImplementation(async (target) => {
       const filePath = String(target).replace(/\\/g, "/");
       if (filePath.endsWith(".cartridge/index.json")) {
@@ -828,7 +936,7 @@ describe("MCP envelope 收斂", () => {
     vi.mocked(fs.readFile).mockResolvedValue(
       existing as unknown as Awaited<ReturnType<typeof fs.readFile>>,
     );
-    vi.mocked(fs.writeFile).mockResolvedValue(undefined);
+    writeObserver.mockResolvedValue(undefined);
 
     const result = await handleMemoryCommit({
       moduleName: "mem-test",
@@ -865,7 +973,7 @@ describe("handleMemoryCommit", () => {
     );
 
     let writtenContent = "";
-    vi.mocked(fs.writeFile).mockImplementation(async (_path, data) => {
+    writeObserver.mockImplementation(async (_path, data) => {
       writtenContent = data as string;
     });
 
@@ -909,9 +1017,11 @@ describe("handleMemoryCommit", () => {
       fileMap: { "src/test.ts": ["core"] },
       untrackedFiles: [],
     };
-    vi.mocked(fs.readdir).mockResolvedValue([
+    vi.mocked(fs.readdir).mockImplementation(async (target) => (
+      String(target).replace(/\\/g, "/").includes("/.agents/memory") ? [
       { isFile: () => true, name: "MEMORY.md" },
-    ] as unknown as Awaited<ReturnType<typeof fs.readdir>>);
+    ] : []
+    ) as unknown as Awaited<ReturnType<typeof fs.readdir>>);
     vi.mocked(fs.readFile).mockImplementation(async (target) => {
       const filePath = String(target).replace(/\\/g, "/");
       if (filePath.endsWith(".cartridge/index.json")) {
@@ -927,7 +1037,7 @@ describe("handleMemoryCommit", () => {
       throw new Error("ENOENT");
     });
     const writtenPaths: string[] = [];
-    vi.mocked(fs.writeFile).mockImplementation(async (target) => {
+    writeObserver.mockImplementation(async (target) => {
       writtenPaths.push(String(target).replace(/\\/g, "/"));
     });
 
@@ -954,7 +1064,7 @@ describe("handleMemoryCommit", () => {
     );
 
     let writtenContent = "";
-    vi.mocked(fs.writeFile).mockImplementation(async (_path, data) => {
+    writeObserver.mockImplementation(async (_path, data) => {
       writtenContent = data as string;
     });
 
@@ -998,7 +1108,7 @@ describe("handleMemoryCommit", () => {
       return existing as unknown as Awaited<ReturnType<typeof fs.readFile>>;
     });
 
-    vi.mocked(fs.writeFile).mockResolvedValue(undefined);
+    writeObserver.mockResolvedValue(undefined);
 
     const result = await handleMemoryCommit({
       moduleName: "mem-test",
@@ -1024,7 +1134,7 @@ describe("handleMemoryCommit", () => {
     expect(parsed.fileMap["src/foo.ts"]).toEqual(["mem-test"]);
     expect(parsed.fileMap["src/bar.ts"]).toEqual(["mem-test"]);
     expect(parsed.untrackedFiles).toEqual([{ filePath: "src/other.ts" }]);
-    expect(fs.writeFile).not.toHaveBeenCalledWith(
+    expect(writeObserver).not.toHaveBeenCalledWith(
       expect.stringContaining(".cartridge"),
       expect.anything(),
       expect.anything(),
@@ -1079,7 +1189,7 @@ describe("handleMemoryCommit", () => {
     vi.mocked(fs.readFile).mockResolvedValue(
       existing as unknown as Awaited<ReturnType<typeof fs.readFile>>,
     );
-    vi.mocked(fs.writeFile).mockResolvedValue(undefined);
+    writeObserver.mockResolvedValue(undefined);
 
     const result = await handleMemoryCommit({
       moduleName: "mem-test",
@@ -1169,7 +1279,7 @@ ${events}
       }
       throw new Error("unexpected path");
     });
-    vi.mocked(fs.writeFile).mockResolvedValue(undefined);
+    writeObserver.mockResolvedValue(undefined);
 
     const result = await handleMemoryCommit({
       moduleName: "full-cycle",
@@ -1263,7 +1373,7 @@ ${events}
       }
       throw new Error("unexpected path");
     });
-    vi.mocked(fs.writeFile).mockResolvedValue(undefined);
+    writeObserver.mockResolvedValue(undefined);
 
     const result = await handleMemoryCommit({
       moduleName: "overflow-cycle",
@@ -1274,7 +1384,7 @@ ${events}
     expect(result.isError).toBe(true);
     expect(envelope.findings[0].code).toBe("memory_compaction_required");
     expect(envelope.findings[0].message).toContain("Cycle Events 已超過 30 筆");
-    expect(fs.writeFile).not.toHaveBeenCalled();
+    expect(writeObserver).not.toHaveBeenCalled();
   });
 
   it("索引檔不存在時同步仍應成功", async () => {
@@ -1286,7 +1396,7 @@ ${events}
         throw new Error("ENOENT");
       return existing as unknown as Awaited<ReturnType<typeof fs.readFile>>;
     });
-    vi.mocked(fs.writeFile).mockResolvedValue(undefined);
+    writeObserver.mockResolvedValue(undefined);
 
     const result = await handleMemoryCommit({
       moduleName: "mem-test",
@@ -1318,7 +1428,7 @@ ${events}
     vi.mocked(fs.readFile).mockResolvedValue(
       existing as unknown as Awaited<ReturnType<typeof fs.readFile>>,
     );
-    vi.mocked(fs.writeFile).mockResolvedValue(undefined);
+    writeObserver.mockResolvedValue(undefined);
 
     const result = await handleMemoryCommit({
       moduleName: "mem-test",
@@ -1340,7 +1450,7 @@ ${events}
     vi.mocked(fs.readFile).mockResolvedValue(
       existing as unknown as Awaited<ReturnType<typeof fs.readFile>>,
     );
-    vi.mocked(fs.writeFile).mockResolvedValue(undefined);
+    writeObserver.mockResolvedValue(undefined);
 
     const result = await handleMemoryCommit({
       moduleName: "mem-test",
@@ -1358,7 +1468,7 @@ ${events}
     vi.mocked(fs.readFile).mockResolvedValue(
       existing as unknown as Awaited<ReturnType<typeof fs.readFile>>,
     );
-    vi.mocked(fs.writeFile).mockResolvedValue(undefined);
+    writeObserver.mockResolvedValue(undefined);
 
     const result = await handleMemoryCommit({
       moduleName: "mem-test",
@@ -1377,7 +1487,7 @@ ${events}
     vi.mocked(fs.readFile).mockResolvedValue(
       existing as unknown as Awaited<ReturnType<typeof fs.readFile>>,
     );
-    vi.mocked(fs.writeFile).mockResolvedValue(undefined);
+    writeObserver.mockResolvedValue(undefined);
 
     const result = await handleMemoryCommit({
       moduleName: "mem-test",
@@ -1396,7 +1506,7 @@ ${events}
     vi.mocked(fs.readFile).mockResolvedValue(
       existing as unknown as Awaited<ReturnType<typeof fs.readFile>>,
     );
-    vi.mocked(fs.writeFile).mockResolvedValue(undefined);
+    writeObserver.mockResolvedValue(undefined);
 
     const result = await handleMemoryCommit({
       moduleName: "mem-test",
@@ -1433,7 +1543,7 @@ ${events}
       }
       return existing as unknown as Awaited<ReturnType<typeof fs.readFile>>;
     });
-    vi.mocked(fs.writeFile).mockResolvedValue(undefined);
+    writeObserver.mockResolvedValue(undefined);
 
     const result = await handleMemoryCommit({
       moduleName: "mcp-tools.dispatcher",
@@ -1463,7 +1573,7 @@ ${events}
     );
 
     let writtenContent = "";
-    vi.mocked(fs.writeFile).mockImplementation(async (_path, data) => {
+    writeObserver.mockImplementation(async (_path, data) => {
       writtenContent = data as string;
     });
 

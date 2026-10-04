@@ -39,6 +39,21 @@ export function auditContextInventory(
   const findings: ContextAuditFinding[] = [];
   const assets = inventory.assets;
   for (const asset of assets) {
+    const parseError = asset.signals.includes("context:parse-error");
+    const readError = asset.signals.includes("context:read-error");
+    if (parseError || readError) {
+      findings.push({
+        severity: "error",
+        code: parseError ? "context_asset_parse_error" : "context_asset_read_error",
+        message: parseError ? "上下文資產無法解析。" : "上下文資產無法讀取。",
+        explanation: "已保留資產路徑供診斷，但不將其內容、追蹤檔案或治理宣告視為現行依據；其他資產仍可獨立讀取。",
+        assets: [asset.id],
+        paths: [asset.path],
+        blocking: true,
+        recommendedTool: "context_audit",
+        recommendedAction: "確認此檔案的可讀性與 frontmatter 格式後重新檢查。",
+      });
+    }
     if (asset.type !== "memory" || !asset.mainFile) continue;
     const conflict = asset.mainFile.type === "conflict";
     const missing = asset.mainFile.type === "missing";

@@ -8,7 +8,7 @@ import type {
   FileEventType,
 } from "./types.js";
 import type { CartridgeIndexManager } from "./index-manager.js";
-import { getStalenessLevel } from "./staleness.js";
+import { calculatePendingStaleness, getStalenessLevel } from "./staleness.js";
 
 interface WarningWriter {
   syncWarningState?(skillRelPath: string, changedFiles: string[], staleness: number): Promise<void>;
@@ -118,32 +118,6 @@ export class StalenessAnalyzer {
     const entry = this.indexManager.getIndex().cartridges[cartridgeId];
     if (!entry) return 0;
 
-    // 異動基礎分（依事件類型加分，每個檔案最多計一次）
-    let score = 0;
-    for (const change of entry.pendingChanges) {
-      switch (change.eventType) {
-        case "change":
-          score += this.config.scoring.fileChanged;
-          break;
-        case "unlink":
-          score += this.config.scoring.fileDeleted;
-          break;
-        case "add":
-          score += this.config.scoring.fileAdded;
-          break;
-      }
-    }
-
-    // 時間衰退分
-    if (entry.lastUpdated) {
-      const lastUpdate = new Date(entry.lastUpdated).getTime();
-      const now = Date.now();
-      const daysSinceUpdate = Math.floor(
-        (now - lastUpdate) / (1000 * 60 * 60 * 24),
-      );
-      score += daysSinceUpdate * this.config.scoring.dailyDecay;
-    }
-
-    return score;
+    return calculatePendingStaleness(entry, this.config.scoring);
   }
 }

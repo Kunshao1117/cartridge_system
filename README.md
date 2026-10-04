@@ -3,7 +3,7 @@
 > **現實感知 AI 記憶防禦引擎** — 自動偵測記憶卡過期、幽靈檔案、跨模組依賴傳播，確保 AI 不讀取失效的上下文。
 
 [![version](https://img.shields.io/badge/version-5.5.5-blue)](./CHANGELOG.md)
-[![tests](https://img.shields.io/badge/tests-387%20passed-brightgreen)](#-執行測試)
+[![tests](https://github.com/Kunshao1117/cartridge_system/actions/workflows/security-regression.yml/badge.svg)](https://github.com/Kunshao1117/cartridge_system/actions/workflows/security-regression.yml)
 [![license](https://img.shields.io/badge/license-MIT-green)](#)
 
 ---
@@ -18,11 +18,11 @@ Cartridge System 是一個為 [Antigravity 框架](https://github.com/Kunshao111
 
 1. **全域追蹤** — 以 Git CLI 建立標準候選集，套用根／巢狀 `.gitignore`、`.git/info/exclude` 與 `core.excludesFile`，並保留已追蹤檔案。
 2. **計算過期指數** — 使用衰退演算法計算每張記憶卡的「失效程度」
-3. **幽靈偵測** — 已追蹤但被刪除的檔案自動標記為 💀 幽靈，狀態列懸浮報告即時顯示幽靈摘要，提醒 AI 清理追蹤清單
+3. **幽靈偵測** — 已追蹤但被刪除的檔案自動標記為 💀 幽靈，狀態列懸浮報告即時顯示幽靈摘要，提醒先複審缺失來源、需要時恢復；僅在已獲授權且來源不再適用時調整追蹤
 4. **依賴傳播** — 自動分析卡匣間 import 依賴，當上游過期時向下游卡匣傳播間接過期指數
 5. **未歸屬提示** — 沒有歸屬的孤兒檔案將展示在前端狀態列，透過 👻 提示通知您建立/指派到對應技能。
-6. **警報植入** — 在過期的記憶技能頂部自動插入攔截警告，阻止 AI 讀取舊資料
-7. **引導更新** — AI 更新記憶卡後，系統自動清除警報，恢復健康狀態
+6. **警報植入** — 在過期的記憶技能頂部自動插入攔截警告，提醒 AI 先複審來源，再使用可能過期的資料
+7. **引導複審** — 比較現行來源與記憶卡，再依授權作最小修正；只編輯記憶卡不代表完成複審或清除 stale、pending、ghost，需檢查同步結果
 
 ---
 
@@ -173,7 +173,7 @@ stale 表示來源需要複審，不能據此推論內容必然失真或自動�
 
 ### 同一專案、同一狀態
 
-Desktop Console、VSIX 與 MCP 對同一專案以 `.cartridge/index.json` 為 canonical 持久化狀態。所有寫入會取得跨程序鎖、在修改前重載磁碟最新狀態，再用原子取代完成持久化；專用的外部索引重載路徑會讓其他已開啟入口重讀新狀態。
+Desktop Console、VSIX 與 MCP 對同一專案以 `.cartridge/index.json` 為 canonical 持久化狀態。canonical index 的受支援交易會取得跨程序鎖、在修改前重載磁碟最新狀態，再用原子取代完成 index 持久化；專用的外部索引重載路徑會讓其他已開啟入口重讀新狀態。
 
 三個入口也共用 canonical health 與同步警告判定，因此介面排版、操作流程可以不同，但它們所表示的記憶卡健康、幽靈檔案、未歸屬檔案與同步警告必須來自同一份專案狀態。當 Git 無法使用時，三者同樣回退到遞迴列舉＋根 `.gitignore`；這個模式可能暫時無法完整反映巢狀規則、`.git/info/exclude` 與 global excludes，並會顯示非阻塞 warning。
 
@@ -216,7 +216,11 @@ GitHub Actions 會自動執行測試、打包 `cartridge-system-*.vsix`、建立
 
 ### 手動補發
 
-如果需要補發目前版本，進入 GitHub 的 **Actions → Release VSIX → Run workflow**，輸入版本號，例如 `5.5.5` 或 `v5.5.5`。Workflow 會確認輸入版本與 `package.json` 一致，然後重新打包並覆蓋 Release 裡的 VSIX 附件。
+如果需要補齊缺少的附件，進入 GitHub 的 **Actions → Release VSIX → Run workflow**，選擇原 release tag 所在的 revision，輸入相同版本。Workflow 固定 checkout 觸發 SHA，並在建構前與發布前核對版本與 `package.json`、所有已存在的同版本 VSIX/Desktop/npm 遠端 tag（annotated 與 lightweight tag 均解析到 commit）。任何來源不一致都停止；尚未建立的其他產品線 tag 不阻擋依序發布。手動初發尚無目標 tag 時，VSIX/Desktop 仍可用已核對的完整 SHA 作為 `--target` 建立新 tag；不移動或刪除既有 tag。
+
+三條發布流程也會只讀查詢 npm registry 的同版本 metadata：404 表示尚未發布；已發布時 `gitHead` 必須與此次 SHA 完全相同。缺少／格式不合法的 `gitHead` 不算來源證據。registry 逾時、網路錯誤或非 404 錯誤會回報 validation unavailable 並停止，因此 VSIX/Desktop 發布新增 npm registry 可讀取的前提；這不是 source mismatch。服務恢復後可重跑，仍須重新核對現況，不盲目重發。
+
+新建 GitHub Release 先以 draft 保存 source record，再上傳附件並正式發布；同一 SHA 的中斷重跑可補上缺少的附件。已存在的附件保留，不使用 `--clobber`，也不因重跑重寫既有 title/notes；source record 或附件來源 label 與 SHA 不符、或現有附件未上傳完整時停止。沒有 source record 的 legacy Release 仍可在當前 tag/SHA 與 npm 檢查通過後補缺附件，但原附件的來源會明確標為未驗證，且不自動發布既有 legacy draft。新附件會記錄此次 SHA label。這些 workflow 記錄不等於舊附件的重建等價性或獨立簽章驗證；管理員對遠端 tag 的外部修改仍應由儲存庫的 tag 保護規則限制。這些檢查並非跨 GitHub/npm 的原子發布鎖；同版本的全新手動發布不可從不同 SHA 並行啟動，否則可能在任何共同來源證據尚未出現前同時通過檢查。
 
 ---
 
@@ -242,7 +246,7 @@ git push origin desktop-v5.5.5
 
 GitHub Actions 會在 Windows runner 上重新打包桌面安裝檔，建立 `Cartridge Desktop Console desktop-v5.5.5` Release，並把 `Cartridge Desktop Console Setup 5.5.5.exe` 掛到附件。桌面版 Release 不會標記為 GitHub Latest，避免 VSIX 更新檢查誤讀桌面版本；此流程也不會將 `release/desktop` 產物提交進 Git。
 
-若需要手動補發，進入 GitHub 的 **Actions → Release Desktop Console → Run workflow**，輸入版本號，例如 `5.5.5`、`v5.5.5` 或 `desktop-v5.5.5`。Workflow 會確認輸入版本與 `package.json` 一致，然後重新打包並覆蓋桌面版 Release 裡的安裝檔附件。
+若需要補齊桌面版附件，進入 GitHub 的 **Actions → Release Desktop Console → Run workflow**，選擇原 release tag 所在的 revision，輸入相同版本。它採用與 VSIX 相同的遠端 tag／checkout SHA 檢查與附件保留規則，不會覆寫現有安裝檔。
 
 ---
 
@@ -269,7 +273,7 @@ git tag npm-v5.5.5
 git push origin npm-v5.5.5
 ```
 
-`Publish npm` workflow 會確認 tag/input 版本與 `package.json` 一致；若 npm registry 已有同版本，會成功跳過發布，避免同版本不可覆蓋造成失敗。
+`Publish npm` workflow 與 VSIX/Desktop 使用相同的遠端 tag／固定 checkout SHA gate，並在發布前重新檢查。若 npm registry 已有同版本，會跳過寫入；只有後續驗證確認 `gitHead` 等於此次 SHA、tarball 完整性與內容正確時才算成功，來源不同仍會失敗。npm 同一版本不會覆寫。
 
 ---
 
@@ -303,7 +307,7 @@ Cartridge System 提供 MCP（Model Context Protocol）工具伺服器，供 AI 
 | `memory_list` | 列出所有記憶卡匣（含過期指數、幽靈計數、依賴數量、間接過期指數、卡片大小、語言比例、週期事件數、舊格式與壓縮建議） |
 | `memory_read` | 讀取特定記憶技能的完整 SKILL.md 內容（自動解析巢狀點分隔路徑）；`moduleName` 只接受卡匣 ID，不接受 `/`、`\` 或 `..` 路徑片段 |
 | `memory_status` | 查詢過期修復診斷：過期指數、待處理異動、**幽靈檔案清單**及清理行動指引 |
-| `memory_commit` | AI 寫入 SKILL.md 後呼叫，自動完成：時間戳注入、staleness 歸零、索引同步、**幽靈清除**、未歸屬池清理與間接過期重算。**v5.2 強化 Gateway-first workspace 注入，仍要求 `confirm:true`，並保留 moduleName 路徑片段拒絕、格式容錯、I/O 防護、dependencies 語義警告與壓縮治理警告；Cycle Events 超過 30 筆時直接拒絕同步**。 |
+| `memory_commit` | 複審並取得寫入授權後，對 `MEMORY.md`（相容 legacy `SKILL.md`）進行最小同步。卡片寫入成功不代表全部同步完成，必須檢查 `synchronizationComplete` 與 `findings`；仍缺失或無法安全驗證的 tracked source 會保留 ghost/pending 與直接 stale，回報 `TRACKING_SYNC_PARTIAL`。索引或依賴計算失敗分別回報 `INDEX_SYNC_PARTIAL`、`DERIVED_SYNC_PARTIAL`。**v5.2 強化 Gateway-first workspace 注入，仍要求 `confirm:true`，並保留 moduleName 路徑片段拒絕、格式容錯、I/O 防護、dependencies 語義警告與壓縮治理警告；Cycle Events 超過 30 筆時直接拒絕同步**。 |
 | `memory_reindex` | 要求 `confirm:true` 後重建記憶索引，並以與 VSIX、Desktop Console 相同的 Git 標準候選集刷新未歸屬檔案；摘要會額外回傳 `exclusionMode` 與 `exclusionDiagnostics`，Git 降級時同時產生 warning findings。 |
 | `memory_deps` | **v4.1.1 增強** — 查詢卡匣依賴拓樸，分層回傳工程依賴、frontmatter 依賴、過期傳播與循環依賴警告，並保留舊欄位相容；`moduleName` 同樣拒絕路徑片段 |
 | `memory_graph` | **v5.3.3 新增** — 輸出 AI 可讀的整體記憶卡匣關聯圖譜摘要，支援 `maintenance`、`memory`、`structure`、`all` 視角與 `focusModule` 一跳關聯範圍 |
@@ -423,13 +427,16 @@ project_context_read({
 })
 // → 回傳 CONTEXT.md frontmatter 與固定章節，不會自動核准 candidate
 
-// ✅ 推薦流程：先用原生工具寫入 SKILL.md，再呼叫 memory_commit 同步
+// ✅ 推薦流程：先比較現行來源與卡片；需要且獲授權的最小修正完成後才同步
+// MEMORY.md 為正式主檔；legacy SKILL.md 可維持最小修改，不需改名
 memory_commit({
   moduleName: 'dashboard-ui',
   projectRoot: 'D:\\bartender_map',
   confirm: true
 })
-// → 自動更新時間戳、歸零 staleness、同步索引、清除幽靈標記
+// → 檢查 synchronizationComplete 與 findings，不只看相容 status:success
+// → TRACKING_SYNC_PARTIAL 保留缺失來源的 ghost/pending 與直接 stale
+// → INDEX_SYNC_PARTIAL / DERIVED_SYNC_PARTIAL 表示索引／衍生同步尚未完成
 ```
 
 ---
@@ -444,7 +451,7 @@ memory_commit({
 | `記憶卡匣：查看健康報告` | 在輸出面板顯示所有記憶卡的詳細狀態 |
 | `記憶卡匣：重新掃描未歸屬檔案` | 清空並重新掃描全專案的未歸屬幽靈檔案 |
 | `記憶卡匣：查看幽靈詳情` | **v4.1.1 新增** — 針對選定的幽靈檔案彈出 Modal 診斷報告與修復指引 |
-| `記憶卡匣：歸屬到記憶卡…` | 透過 QuickPick 介面將當前檔案或選定檔案一鍵歸檔至目標記憶卡 |
+| `記憶卡匣：選擇歸屬建議…` | 透過 QuickPick 選擇建議歸屬，產生含檔案與目標卡的操作提示；尚未修改 Tracked Files，需確認後另行套用與同步 |
 | `Cartridge：開啟治理總覽` | **v5.0 新增** — 聚焦左側 Activity Bar 的 Cartridge 獨立治理側邊欄 |
 | `Cartridge：開啟卡匣機櫃` | **v5.3.3 改善** — 在編輯區開啟卡匣機櫃工作台，提供維護艙、記憶艙與結構艙三種模式，並支援加減號、百分比與穩定縮放 |
 | `Cartridge：重新整理治理側邊欄` | **v5.0 新增** — 重新整理治理總覽、記憶卡匣、上下文治理與待處理項目 |
@@ -463,7 +470,7 @@ npm test
 npm run test:watch
 ```
 
-測試涵蓋 44 個測試檔案（**387 個案例通過，另有 1 個作業系統限制案例略過**）：
+測試數量與通過／失敗／略過結果，以對應提交的 [雙 OS CI](https://github.com/Kunshao1117/cartridge_system/actions/workflows/security-regression.yml) 為準。已知平台能力限制會明確標記 skip 與理由，不計為已驗證通過。以下為覆蓋面向，不代表所有外部環境已驗收：
 
 | 測試面向 | 主要覆蓋 |
 |----------|----------|
@@ -535,7 +542,7 @@ cartridge_system/
 │   ├── path-guard.ts         # 路徑安全驗證（雙層防禦）
 │   ├── timestamp.ts          # 時間戳生成（Intl API）
 │   ├── types.ts              # 共用型別定義（含 ghostFiles、dependencies）
-│   └── tests/                # vitest 單元測試（44 檔，387 passed，1 OS-limited skipped）
+│   └── tests/                # vitest 測試；實際結果以對應 SHA 的 CI 為準
 ├── scripts/
 │   └── package-vsix.mjs      # VSIX 打包 wrapper（使用 package.json files 白名單）
 ├── .agents/
@@ -594,3 +601,11 @@ cartridge_system/
 ## 📄 授權
 
 MIT License
+
+### 多程序鎖修補的升級與回退
+
+此修補改用具唯一世代識別的專案寫入鎖，記憶卡及 index 格式不遷移。升級或回退前，必須先停止所有舊版 MCP、Desktop、VS Code 用戶端並讓進行中的工作結束，再以同版三端重新啟動。舊程式仍可能使用不安全的回收方式，不能保證新舊混跑安全。
+
+新版會等待有效的舊版 live lock 自然釋放；無法安全辨識的舊 stale lock、未知內容或其他主機持有的 lock 不會自動刪除。出現明確相容／回收錯誤時，先確認所有相關用戶端已停止，再依 [鎖協定及復原說明](docs/LOCK_PROTOCOL.md) 處理。不要為清除錯誤而直接刪除仍可能使用中的鎖。
+
+主卡使用暫存檔替換並在同一專案交易内重新核對卡片、來源及待複審版本；這不是對任意外部程式的作業系統級 compare-and-swap。主卡替換成功而 index 寫入失敗會明確回報 partial，不能視為完成同步。

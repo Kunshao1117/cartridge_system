@@ -53,17 +53,17 @@ describe("truthful card, index, tracking and derived synchronization", () => {
     expect(current().cartridges.a.indirectStaleness).toBe(17);
   });
 
-  it("T19 keeps successful card write separate from a failed index transaction", async () => {
+  it("T19 leaves the card untouched if the transaction cannot begin", async () => {
     const main = card("a");
     write("src/a.ts", "export const a = 1;");
     persist({ a: entry(main, { trackedFiles: ["src/a.ts"], indirectStaleness: 17 }) });
     const before = fs.readFileSync(path.join(root, ".cartridge/index.json"), "utf8");
     vi.spyOn(transactions, "runProjectIndexTransaction").mockRejectedValueOnce(new Error("injected index failure"));
     const result = envelope(await handleMemoryCommit({ projectRoot: root, moduleName: "a", confirm: true }));
-    expect(result.summary).toMatchObject({ status: "success", cardWritten: true, indexSynchronized: false, indexRegistered: false, trackingSynchronized: false, derivedSynchronized: false, synchronizationComplete: false });
-    expect(result.findings.some((item: { code: string }) => item.code === "INDEX_SYNC_PARTIAL")).toBe(true);
+    expect(result.status).toBe("error");
+    expect(result.findings.some((item: { code: string }) => item.code === "memory_commit_failed")).toBe(true);
     expect(fs.readFileSync(path.join(root, ".cartridge/index.json"), "utf8")).toBe(before);
-    expect(matter(fs.readFileSync(path.join(root, main), "utf8")).data.last_updated).not.toBe("2026-01-01T00:00:00Z");
+    expect(matter(fs.readFileSync(path.join(root, main), "utf8")).data.last_updated).toBe("2026-01-01T00:00:00Z");
   });
 
   it("T20 retains last trusted indirect scores when derived recomputation fails", async () => {

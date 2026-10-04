@@ -39,10 +39,11 @@ const lineTypesByLens: Record<CabinetLens, CabinetLine["type"][]> = {
 };
 const filtersByLens: Record<CabinetLens, LensFilter[]> = {
   maintenance: [
+    { id: "blocking", label: "阻塞", test: (card) => card.warnings.some(item => item.tier === "blocking") },
     { id: "hot", label: "發熱", test: (card) => card.maintenanceScore > 0 },
     { id: "review", label: "複審", test: (card) => card.reviewScore > 0 },
     { id: "compact", label: "需彙整", test: (card) => card.compactionDue },
-    { id: "advisory", label: "治理建議", test: (card) => card.compactionAdvisoryCount > 0 },
+    { id: "advisory", label: "治理建議", test: (card) => card.warnings.some(item => item.tier === "advisory") },
     { id: "ghost", label: "幽靈", test: (card) => card.ghostFilesCount > 0 },
     { id: "pending", label: "待同步", test: (card) => card.pendingChangesCount > 0 },
     {
@@ -397,6 +398,7 @@ function maintenanceDetails(card: CabinetCard): string {
     <p class="description">${escapeHtml(card.description || "尚未提供卡匣說明。")}</p>
     <div class="metric-grid">
       ${metric("狀態燈", statusLabel(card))}
+      ${listBlock("狀態原因", card.warnings.filter(item => item.tier !== "info").map(item => `${item.label}: ${item.reason}`))}
       ${metric("維護熱度", card.maintenanceScore)}
       ${metric("直接熱度", card.staleness)}
       ${metric("複審提醒", card.reviewScore)}
@@ -606,9 +608,9 @@ function listBlock(title: string, values: string[]): string {
 }
 
 function statusLabel(card: CabinetCard): string {
-  if (card.status === "critical") return "紅燈";
+  if (card.status === "critical") return "阻塞（紅燈）";
   if (card.status === "significant") return "橘燈";
-  if (card.status === "mild") return "藍燈";
+  if (card.status === "mild") return "複審／建議（黃燈）";
   return "綠燈";
 }
 

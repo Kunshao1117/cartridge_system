@@ -1,4 +1,5 @@
 import path from "node:path";
+import { projectTrayLabel, scanOperationResult } from "./project-status.js";
 import {
   app,
   BrowserWindow,
@@ -105,9 +106,7 @@ function createTray(): void {
 
 function updateTray(snapshots: DesktopProjectSnapshot[]): void {
   if (!tray) return;
-  const blocked = snapshots.filter((item) => item.status === "blocked").length;
-  const warning = snapshots.filter((item) => item.status === "warning").length;
-  const label = blocked > 0 ? `阻塞 ${blocked}` : warning > 0 ? `警告 ${warning}` : "全部健康";
+  const label = projectTrayLabel(snapshots);
   tray.setToolTip(`Cartridge Desktop Console - ${label}`);
   tray.setContextMenu(
     Menu.buildFromTemplate([
@@ -234,7 +233,7 @@ function registerIpcHandlers(): void {
       return operation("blocked", "找不到這個監控專案，無法掃描。", monitor.getSnapshots());
     }
     try {
-      return operation("success", "專案掃描已完成。", await monitor.rescanProject(root));
+      return scanOperationResult(await monitor.rescanProject(root), root);
     } catch (error) {
       return operation(
         "error",
@@ -245,7 +244,7 @@ function registerIpcHandlers(): void {
   });
   ipcMain.handle(DesktopIpc.rescanAll, async () => {
     try {
-      return operation("success", "全部專案掃描已完成。", await monitor.rescanAll());
+      return scanOperationResult(await monitor.rescanAll());
     } catch (error) {
       return operation(
         "error",

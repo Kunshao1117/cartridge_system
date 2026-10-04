@@ -23,6 +23,7 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v6
         with:
+          ref: ${{ github.sha }}
           fetch-depth: 0
 
       - name: Setup Node.js
@@ -31,39 +32,13 @@ jobs:
           node-version: "24"
           cache: npm
 
+      - name: Verify release source before build
+        env:
+          RELEASE_INPUT_VERSION: ${{ inputs.version }}
+        run: node scripts/release-source.mjs desktop --write-env
+
       - name: Install dependencies
         run: npm ci
-
-      - name: Resolve desktop release version
-        shell: pwsh
-        run: |
-          if ("${{ github.event_name }}" -eq "push") {
-            $rawVersion = "${{ github.ref_name }}"
-          } else {
-            $rawVersion = "${{ inputs.version }}"
-          }
-
-          $releaseVersion = $rawVersion
-          if ($releaseVersion.StartsWith("desktop-v")) {
-            $releaseVersion = $releaseVersion.Substring("desktop-v".Length)
-          } elseif ($releaseVersion.StartsWith("v")) {
-            $releaseVersion = $releaseVersion.Substring("v".Length)
-          }
-
-          if ([string]::IsNullOrWhiteSpace($releaseVersion)) {
-            Write-Error "Invalid desktop version: $rawVersion"
-            exit 1
-          }
-
-          $packageVersion = node -p "require('./package.json').version"
-          if ($packageVersion -ne $releaseVersion) {
-            Write-Error "Version mismatch: package.json is $packageVersion, desktop release is desktop-v$releaseVersion"
-            exit 1
-          }
-
-          "DESKTOP_RELEASE_VERSION=$releaseVersion" | Out-File -FilePath $env:GITHUB_ENV -Append
-          "DESKTOP_RELEASE_TAG=desktop-v$releaseVersion" | Out-File -FilePath $env:GITHUB_ENV -Append
-          "DESKTOP_RELEASE_TITLE=Cartridge Desktop Console desktop-v$releaseVersion" | Out-File -FilePath $env:GITHUB_ENV -Append
 
       - name: Run tests
         run: npm test
@@ -127,15 +102,8 @@ jobs:
 
           "DESKTOP_INSTALLER_PATH=$($files[0].FullName)" | Out-File -FilePath $env:GITHUB_ENV -Append
 
-      - name: Create or update GitHub Release
-        shell: pwsh
+      - name: Publish missing assets from the verified source
         env:
           GH_TOKEN: ${{ github.token }}
-        run: |
-          $null = gh release view $env:DESKTOP_RELEASE_TAG 2>$null
-          if ($LASTEXITCODE -eq 0) {
-            gh release edit $env:DESKTOP_RELEASE_TAG --title $env:DESKTOP_RELEASE_TITLE --notes-file DESKTOP_RELEASE_NOTES.md
-            gh release upload $env:DESKTOP_RELEASE_TAG $env:DESKTOP_INSTALLER_PATH --clobber
-          } else {
-            gh release create $env:DESKTOP_RELEASE_TAG $env:DESKTOP_INSTALLER_PATH --title $env:DESKTOP_RELEASE_TITLE --notes-file DESKTOP_RELEASE_NOTES.md --target $env:GITHUB_SHA --latest=false
-          }
+          RELEASE_INPUT_VERSION: ${{ inputs.version }}
+        run: node scripts/publish-github-release.mjs desktop

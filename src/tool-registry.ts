@@ -1,3 +1,5 @@
+import { MODULE_ID_PATTERN } from "./module-id.js";
+
 export type ToolRiskLevel = "low" | "medium" | "high";
 export type ToolCapabilityLevel = "read" | "analyze" | "governance" | "write";
 
@@ -26,6 +28,8 @@ const projectRootProperty = {
 
 const moduleNameProperty = {
   type: "string",
+  minLength: 1,
+  pattern: MODULE_ID_PATTERN,
   description: "記憶卡匣名稱",
 };
 
@@ -53,6 +57,7 @@ const memoryCommitSchema = {
     projectRoot: projectRootProperty,
     confirm: {
       type: "boolean",
+      const: true,
       description:
         "確認已完成必要且獲授權的內容或 tracking 修正，並允許同步記憶卡後設資料；no-write review 不需要此工具。",
     },
@@ -66,6 +71,7 @@ const memoryReindexSchema = {
     projectRoot: projectRootProperty,
     confirm: {
       type: "boolean",
+      const: true,
       description:
         "確認允許重建 .cartridge/index.json，刷新主檔型態、品質狀態、幽靈檔案與未歸屬摘要。",
     },
@@ -84,10 +90,12 @@ const memoryGraphSchema = {
     },
     focusModule: {
       type: "string",
+      minLength: 1,
+      pattern: MODULE_ID_PATTERN,
       description: "可選，限制為指定卡匣與一跳上下游關聯。",
     },
     maxCards: {
-      type: "number",
+      type: "integer",
       minimum: 1,
       maximum: 200,
       description: "最多回傳的卡匣數量，預設 80。",

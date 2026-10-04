@@ -33,6 +33,7 @@ function parse(input: string) {
   if (!parsed.data || typeof parsed.data !== "object" || Array.isArray(parsed.data)) {
     throw new Error("Frontmatter must be a data object");
   }
+  assertFiniteDataGraph(parsed.data);
   // Do not expose gray-matter's attached stringify/read/language helpers.
   return { data: parsed.data, content: parsed.content };
 }
@@ -41,6 +42,7 @@ function stringify(content: string, data: object, original?: string): string {
   // Serialize data directly: gray-matter.stringify reparses string bodies and
   // its object form copies data through Object.assign({}, data), losing an own
   // __proto__ field. Neither behavior belongs at this data-only boundary.
+  assertFiniteDataGraph(data);
   const header = yaml.stringify(data).trim();
   const body = content.endsWith("\n") ? content : `${content}\n`;
   let output = (header === "{}" ? "" : `---\n${header}\n---\n`) + body;
@@ -51,3 +53,21 @@ function stringify(content: string, data: object, original?: string): string {
 }
 
 export default Object.assign(parse, { stringify });
+
+/** YAML aliases may share values, but recursive graphs cannot be fingerprinted
+ * or persisted. Check before exposing data and bound repeated alias expansion. */
+function assertFiniteDataGraph(data: object): void {
+  const ancestors = new Set<object>();
+  const stack: Array<{ value: unknown; exit?: boolean; depth: number }> = [{ value: data, depth: 0 }];
+  let visited = 0;
+  while (stack.length) {
+    const { value, exit, depth } = stack.pop()!;
+    if (value === null || typeof value !== "object" || value instanceof Date) continue;
+    if (exit) { ancestors.delete(value); continue; }
+    if (ancestors.has(value)) throw new Error("Cyclic/recursive frontmatter aliases are not supported.");
+    if (++visited > 10000 || depth > 100) throw new Error("Frontmatter data exceeds safe structural limits.");
+    ancestors.add(value);
+    stack.push({ value, exit: true, depth });
+    for (const child of Object.values(value)) stack.push({ value: child, depth: depth + 1 });
+  }
+}

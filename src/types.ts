@@ -18,6 +18,8 @@ export type StalenessLevel = "healthy" | "mild" | "significant" | "critical";
 
 /** 單一卡匣的索引資料 */
 export interface CartridgeEntry {
+  /** Ambiguous historical ID: reads may diagnose, mutations must fail closed. */
+  idConflictPaths?: string[];
   /** 記憶技能檔案路徑（相對於專案根目錄） */
   skillPath: string;
   /** 作用中記憶主檔資訊（MEMORY.md / legacy SKILL.md / conflict / missing） */

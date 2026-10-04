@@ -25,6 +25,7 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v6
         with:
+          ref: ${{ github.sha }}
           fetch-depth: 0
 
       - name: Setup Node.js
@@ -34,45 +35,10 @@ jobs:
           registry-url: "https://registry.npmjs.org"
           package-manager-cache: false
 
-      - name: Resolve publish version
-        shell: bash
-        run: |
-          if [[ "${{ github.event_name }}" == "push" ]]; then
-            raw_version="${{ github.ref_name }}"
-          else
-            raw_version="${{ inputs.version }}"
-          fi
-
-          case "${raw_version}" in
-            npm-v*)
-              publish_version="${raw_version#npm-v}"
-              publish_tag="npm-v${publish_version}"
-              ;;
-            v*)
-              publish_version="${raw_version#v}"
-              publish_tag="npm-v${publish_version}"
-              ;;
-            *)
-              publish_version="${raw_version}"
-              publish_tag="npm-v${publish_version}"
-              ;;
-          esac
-          package_version="$(node -p "require('./package.json').version")"
-
-          if [[ -z "${publish_version}" || "${publish_version}" == "v" ]]; then
-            echo "Invalid version: ${raw_version}" >&2
-            exit 1
-          fi
-
-          if [[ "${package_version}" != "${publish_version}" ]]; then
-            echo "Version mismatch: package.json is ${package_version}, publish tag is ${publish_tag}" >&2
-            exit 1
-          fi
-
-          {
-            echo "PUBLISH_VERSION=${publish_version}"
-            echo "PUBLISH_TAG=${publish_tag}"
-          } >> "${GITHUB_ENV}"
+      - name: Verify release source before build
+        env:
+          RELEASE_INPUT_VERSION: ${{ inputs.version }}
+        run: node scripts/release-source.mjs npm --write-env
 
       - name: Check npm version availability
         id: npm_version
@@ -121,6 +87,11 @@ jobs:
       - name: Pack dry-run
         if: steps.npm_version.outputs.already_published != 'true'
         run: npm pack --dry-run --json
+
+      - name: Recheck release source before publication
+        env:
+          RELEASE_INPUT_VERSION: ${{ inputs.version }}
+        run: node scripts/release-source.mjs npm
 
       - name: Publish to npm
         if: steps.npm_version.outputs.already_published != 'true'

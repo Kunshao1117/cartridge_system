@@ -19,20 +19,28 @@ jobs:
     steps:
       - uses: actions/checkout@v6
         with:
+          ref: ${{ github.event.pull_request.head.sha }}
           persist-credentials: false
       - uses: actions/setup-node@v6
         with:
           node-version: "24"
           package-manager-cache: false
       - run: npm ci
+        id: install
       - run: npm test
       - run: npm run lint
+        if: ${{ !cancelled() && steps.install.outcome == 'success' }}
       - run: npx tsc --noEmit
+        if: ${{ !cancelled() && steps.install.outcome == 'success' }}
       - name: Build MCP and VS Code bundles
+        id: build_mcp
+        if: ${{ !cancelled() && steps.install.outcome == 'success' }}
         run: npm run build
       - name: Build Desktop main, preload and renderer
+        if: ${{ !cancelled() && steps.install.outcome == 'success' }}
         run: npm run desktop:build
       - name: Exercise packaged MCP stdio servers
+        if: ${{ !cancelled() && steps.build_mcp.outcome == 'success' }}
         run: node scripts/security-mcp-smoke.mjs
   release_preflight:
     name: Read-only release preflight
@@ -41,6 +49,7 @@ jobs:
     steps:
       - uses: actions/checkout@v6
         with:
+          ref: ${{ github.event.pull_request.head.sha }}
           persist-credentials: false
       - uses: actions/setup-node@v6
         with:

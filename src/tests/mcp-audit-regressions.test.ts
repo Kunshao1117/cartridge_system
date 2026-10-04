@@ -134,6 +134,16 @@ describe("MCP-01 revision-bound memory_commit", () => {
     expect.soft(persisted().cartridges.safe.trackedFiles).toContain("src/templates/");
   });
 
+  it("preserves ordinary main-file mode during atomic replacement", async () => {
+    const target = path.join(root, main);
+    if (process.platform !== "win32") fs.chmodSync(target, 0o640);
+    const beforeMode = fs.statSync(target).mode & 0o777;
+    const result = envelope(await commit());
+    expect.soft(result.summary.synchronizationComplete).toBe(true);
+    if (process.platform !== "win32") expect.soft(fs.statSync(target).mode & 0o777).toBe(beforeMode);
+    expect.soft(fs.readdirSync(path.dirname(target))).toEqual(["MEMORY.md"]);
+  });
+
   it("reports partial persistence after a real index replacement failure without hiding pending state", async () => {
     const realRename = fsp.rename;
     vi.spyOn(fsp, "rename").mockImplementation(async (from, to) => {

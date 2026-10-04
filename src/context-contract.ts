@@ -47,6 +47,22 @@ export async function readContextText(projectRoot: string, filePath: string): Pr
   }
 }
 
+function hasAffirmativePermission(content: string, phrase: RegExp): boolean {
+  // Signals are governance hints, not executable permissions. Honor explicit
+  // negation in the same clause rather than treating a keyword as approval.
+  for (const clause of content.split(/[\n,，;；。.!?！？]/)) {
+    for (const match of clause.matchAll(new RegExp(phrase.source, "gi"))) {
+      const before = clause.slice(0, match.index).trim();
+      const after = clause.slice((match.index ?? 0) + match[0].length).trim();
+      if (/(?:禁止|不得|不可|不要|不能|不允許|不允许|無需|无需)(?:\s*(?:AI|代理|任何|擅自|直接|自行|默認|默认|系統|系统))*\s*$/.test(before) ||
+          /(?:\b(?:do\s+not|does\s+not|must\s+not|should\s+not|can\s+not|cannot|don't|never|no|disable|prohibit|forbid)\b)(?:\s+\w+){0,3}\s*$/i.test(before) ||
+          /^(?:is\s+|are\s+)?(?:not\s+allowed|disabled|prohibited|forbidden|disallowed|禁止|不允許|不允许)/i.test(after)) continue;
+      return true;
+    }
+  }
+  return false;
+}
+
 export function collectContextSignals(content: string): string[] {
   const signals: string[] = [];
   if (/Traditional Chinese|繁體中文|zh-TW/i.test(content)) {
@@ -58,13 +74,13 @@ export function collectContextSignals(content: string): string[] {
   if (/\bGO\b|明確授權|explicit approval/i.test(content)) {
     signals.push("commit:requires-explicit-approval");
   }
-  if (/auto[- ]?commit|自動提交|commit automatically/i.test(content)) {
+  if (hasAffirmativePermission(content, /auto[- ]?commit|自動提交|commit automatically/)) {
     signals.push("commit:auto-allowed");
   }
   if (/confirm:\s*true|requires explicit confirmation/i.test(content)) {
     signals.push("write:requires-confirm");
   }
-  if (/write automatically|自動覆寫|自動寫入/i.test(content)) {
+  if (hasAffirmativePermission(content, /write automatically|automatic writes|自動覆寫|自動寫入/)) {
     signals.push("write:auto-allowed");
   }
   return signals;

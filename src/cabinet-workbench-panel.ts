@@ -11,6 +11,7 @@ type PanelArgs = {
 
 export class CabinetWorkbenchPanel {
   private panel?: vscode.WebviewPanel;
+  private requestSequence = 0;
 
   constructor(private readonly args: PanelArgs) {}
 
@@ -41,17 +42,23 @@ export class CabinetWorkbenchPanel {
         vscode.Uri.joinPath(this.args.extensionUri, "dist", "cabinet-webview.global.js"),
       ).toString(),
     });
-    this.panel.onDidDispose(() => {
-      this.panel = undefined;
+    const panel = this.panel;
+    panel.onDidDispose(() => {
+      if (this.panel === panel) {
+        this.panel = undefined;
+        this.requestSequence++;
+      }
     });
     this.panel.webview.onDidReceiveMessage((message: { type?: string; cardId?: string }) => {
       if (message.type === "ready" || message.type === "refresh") void this.postModel();
-      if (message.type === "openCard" && message.cardId) void this.openCard(message.cardId);
+      if (message.type === "openCard" && message.cardId) void this.openCard(message.cardId).catch(error => {
+        if (this.panel === panel) void vscode.window.showWarningMessage(`開啟記憶卡失敗：${String(error)}`);
+      });
     });
   }
 
-  refresh(): void {
-    if (this.panel) void this.postModel();
+  refresh(): Promise<void> {
+    return this.postModel();
   }
 
   dispose(): void {
@@ -59,18 +66,28 @@ export class CabinetWorkbenchPanel {
   }
 
   private async postModel(): Promise<void> {
-    if (!this.panel) return;
-    const model = await buildCabinetWorkbenchModelForProject(
-      this.args.indexManager.getVisibleIndex(),
-      this.args.projectRoot,
-    );
-    await this.panel.webview.postMessage({ type: "model", model });
+    const panel = this.panel;
+    if (!panel) return;
+    const request = ++this.requestSequence;
+    try {
+      const model = await buildCabinetWorkbenchModelForProject(
+        this.args.indexManager.getVisibleIndex(), this.args.projectRoot,
+      );
+      if (this.panel !== panel || request !== this.requestSequence) return;
+      await panel.webview.postMessage({ type: "model", model });
+    } catch (error) {
+      if (this.panel === panel && request === this.requestSequence) {
+        void vscode.window.showWarningMessage(`機櫃更新失敗：${error instanceof Error ? error.message : String(error)}`);
+      }
+    }
   }
 
   private async openCard(cardId: string): Promise<void> {
-    const entry = this.args.indexManager.getIndex().cartridges[cardId];
-    if (!entry) return;
-    if (entry.mainFile?.type === "conflict" || entry.mainFile?.type === "missing") {
+    const cartridges = this.args.indexManager.getIndex().cartridges;
+    if (!Object.hasOwn(cartridges, cardId)) return;
+    const entry = cartridges[cardId];
+    const mainType = entry.mainFile?.type ?? entry.mainFileType;
+    if (mainType === "conflict" || mainType === "missing" || entry.idConflictPaths?.length) {
       return;
     }
     const targetPath = entry.mainFile?.activePath ?? entry.skillPath;

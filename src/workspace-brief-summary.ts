@@ -279,6 +279,18 @@ function buildStartupReadiness(args: {
     };
   }
 
+  if (args.context?.readiness.status === "blocked") {
+    return {
+      status: "blocked",
+      label: "需要先處理規則檔衝突",
+      reasons: args.context.findings
+        .filter((finding) => finding.severity === "error")
+        .map((finding) => finding.message),
+      nextTool: "context_audit",
+      nextAction: "review_context_findings",
+    };
+  }
+
   if (args.memoryReadiness.status === "warning") {
     return {
       status: "needs_review",
@@ -289,18 +301,6 @@ function buildStartupReadiness(args: {
       ],
       nextTool: "memory_deps",
       nextAction: "review_memory_advisories",
-    };
-  }
-
-  if (args.context?.readiness.status === "blocked") {
-    return {
-      status: "blocked",
-      label: "需要先處理規則檔衝突",
-      reasons: args.context.findings
-        .filter((finding) => finding.severity === "error")
-        .map((finding) => finding.message),
-      nextTool: "context_audit",
-      nextAction: "review_context_findings",
     };
   }
 

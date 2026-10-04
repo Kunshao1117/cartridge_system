@@ -1,5 +1,6 @@
 import * as path from "path";
 import * as z from "zod";
+import { moduleIdSchema } from "./module-id.js";
 import { buildCabinetWorkbenchModelForProject, type CabinetCard, type CabinetLens, type CabinetLine } from "./cabinet-workbench-model.js";
 import { createConfig } from "./config.js";
 import { CartridgeIndexManager } from "./index-manager.js";
@@ -25,9 +26,7 @@ const projectRootField = z
     message: "必須為絕對路徑且不含路徑穿越符號",
   });
 
-const moduleIdField = z.string().min(1).regex(/^[A-Za-z0-9_-]+(?:\.[A-Za-z0-9_-]+)*$/, {
-  message: "focusModule 只能包含英數、底線、連字號與點號分隔，不得包含路徑片段",
-});
+const moduleIdField = moduleIdSchema;
 
 export const memoryGraphSchema = z.object({
   projectRoot: projectRootField,
@@ -49,9 +48,13 @@ export async function handleMemoryGraph(args: unknown): Promise<McpToolResult> {
     );
   }
 
+  try {
   const { lens, focusModule, maxCards } = parsed.data;
   const projectRoot = validateProjectRoot(parsed.data.projectRoot);
   const manager = new CartridgeIndexManager(createConfig(projectRoot));
+  const canonical = await manager.readPersistedIndex();
+  if (canonical.status === "invalid") throw new Error("Canonical project index is invalid; authoritative reindex is required.");
+  if (canonical.status === "loaded") manager.replaceCommittedIndex(canonical.index, canonical.fingerprint, false);
   await manager.scan();
   const model = await buildCabinetWorkbenchModelForProject(manager.getIndex(), projectRoot);
   if (focusModule && !model.cards.some((card) => card.id === focusModule)) {
@@ -108,6 +111,10 @@ export async function handleMemoryGraph(args: unknown): Promise<McpToolResult> {
       },
     }),
   );
+  } catch (error) {
+    return toMcpTextResult(createToolErrorEnvelope({ tool: TOOL_NAME, projectRoot: parsed.data.projectRoot,
+      code: "memory_graph_failed", message: error instanceof Error ? error.message : String(error) }));
+  }
 }
 
 function scopeCards(cards: CabinetCard[], focusModule: string | undefined): CabinetCard[] {

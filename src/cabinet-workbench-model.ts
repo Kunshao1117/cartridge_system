@@ -1,3 +1,4 @@
+import { classifyMemoryWarnings, type MemoryWarningItem } from "./staleness.js";
 import type { CartridgeIndex } from "./types.js";
 import { emptyMetadata, loadCabinetMemoryMetadata, type CabinetMemoryMetadata } from "./cabinet-memory-metadata.js";
 import { buildCabinetLines, buildLensStats, maintenanceScore, memoryScore, structureScore } from "./cabinet-workbench-derive.js";
@@ -19,6 +20,7 @@ export interface CabinetCard {
   depth: number;
   parent: string | null;
   status: CabinetCardStatus;
+  warnings: MemoryWarningItem[];
   staleness: number;
   indirectStaleness: number;
   trackedFilesCount: number;
@@ -100,17 +102,20 @@ export function buildCabinetWorkbenchModel(
   const visibleIndex = createVisibleCartridgeIndex(index);
   const dependentsByCard = buildDependents(visibleIndex);
   const childrenByCard = buildChildren(visibleIndex);
+  const classified = classifyMemoryWarnings(visibleIndex);
+  const allWarnings = [...classified.blocking, ...classified.review, ...classified.advisory, ...classified.info];
   const cards = Object.entries(visibleIndex.cartridges).map(([id, entry]) => {
-    const metadata = metadataByCard[id] ?? emptyMetadata();
+    const warnings = allWarnings.filter(item => item.target === id);
+    const metadata = Object.hasOwn(metadataByCard, id) ? metadataByCard[id] : emptyMetadata();
     const trackedFilesCount = entry.trackedFiles.length;
     const pendingChangesCount = entry.pendingChanges.length;
     const ghostFilesCount = entry.ghostFiles.length;
-    const compactionDue = entry.compaction?.needsCompaction ?? false;
+    const compactionDue = Boolean(entry.compaction?.needsCompaction || entry.compaction?.archiveVolumes?.some(item => item.needsCompaction));
     const compactionAdvisoryCount =
       (entry.compaction?.isLegacy ? 1 : 0) +
       (entry.compaction?.reasons.includes("highChineseRatio") ? 1 : 0) +
       (trackedFilesCount > 8 ? 1 : 0);
-    const reviewScore = entry.indirectStaleness;
+    const reviewScore = Math.max(entry.indirectStaleness ?? 0, warnings.filter(item => item.tier === "review").length);
     const children = childrenByCard.get(id) ?? [];
     const dependencies = [...(entry.dependencies ?? [])];
     const dependents = dependentsByCard.get(id) ?? [];
@@ -126,7 +131,8 @@ export function buildCabinetWorkbenchModel(
       migrationRequired: entry.migrationRequired,
       depth: entry.depth,
       parent: entry.parent,
-      status: statusFromEntry(entry.staleness, compactionDue),
+      status: statusFromWarnings(warnings),
+      warnings,
       staleness: entry.staleness,
       indirectStaleness: entry.indirectStaleness,
       trackedFilesCount,
@@ -214,19 +220,10 @@ function buildSlots(index: CartridgeIndex): CabinetSlot[] {
   return [...slots.values()];
 }
 
-function statusFromStaleness(staleness: number): CabinetCardStatus {
-  if (staleness >= 100) return "critical";
-  if (staleness >= 60) return "significant";
-  if (staleness >= 10) return "mild";
+function statusFromWarnings(warnings: MemoryWarningItem[]): CabinetCardStatus {
+  if (warnings.some(item => item.tier === "blocking")) return "critical";
+  if (warnings.some(item => item.tier === "review" || item.tier === "advisory")) return "mild";
   return "healthy";
-}
-
-function statusFromEntry(
-  staleness: number,
-  compactionDue: boolean,
-): CabinetCardStatus {
-  if (compactionDue) return "critical";
-  return statusFromStaleness(staleness);
 }
 
 function normalizePath(filePath: string): string {

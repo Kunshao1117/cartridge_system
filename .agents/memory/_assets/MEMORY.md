@@ -9,7 +9,7 @@ staleness: 0
 memory_schema_version: 2
 memory_quality_version: 1
 memory_kind: static_container
-verification_status: verified
+verification_status: pending_review
 last_verified: '2026-07-13T22:55:00+08:00'
 valid_scope: current-project
 content_language: en
@@ -34,17 +34,17 @@ metadata:
 
 ## Current Truth
 
-- This static container owns README, CHANGELOG, license, and visual assets that do not carry runtime business logic.
-- README and CHANGELOG describe the 5.5.4 monitor lifecycle and the `desktop-v5.5.4` release tag.
-- Public documentation states that Desktop, VS Code, and MCP share canonical project state and refresh semantics.
-- Release documentation uses the three-tag model: `v5.5.4`, `npm-v5.5.4`, and `desktop-v5.5.4`.
-- Final 5.5.4 artifact validation passed; the final release artifacts are not installed or started by this record.
-- Generated VSIX, installer EXE, blockmap, and update metadata remain ignored release artifacts and are not tracked by this card.
+
+- This card owns README, CHANGELOG, license, visual assets, and the README validation contract; it owns no runtime business logic.
+- The current documented package is 5.5.8. The release model uses `v5.5.8`, `npm-v5.5.8`, and `desktop-v5.5.8` from one source revision.
+- CHANGELOG is chronological evidence: the 5.5.8 correction supersedes earlier planned 5.5.7 delivery language; 5.5.6 completed npm only and 5.5.7 did not complete three-surface delivery.
+- README requires review before authorized commit and distinguishes card write from index, tracking and derived synchronization. Editing prose alone does not clear stale, pending or ghost state.
+- Generated VSIX, installer, blockmap and update metadata are release outputs, not tracked assets. Source docs and release notes do not by themselves prove installed GUI acceptance.
 
 ## Active Constraints
 
 - Public version, tag examples, and runtime behavior claims must match validated source and release workflows.
-- Track only source documentation and static assets; do not add ignored generated binaries or update metadata.
+- Track only source documentation, static assets and their owned documentation contract tests; do not add ignored generated binaries or update metadata.
 - Keep historical release detail in CHANGELOG rather than expanding this active card.
 
 ## Cycle Events
@@ -65,14 +65,11 @@ metadata:
 
 ## Evidence Base
 
-- docs:README.md
-- docs:CHANGELOG.md
-- source:LICENSE
-- source:assets/logo.png
-- source:assets/cartridge-activity.svg
-- source:desktop-assets/cartridge-desktop.ico
-- validation:validation-artifact-5.5.4-20260713-r1 — final artifact validation passed.
-- review:hp-review-source-final-20260713-r3 — source review accepted with P0–P3 clear.
+
+- source:https://github.com/Kunshao1117/cartridge_system/blob/3f346804c8c72944a2c61a46544421c9f9009ef2/.agents/memory/_assets/MEMORY.md — reviewed original card revision.
+- source:https://github.com/Kunshao1117/cartridge_system/tree/3f346804c8c72944a2c61a46544421c9f9009ef2 — source tree for this static claim/ownership review; use Tracked Files for the exact source slice.
+- validation:validation-artifact-5.5.4-20260713-r1 — final artifact validation passed. Historical only; original receipt not revalidated in this review.
+- review:hp-review-source-final-20260713-r3 — source review accepted with P0–P3 clear. Historical only; original receipt not revalidated in this review.
 
 ## Read Contract
 
@@ -81,15 +78,18 @@ metadata:
 
 ## Conflicts and Supersession
 
-- None.
+
+- Static comparison target: 5.5.8 source 3f346804c8c72944a2c61a46544421c9f9009ef2. Historical cycle/archive records remain unchanged; old validation IDs do not establish current runtime acceptance.
 
 ## 中文摘要
 
-- README 與 CHANGELOG 已記錄 5.5.4 的 monitor lifecycle 與 `desktop-v5.5.4`。
-- 最終 5.5.4 artifact validation 已通過，但本卡不宣稱產物已安裝或啟動。
-- 安裝檔、VSIX、blockmap 與更新 metadata 均不納入 Git 追蹤。
+
+- README／CHANGELOG 現況以 5.5.8 為準，舊版發布敘述只作歷史。
+- 卡片寫入、索引／追蹤／衍生同步及已安裝 GUI 驗收必須分開證明。
+- 產生的安裝包與更新資料不納入來源追蹤。
 
 ## Tracked Files
+
 
 - README.md
 - CHANGELOG.md
@@ -97,6 +97,7 @@ metadata:
 - assets/logo.png
 - assets/cartridge-activity.svg
 - desktop-assets/cartridge-desktop.ico
+- src/tests/readme-validation-contract.test.ts
 
 ## Relations
 

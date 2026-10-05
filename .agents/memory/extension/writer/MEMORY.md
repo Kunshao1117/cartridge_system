@@ -24,23 +24,24 @@ metadata:
     - 'filesystem:write'
 memory_quality_version: 1
 memory_kind: implementation
-verification_status: verified
+verification_status: pending_review
 last_verified: '2026-06-15T00:47:16+08:00'
 valid_scope:
   - src/writer.ts
   - src/tests/writer.test.ts
+  - src/memory-source-patch.ts
 scopePath: null
 ---
 # writer — Module Memory
 
 ## Current Truth
 
-- This card is the schema v2 memory owner for extension.writer.
-- Its implementation boundary is the tracked file list below.
-- Legacy decisions, lessons, and repair notes were preserved in archive-001.md.
-- No staleness propagation dependency is recorded in frontmatter.
-- Directory nesting is navigation; parent-child placement is not a dependency by itself.
-- Current behavior must still be verified against source before edits.
+
+- Owns managed warning writing and shared minimal source-patch helpers used by writer and MCP commit.
+- Derived warning injection is idempotent across writer instances and preserves user-owned body/frontmatter, timestamp and lifecycle status where no managed change is required.
+- Minimal managed-field patches preserve ordinary YAML comments, unknown keys, ordering and BOM/CRLF; complex cases use the safe data-only serializer with semantic preservation.
+- Allowed targets derive from trusted Memory roots; true Skills, archives and dual active files are rejected. Healthy legacy cards are not automatically standardized.
+- Writing warning metadata is not evidence that changed source was reviewed, and cannot by itself clear pending/ghost state.
 
 ## Active Constraints
 
@@ -62,8 +63,9 @@ scopePath: null
 
 ## Evidence Base
 
-- source:src/writer.ts
-- source:src/tests/writer.test.ts
+
+- source:https://github.com/Kunshao1117/cartridge_system/blob/3f346804c8c72944a2c61a46544421c9f9009ef2/.agents/memory/extension/writer/MEMORY.md — reviewed original card revision.
+- source:https://github.com/Kunshao1117/cartridge_system/tree/3f346804c8c72944a2c61a46544421c9f9009ef2 — source tree for this static claim/ownership review; use Tracked Files for the exact source slice.
 
 ## Read Contract
 
@@ -72,7 +74,8 @@ scopePath: null
 
 ## Conflicts and Supersession
 
-- None recorded.
+
+- Static comparison target: 5.5.8 source 3f346804c8c72944a2c61a46544421c9f9009ef2. Historical cycle/archive records remain unchanged; old validation IDs do not establish current runtime acceptance.
 
 ## 中文摘要
 
@@ -84,8 +87,10 @@ scopePath: null
 
 ## Tracked Files
 
+
 - src/writer.ts
 - src/tests/writer.test.ts
+- src/memory-source-patch.ts
 
 ## Relations
 

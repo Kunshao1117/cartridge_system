@@ -23,17 +23,20 @@ metadata:
   tool_scope: []
 memory_quality_version: 1
 memory_kind: implementation
-verification_status: verified
+verification_status: pending_review
 last_verified: '2026-06-15T00:55:00+08:00'
 valid_scope:
   - src/types.ts
+  - src/tests/surface-regression-fixtures.ts
 ---
 # core types / shared contracts — Module Memory
 
 ## Current Truth
 
-- This card owns shared TypeScript contracts used across extension, MCP, desktop, and memory governance helpers.
-- Moving contracts out of runtime prevents visible-index and staleness ownership from forming a memory dependency cycle.
+
+- Owns shared TypeScript contracts consumed by extension, MCP, Desktop and Memory helpers, plus their synthetic CartridgeEntry/CartridgeIndex fixture constructors.
+- Shared fixture data and deferred promises are test utilities, not user Memory, a runtime index or product validation receipts.
+- Type-only imports are still visible to the current engineering scanner; a card-level cycle is a review diagnostic, not proof of a JavaScript runtime import cycle.
 
 ## Active Constraints
 
@@ -53,7 +56,9 @@ valid_scope:
 
 ## Evidence Base
 
-- source:src/types.ts
+
+- source:https://github.com/Kunshao1117/cartridge_system/blob/3f346804c8c72944a2c61a46544421c9f9009ef2/.agents/memory/core-types/foundation/MEMORY.md — reviewed original card revision.
+- source:https://github.com/Kunshao1117/cartridge_system/tree/3f346804c8c72944a2c61a46544421c9f9009ef2 — source tree for this static claim/ownership review; use Tracked Files for the exact source slice.
 
 ## Read Contract
 
@@ -62,16 +67,21 @@ valid_scope:
 
 ## Conflicts and Supersession
 
-- None recorded.
+
+- Static comparison target: 5.5.8 source 3f346804c8c72944a2c61a46544421c9f9009ef2. Historical cycle/archive records remain unchanged; old validation IDs do not establish current runtime acceptance.
 
 ## 中文摘要
 
-- 共用型別已拆出 foundation 卡。
-- 此拆分清除 visible-index 與 runtime helper 的記憶依賴循環。
+
+- 共用型別在 5.5.1 治理修復時拆出 foundation，目的是降低卡片歸屬耦合。
+- 5.5.8 的實際工程圖仍有 runtime／visible-index 與 foundation 相關循環診斷；不宣稱拆分已消除循環。
+- 其中包含 type-only import／helper 分組關係，須保留診斷，不等同 JavaScript 執行期循環。
 
 ## Tracked Files
 
+
 - src/types.ts
+- src/tests/surface-regression-fixtures.ts
 
 ## Relations
 

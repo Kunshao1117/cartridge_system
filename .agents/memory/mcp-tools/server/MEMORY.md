@@ -13,7 +13,7 @@ staleness: 0
 memory_schema_version: 2
 memory_quality_version: 1
 memory_kind: source_fact
-verification_status: verified
+verification_status: pending_review
 last_verified: '2026-07-13T22:55:00+08:00'
 valid_scope: current-project
 content_language: en
@@ -39,11 +39,11 @@ metadata:
 
 ## Current Truth
 
-- `MCP_SERVER_VERSION`, SDK server metadata, CLI version output, and server tests are synchronized to 5.5.4.
-- The server is a thin stdio transport that obtains public tool definitions from `mcp-tools.tool-registry`.
-- Tool calls are delegated to `mcp-tools.dispatcher`; the server does not duplicate handler, safety, or confirmation logic.
-- The CLI keeps `--workspace` as an optional absolute default project root for downstream calls.
-- List-tools and call-tool behavior remain registry-driven so MCP packaging and runtime expose one contract.
+
+- MCP_SERVER_VERSION, SDK metadata, CLI version and server tests are synchronized to 5.5.8.
+- The stdio server remains thin: `mcp-tools.tool-registry` supplies public tool definitions and `mcp-tools.dispatcher` owns call routing/confirmation behavior.
+- CLI --workspace supplies an optional absolute default project root. Protocol stdout must remain free of diagnostic chatter.
+- Source/transport smoke and published package identity are different evidence from a real Gateway or user-installed runtime acceptance.
 
 ## Active Constraints
 
@@ -73,11 +73,12 @@ metadata:
 
 ## Evidence Base
 
-- source:src/mcp-server.ts
-- source:src/tests/mcp-server.test.ts
-- validation:5.5.4 source suite — MCP/version tests accepted.
-- validation:validation-artifact-5.5.4-20260713-r1 — packaged MCP runtime reported 5.5.4.
-- review:hp-review-source-final-20260713-r3 — source review accepted with P0–P3 clear.
+
+- source:https://github.com/Kunshao1117/cartridge_system/blob/3f346804c8c72944a2c61a46544421c9f9009ef2/.agents/memory/mcp-tools/server/MEMORY.md — reviewed original card revision.
+- source:https://github.com/Kunshao1117/cartridge_system/tree/3f346804c8c72944a2c61a46544421c9f9009ef2 — source tree for this static claim/ownership review; use Tracked Files for the exact source slice.
+- validation:5.5.4 source suite — MCP/version tests accepted. Historical only; original receipt not revalidated in this review.
+- validation:validation-artifact-5.5.4-20260713-r1 — packaged MCP runtime reported 5.5.4. Historical only; original receipt not revalidated in this review.
+- review:hp-review-source-final-20260713-r3 — source review accepted with P0–P3 clear. Historical only; original receipt not revalidated in this review.
 
 ## Read Contract
 
@@ -86,13 +87,15 @@ metadata:
 
 ## Conflicts and Supersession
 
-- None.
+
+- Static comparison target: 5.5.8 source 3f346804c8c72944a2c61a46544421c9f9009ef2. Historical cycle/archive records remain unchanged; old validation IDs do not establish current runtime acceptance.
 
 ## 中文摘要
 
-- MCP server 的版本常數、SDK metadata、CLI 版本輸出與測試已同步為 5.5.4。
-- Server 維持薄層設計：工具定義來自 registry，呼叫分派與安全界線來自 dispatcher。
-- `--workspace` 仍可指定預設專案根目錄，不另建狀態來源。
+
+- MCP server 常數、SDK／CLI 與測試版本為 5.5.8。
+- 維持 registry／dispatcher 分工與 --workspace 預設根目錄。
+- 打包及 stdio 測試不等於使用者真實 Gateway 驗收。
 
 ## Tracked Files
 

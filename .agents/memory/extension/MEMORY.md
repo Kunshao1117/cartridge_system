@@ -14,7 +14,7 @@ staleness: 0
 memory_schema_version: 2
 memory_quality_version: 1
 memory_kind: source_fact
-verification_status: verified
+verification_status: pending_review
 last_verified: '2026-07-11T14:40:20+08:00'
 valid_scope: current-project
 content_language: en
@@ -39,12 +39,13 @@ metadata:
 
 ## Current Truth
 
-- This card owns the VS Code extension entrypoint, scan lifecycle, status bar, TreeView, CodeLens, update checks, and governance views.
-- Activation, manual scan, and background scan all call the shared project refresh path used by Desktop and MCP.
-- UI status and health reports consume `projectCanonicalHealth` from the committed index rather than deriving a separate extension state.
-- External index changes arrive through `extension.watcher` and refresh the UI from the newest valid committed snapshot.
-- Synchronization warnings are visible but nonfatal; they do not replace the last committed health or untracked result.
-- Visible untracked counts use the shared projection and never include managed memory artifacts.
+
+- Owns VS Code activation/scan lifecycle, status/TreeView/CodeLens, updates, governance views, attribution guidance and final host-open command.
+- Activation, manual and background scans use shared refresh; UI health/untracked state comes from the committed canonical index and shared visible projection.
+- Startup warning injection runs inside the project transaction, rereads current pending evidence and checks activation generation before writing.
+- Attribution selection returns a reviewable, explicitly unapplied suggestion. It does not mutate Tracked Files or declare synchronization complete.
+- Host-open validation happens at command execution immediately before I/O, not only while constructing a TreeItem.
+- The extension consumes `index-manager`, `core-types.visible-index` and `extension.watcher`; external reload failures preserve committed state and show a nonfatal warning.
 
 ## Active Constraints
 
@@ -62,16 +63,11 @@ metadata:
 
 ## Evidence Base
 
-- source:src/extension.ts
-- source:src/status-bar.ts
-- source:src/tests/status-bar.test.ts
-- source:src/treeview-provider.ts
-- source:src/codelens-provider.ts
-- source:src/governance-views.ts
-- source:src/update-checker.ts
-- source:src/tests/update-checker.test.ts
-- validation:VD-03 — 5.5.3 VS Code and cross-runtime parity validation provenance.
-- review:RD-03 — independent 5.5.3 review provenance.
+
+- source:https://github.com/Kunshao1117/cartridge_system/blob/3f346804c8c72944a2c61a46544421c9f9009ef2/.agents/memory/extension/MEMORY.md — reviewed original card revision.
+- source:https://github.com/Kunshao1117/cartridge_system/tree/3f346804c8c72944a2c61a46544421c9f9009ef2 — source tree for this static claim/ownership review; use Tracked Files for the exact source slice.
+- validation:VD-03 — 5.5.3 VS Code and cross-runtime parity validation provenance. Historical only; original receipt not revalidated in this review.
+- review:RD-03 — independent 5.5.3 review provenance. Historical only; original receipt not revalidated in this review.
 
 ## Read Contract
 
@@ -80,7 +76,8 @@ metadata:
 
 ## Conflicts and Supersession
 
-- None.
+
+- Static comparison target: 5.5.8 source 3f346804c8c72944a2c61a46544421c9f9009ef2. Historical cycle/archive records remain unchanged; old validation IDs do not establish current runtime acceptance.
 
 ## 中文摘要
 
@@ -90,6 +87,7 @@ metadata:
 
 ## Tracked Files
 
+
 - src/extension.ts
 - src/update-checker.ts
 - src/tests/update-checker.test.ts
@@ -98,6 +96,11 @@ metadata:
 - src/tests/status-bar.test.ts
 - src/treeview-provider.ts
 - src/codelens-provider.ts
+- src/attribution-guidance.ts
+- src/extension-startup-warnings.ts
+- src/project-file-command.ts
+- src/tests/attribution-guidance.test.ts
+- src/tests/extension-startup-warnings.test.ts
 
 ## Relations
 

@@ -23,19 +23,24 @@ metadata:
   tool_scope: []
 memory_quality_version: 1
 memory_kind: implementation
-verification_status: verified
+verification_status: pending_review
 last_verified: '2026-06-15T00:47:16+08:00'
 valid_scope:
   - src/memory-main-file.ts
   - src/tests/memory-main-file.test.ts
+  - src/card-metadata.ts
+  - src/memory-card-path.ts
 ---
 # core types / memory main file — Module Memory
 
 ## Current Truth
 
-- This card owns active memory main-file resolution, exact MEMORY.md / SKILL.md casing, conflict detection, and content quality analysis.
-- Archive volumes and legacy archive directories are never treated as active main files.
-- Verified quality requires required fields, required sections, verified status, and actionable Evidence Base entries.
+
+- Owns exact-case MEMORY.md / legacy SKILL.md main-file resolution, conflict/missing detection, content quality, normalized card metadata and the allowed card-write path boundary.
+- Two active candidates produce conflict; neither archive volumes nor archive directories become an active main file. A healthy legacy card is not automatically renamed or standardized.
+- `assertMemoryCardPath` derives filesystem authority from trusted configured roots, rejects true Skills/archive targets and dual main files, and checks final project containment.
+- Quality-complete checks required fields/sections and actionable evidence syntax, not the external truth of the claims. Invalid metadata, future timestamps and quality conflicts remain diagnostics.
+- Context inventory, index ingestion and read-only audit share this identity matrix, including parent directories with child cards but no main file.
 
 ## Active Constraints
 
@@ -55,8 +60,9 @@ valid_scope:
 
 ## Evidence Base
 
-- source:src/memory-main-file.ts
-- source:src/tests/memory-main-file.test.ts
+
+- source:https://github.com/Kunshao1117/cartridge_system/blob/3f346804c8c72944a2c61a46544421c9f9009ef2/.agents/memory/core-types/memory-main-file/MEMORY.md — reviewed original card revision.
+- source:https://github.com/Kunshao1117/cartridge_system/tree/3f346804c8c72944a2c61a46544421c9f9009ef2 — source tree for this static claim/ownership review; use Tracked Files for the exact source slice.
 
 ## Read Contract
 
@@ -65,7 +71,8 @@ valid_scope:
 
 ## Conflicts and Supersession
 
-- None recorded.
+
+- Static comparison target: 5.5.8 source 3f346804c8c72944a2c61a46544421c9f9009ef2. Historical cycle/archive records remain unchanged; old validation IDs do not establish current runtime acceptance.
 
 ## 中文摘要
 
@@ -74,8 +81,11 @@ valid_scope:
 
 ## Tracked Files
 
+
 - src/memory-main-file.ts
 - src/tests/memory-main-file.test.ts
+- src/card-metadata.ts
+- src/memory-card-path.ts
 
 ## Relations
 

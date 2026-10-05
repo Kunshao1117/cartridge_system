@@ -24,7 +24,7 @@ metadata:
     - 'filesystem:read'
 memory_quality_version: 1
 memory_kind: implementation
-verification_status: verified
+verification_status: pending_review
 last_verified: '2026-06-15T00:47:16+08:00'
 valid_scope:
   - src/import-resolver.ts
@@ -39,12 +39,12 @@ scopePath: null
 
 ## Current Truth
 
-- This card is the schema v2 memory owner for index-manager.dep-engine.
-- Its implementation boundary is the tracked file list below.
-- Legacy decisions, lessons, and repair notes were preserved in archive-001.md.
-- Frontmatter dependencies are retained as staleness propagation dependencies and must not be used for navigation-only links.
-- Directory nesting is navigation; parent-child placement is not a dependency by itself.
-- Current behavior must still be verified against source before edits.
+
+- Owns import scanning, declared/engineering dependency graph construction, bounded indirect staleness propagation and semantic diagnostics.
+- Engineering imports and frontmatter declarations retain separate provenance; propagation uses their union. A missing rationale does not silently delete a declared edge.
+- Relations, Applicable Skills and directory parent/child navigation do not create propagation edges by themselves.
+- Side-effect imports are included; comment/string lookalikes are excluded. Unknown/self/duplicate/cyclic edges remain bounded diagnostics.
+- Derived results are calculated before publication; failure retains the last trusted graph/indirect scores and exposes a warning. Offline reindex reconciles direct state before publishing final indirect state.
 
 ## Active Constraints
 
@@ -66,12 +66,9 @@ scopePath: null
 
 ## Evidence Base
 
-- source:src/import-resolver.ts
-- source:src/dependency-propagator.ts
-- source:src/dependency-semantics.ts
-- source:src/tests/import-resolver.test.ts
-- source:src/tests/dependency-propagator.test.ts
-- source:src/tests/dependency-semantics.test.ts
+
+- source:https://github.com/Kunshao1117/cartridge_system/blob/3f346804c8c72944a2c61a46544421c9f9009ef2/.agents/memory/index-manager/dep-engine/MEMORY.md — reviewed original card revision.
+- source:https://github.com/Kunshao1117/cartridge_system/tree/3f346804c8c72944a2c61a46544421c9f9009ef2 — source tree for this static claim/ownership review; use Tracked Files for the exact source slice.
 
 ## Read Contract
 
@@ -80,7 +77,8 @@ scopePath: null
 
 ## Conflicts and Supersession
 
-- None recorded.
+
+- Static comparison target: 5.5.8 source 3f346804c8c72944a2c61a46544421c9f9009ef2. Historical cycle/archive records remain unchanged; old validation IDs do not establish current runtime acceptance.
 
 ## 中文摘要
 

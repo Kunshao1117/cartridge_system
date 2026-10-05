@@ -23,7 +23,7 @@ metadata:
   tool_scope: []
 memory_quality_version: 1
 memory_kind: implementation
-verification_status: verified
+verification_status: pending_review
 last_verified: '2026-06-15T00:47:16+08:00'
 valid_scope:
   - src/desktop/path-guard.ts
@@ -39,8 +39,11 @@ valid_scope:
 
 ## Current Truth
 
-- This card owns desktop project path validation, window behavior policy, project store persistence, desktop notifications, and their tests.
-- These files are runtime support for the Electron shell but change independently from IPC channel definitions.
+
+- Owns project-path validation, window behavior, project store persistence and desktop notification policy.
+- Store read-modify-write operations are serialized per canonical file across store objects in one process; each operation reads the predecessor result and replaces via a temporary file.
+- Failed replacement preserves the last valid file and later operations can retry. This process-local store queue is not the cross-process project-index lock.
+- Windows project identities are case-normalized through the shared monitor identity helper; POSIX case remains distinct.
 
 ## Active Constraints
 
@@ -60,14 +63,9 @@ valid_scope:
 
 ## Evidence Base
 
-- source:src/desktop/path-guard.ts
-- source:src/desktop/window-behavior.ts
-- source:src/desktop/project-store.ts
-- source:src/desktop/desktop-notifier.ts
-- source:src/tests/desktop-store.test.ts
-- source:src/tests/desktop-path-guard.test.ts
-- source:src/tests/desktop-window-behavior.test.ts
-- source:src/tests/desktop-notifier.test.ts
+
+- source:https://github.com/Kunshao1117/cartridge_system/blob/3f346804c8c72944a2c61a46544421c9f9009ef2/.agents/memory/desktop-console/app/project-state/MEMORY.md — reviewed original card revision.
+- source:https://github.com/Kunshao1117/cartridge_system/tree/3f346804c8c72944a2c61a46544421c9f9009ef2 — source tree for this static claim/ownership review; use Tracked Files for the exact source slice.
 
 ## Read Contract
 
@@ -76,7 +74,8 @@ valid_scope:
 
 ## Conflicts and Supersession
 
-- None recorded.
+
+- Static comparison target: 5.5.8 source 3f346804c8c72944a2c61a46544421c9f9009ef2. Historical cycle/archive records remain unchanged; old validation IDs do not establish current runtime acceptance.
 
 ## 中文摘要
 

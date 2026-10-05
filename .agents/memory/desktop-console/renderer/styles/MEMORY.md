@@ -23,12 +23,13 @@ metadata:
   tool_scope: []
 memory_quality_version: 1
 memory_kind: implementation
-verification_status: verified
+verification_status: pending_review
 last_verified: '2026-06-15T00:47:16+08:00'
 valid_scope:
   - src/desktop/renderer/desktopStyles.ts
   - src/desktop/renderer/detailStyles.ts
   - src/desktop/renderer/styles.css
+  - src/tests/desktop-width-contract.test.ts
 ---
 # desktop console / renderer styles — Module Memory
 
@@ -55,9 +56,9 @@ valid_scope:
 
 ## Evidence Base
 
-- source:src/desktop/renderer/desktopStyles.ts
-- source:src/desktop/renderer/detailStyles.ts
-- source:src/desktop/renderer/styles.css
+
+- source:https://github.com/Kunshao1117/cartridge_system/blob/3f346804c8c72944a2c61a46544421c9f9009ef2/.agents/memory/desktop-console/renderer/styles/MEMORY.md — reviewed original card revision.
+- source:https://github.com/Kunshao1117/cartridge_system/tree/3f346804c8c72944a2c61a46544421c9f9009ef2 — source tree for this static claim/ownership review; use Tracked Files for the exact source slice.
 
 ## Read Contract
 
@@ -66,7 +67,8 @@ valid_scope:
 
 ## Conflicts and Supersession
 
-- None recorded.
+
+- Static comparison target: 5.5.8 source 3f346804c8c72944a2c61a46544421c9f9009ef2. Historical cycle/archive records remain unchanged; old validation IDs do not establish current runtime acceptance.
 
 ## 中文摘要
 
@@ -75,9 +77,11 @@ valid_scope:
 
 ## Tracked Files
 
+
 - src/desktop/renderer/desktopStyles.ts
 - src/desktop/renderer/detailStyles.ts
 - src/desktop/renderer/styles.css
+- src/tests/desktop-width-contract.test.ts
 
 ## Relations
 

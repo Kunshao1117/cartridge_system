@@ -23,7 +23,7 @@ metadata:
   tool_scope: []
 memory_quality_version: 1
 memory_kind: implementation
-verification_status: verified
+verification_status: pending_review
 last_verified: '2026-06-15T00:47:16+08:00'
 valid_scope:
   - src/config.ts
@@ -33,15 +33,23 @@ valid_scope:
   - src/tests/path-guard.test.ts
   - src/tests/staleness.test.ts
   - src/tests/timestamp.test.ts
+  - docs/security-boundaries.md
+  - src/file-containment.ts
+  - src/safe-frontmatter.ts
+  - src/tracked-path.ts
+  - src/tests/file-containment-race.test.ts
 ---
 # core types / runtime helpers — Module Memory
 
 ## Current Truth
 
-- This card owns shared configuration, path safety, staleness classification, and Taiwan timestamp helpers.
-- Shared TypeScript contracts are owned by core-types.foundation.
-- Warning classification imports visible-index helpers directly so it does not depend on index-manager.
-- These helpers are consumed by extension, MCP, desktop, and governance summary surfaces.
+
+- Owns shared configuration, path safety, tracked-path identity, data-only frontmatter, staleness classification and Taiwan timestamp helpers; shared TypeScript contracts remain in `core-types.foundation`.
+- All production gray-matter access passes through `safe-frontmatter`: YAML/YML/JSON data only, no executable engine, with bounded acyclic data graphs and preservation of supported dates and unknown keys.
+- Final read/write/open boundaries require both lexical and physical project containment. Configured roots and internal links are allowed only inside the trusted project root.
+- In 5.5.8, a realpath ENOENT restarts resolution from the original candidate at most three total attempts. Other errors, persistent churn, dangling or escaping links fail closed.
+- `canonicalTrackedPath` unifies ordinary path spellings while retaining suspicious traversal/foreign-root syntax for downstream rejection; normalization does not authorize I/O.
+- These checks are not an OS sandbox or a guarantee against arbitrary hostile concurrent ancestor replacement. The security-boundaries document describes an earlier batch; current CI packaging behavior is owned by `release-packaging`.
 
 ## Active Constraints
 
@@ -61,13 +69,9 @@ valid_scope:
 
 ## Evidence Base
 
-- source:src/config.ts
-- source:src/path-guard.ts
-- source:src/staleness.ts
-- source:src/timestamp.ts
-- source:src/tests/path-guard.test.ts
-- source:src/tests/staleness.test.ts
-- source:src/tests/timestamp.test.ts
+
+- source:https://github.com/Kunshao1117/cartridge_system/blob/3f346804c8c72944a2c61a46544421c9f9009ef2/.agents/memory/core-types/runtime/MEMORY.md — reviewed original card revision.
+- source:https://github.com/Kunshao1117/cartridge_system/tree/3f346804c8c72944a2c61a46544421c9f9009ef2 — source tree for this static claim/ownership review; use Tracked Files for the exact source slice.
 
 ## Read Contract
 
@@ -76,7 +80,8 @@ valid_scope:
 
 ## Conflicts and Supersession
 
-- None recorded.
+
+- Static comparison target: 5.5.8 source 3f346804c8c72944a2c61a46544421c9f9009ef2. Historical cycle/archive records remain unchanged; old validation IDs do not establish current runtime acceptance.
 
 ## 中文摘要
 
@@ -85,6 +90,7 @@ valid_scope:
 
 ## Tracked Files
 
+
 - src/config.ts
 - src/path-guard.ts
 - src/staleness.ts
@@ -92,6 +98,11 @@ valid_scope:
 - src/tests/path-guard.test.ts
 - src/tests/staleness.test.ts
 - src/tests/timestamp.test.ts
+- docs/security-boundaries.md
+- src/file-containment.ts
+- src/safe-frontmatter.ts
+- src/tracked-path.ts
+- src/tests/file-containment-race.test.ts
 
 ## Relations
 

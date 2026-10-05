@@ -12,8 +12,8 @@ human_language: zh-TW
 cycle_id: 2026-06-04-001
 cycle_event_count: 3
 cycle_event_limit: 30
-size_limit_bytes: 16384
-line_limit: 120
+size_limit_bytes: 8192
+line_limit: null
 archive_policy: volume
 compaction_status: ready
 metadata:
@@ -25,7 +25,7 @@ metadata:
     - 'filesystem:read'
 memory_quality_version: 1
 memory_kind: navigation
-verification_status: verified
+verification_status: pending_review
 last_verified: '2026-06-15T00:47:16+08:00'
 valid_scope:
   - .agents/memory/_map
@@ -43,7 +43,7 @@ valid_scope:
 
 ## Active Constraints
 
-- Keep the main card under 16 KB and 120 lines; move history into archive volumes.
+- This root-index card has an 8 KB source-defined limit and no line-count limit; ordinary main-card limits are 16 KB and 120 lines.
 - Keep the technical body in English; use Traditional Chinese only in description and Chinese summary.
 - Use dependencies only for true staleness propagation; use Relations for navigation.
 - Do not rewrite archive volumes during active-card standardization.
@@ -62,7 +62,9 @@ valid_scope:
 
 ## Evidence Base
 
-- source:.agents/memory/_map
+
+- source:https://github.com/Kunshao1117/cartridge_system/blob/3f346804c8c72944a2c61a46544421c9f9009ef2/.agents/memory/_map/MEMORY.md — reviewed original card revision.
+- source:https://github.com/Kunshao1117/cartridge_system/tree/3f346804c8c72944a2c61a46544421c9f9009ef2 — source tree for this static claim/ownership review; use Tracked Files for the exact source slice.
 
 ## Read Contract
 
@@ -71,7 +73,8 @@ valid_scope:
 
 ## Conflicts and Supersession
 
-- None recorded.
+
+- Static comparison target: 5.5.8 source 3f346804c8c72944a2c61a46544421c9f9009ef2. Historical cycle/archive records remain unchanged; old validation IDs do not establish current runtime acceptance.
 
 ## 中文摘要
 

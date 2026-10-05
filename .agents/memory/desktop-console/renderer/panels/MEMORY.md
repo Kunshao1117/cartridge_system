@@ -23,7 +23,7 @@ metadata:
   tool_scope: []
 memory_quality_version: 1
 memory_kind: implementation
-verification_status: verified
+verification_status: pending_review
 last_verified: '2026-06-15T00:47:16+08:00'
 valid_scope:
   - src/desktop/renderer/App.tsx
@@ -34,13 +34,21 @@ valid_scope:
   - src/desktop/renderer/settings-panel.tsx
   - src/desktop/renderer/sidebar.tsx
   - src/tests/desktop-renderer-layout.test.ts
+  - src/desktop/renderer/latest-request.ts
+  - src/desktop/renderer/settings-updates.ts
+  - src/tests/desktop-rendered-flows.test.tsx
+  - src/tests/desktop-settings-updates.test.ts
 ---
 # desktop console / renderer panels — Module Memory
 
 ## Current Truth
 
-- This card owns Desktop Console renderer panels, issue drawer, overview, project detail, settings panel, sidebar, shared UI helpers, and layout tests.
-- Panel behavior must preserve dense operational scanning and avoid page-level horizontal overflow.
+
+- Owns App, drawer, overview, detail, settings, sidebar, shared panel UI and request/settings coordination.
+- LatestRequest guards independent snapshot/settings/operation domains; newer events and unmount invalidate old replies so reverse completion cannot restore stale UI.
+- SettingsUpdateQueue serializes requested patches and reloads persisted settings after success or failure; global settings remain available with zero projects.
+- Panels expose scan errors, last successful scan state, partial sync and ghost restore/review guidance. Selecting an attribution suggestion is not a tracking write.
+- Dense layout and interaction tests include no nested row buttons and bounded widths; static rendering does not prove installed GUI behavior.
 
 ## Active Constraints
 
@@ -60,14 +68,9 @@ valid_scope:
 
 ## Evidence Base
 
-- source:src/desktop/renderer/App.tsx
-- source:src/desktop/renderer/common.tsx
-- source:src/desktop/renderer/issue-drawer.tsx
-- source:src/desktop/renderer/overview.tsx
-- source:src/desktop/renderer/project-detail.tsx
-- source:src/desktop/renderer/settings-panel.tsx
-- source:src/desktop/renderer/sidebar.tsx
-- source:src/tests/desktop-renderer-layout.test.ts
+
+- source:https://github.com/Kunshao1117/cartridge_system/blob/3f346804c8c72944a2c61a46544421c9f9009ef2/.agents/memory/desktop-console/renderer/panels/MEMORY.md — reviewed original card revision.
+- source:https://github.com/Kunshao1117/cartridge_system/tree/3f346804c8c72944a2c61a46544421c9f9009ef2 — source tree for this static claim/ownership review; use Tracked Files for the exact source slice.
 
 ## Read Contract
 
@@ -76,7 +79,8 @@ valid_scope:
 
 ## Conflicts and Supersession
 
-- None recorded.
+
+- Static comparison target: 5.5.8 source 3f346804c8c72944a2c61a46544421c9f9009ef2. Historical cycle/archive records remain unchanged; old validation IDs do not establish current runtime acceptance.
 
 ## 中文摘要
 
@@ -84,6 +88,7 @@ valid_scope:
 - 此卡承接操作者可見 UI 的主要元件。
 
 ## Tracked Files
+
 
 - src/desktop/renderer/App.tsx
 - src/desktop/renderer/common.tsx
@@ -93,6 +98,10 @@ valid_scope:
 - src/desktop/renderer/settings-panel.tsx
 - src/desktop/renderer/sidebar.tsx
 - src/tests/desktop-renderer-layout.test.ts
+- src/desktop/renderer/latest-request.ts
+- src/desktop/renderer/settings-updates.ts
+- src/tests/desktop-rendered-flows.test.tsx
+- src/tests/desktop-settings-updates.test.ts
 
 ## Relations
 

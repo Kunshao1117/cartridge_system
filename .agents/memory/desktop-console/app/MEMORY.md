@@ -25,21 +25,24 @@ metadata:
     - 'filesystem:read'
 memory_quality_version: 1
 memory_kind: implementation
-verification_status: verified
+verification_status: pending_review
 last_verified: '2026-06-15T00:47:16+08:00'
 valid_scope:
   - src/desktop/main.ts
   - src/desktop/preload.ts
   - src/desktop/ipc-channels.ts
+  - src/desktop/project-status.ts
 scopePath: null
 ---
 # desktop console / app — Module Memory
 
 ## Current Truth
 
-- This card owns the Electron main process shell, preload bridge, and IPC channel contract.
-- Project persistence, window behavior, path guard, and desktop notifications are delegated to desktop-console.app.project-state.
-- Installer metadata is owned by release-packaging.
+
+- Owns Electron main/preload, IPC channel contract, tray labels and operation-result projection; project store/window/path/notifications remain in `desktop-console.app.project-state`.
+- Tray state prioritizes error, blocked and warning before paused/healthy; scan failure retains the last successful snapshots and partial synchronization is not reported as success.
+- Project-specific results use the shared canonical project-root identity. No target produces cancelled rather than a successful scan.
+- Installer metadata remains owned by `release-packaging`; source and rendered tests are not installed Windows GUI acceptance.
 
 ## Active Constraints
 
@@ -61,9 +64,9 @@ scopePath: null
 
 ## Evidence Base
 
-- source:src/desktop/main.ts
-- source:src/desktop/preload.ts
-- source:src/desktop/ipc-channels.ts
+
+- source:https://github.com/Kunshao1117/cartridge_system/blob/3f346804c8c72944a2c61a46544421c9f9009ef2/.agents/memory/desktop-console/app/MEMORY.md — reviewed original card revision.
+- source:https://github.com/Kunshao1117/cartridge_system/tree/3f346804c8c72944a2c61a46544421c9f9009ef2 — source tree for this static claim/ownership review; use Tracked Files for the exact source slice.
 
 ## Read Contract
 
@@ -72,7 +75,8 @@ scopePath: null
 
 ## Conflicts and Supersession
 
-- None recorded.
+
+- Static comparison target: 5.5.8 source 3f346804c8c72944a2c61a46544421c9f9009ef2. Historical cycle/archive records remain unchanged; old validation IDs do not establish current runtime acceptance.
 
 ## 中文摘要
 
@@ -81,9 +85,11 @@ scopePath: null
 
 ## Tracked Files
 
+
 - src/desktop/main.ts
 - src/desktop/preload.ts
 - src/desktop/ipc-channels.ts
+- src/desktop/project-status.ts
 
 ## Relations
 

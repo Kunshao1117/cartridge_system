@@ -12,7 +12,7 @@ staleness: 0
 memory_schema_version: 2
 memory_quality_version: 1
 memory_kind: source_fact
-verification_status: verified
+verification_status: pending_review
 last_verified: '2026-07-11T14:40:20+08:00'
 valid_scope: current-project
 content_language: en
@@ -36,13 +36,12 @@ metadata:
 
 ## Current Truth
 
-- Memory-file events retain priority over ordinary project-file ignore handling.
-- Root or nested `.gitignore` and relevant `.git/index`, `.git/config`, and `.git/info/exclude` changes trigger authoritative refresh semantics.
-- External `.cartridge/index.json` changes are debounced for 150 ms and reload committed state into the extension runtime.
-- Generated release artifacts and internal transaction files are ignored by the watcher.
-- Persisted-index fingerprints suppress self-generated notifications without hiding a different process's commit.
-- Invalid external state retains the last committed snapshot and exposes a nonfatal synchronization warning.
-- Shared project event handling keeps watcher decisions aligned with Desktop monitoring.
+
+- Memory-file events precede ordinary Git ignore handling; Git-control changes trigger shared authoritative refresh.
+- External canonical index events are debounced for 150 ms and compared by committed fingerprint to suppress self-notifications without hiding another process commit.
+- Invalid external state preserves the last committed snapshot with a nonfatal synchronization warning.
+- `stop()` cancels debounces and invalidates callbacks; separate `drain()` waits for accepted source/reload operations, and extension deactivation awaits it together with outstanding work. V2 lock/candidate artifacts are never source changes.
+- The watcher consumes `index-manager` for canonical state and `desktop-console.monitoring` shared event handling; their relation is implementation-backed, not navigation-only.
 
 ## Active Constraints
 
@@ -63,11 +62,11 @@ metadata:
 
 ## Evidence Base
 
-- source:src/watcher.ts
-- source:src/tests/watcher.test.ts
-- source:src/monitoring/project-event-handler.ts
-- validation:VD-03 — 5.5.3 watcher and state-convergence validation provenance.
-- review:RD-03 — independent 5.5.3 review provenance.
+
+- source:https://github.com/Kunshao1117/cartridge_system/blob/3f346804c8c72944a2c61a46544421c9f9009ef2/.agents/memory/extension/watcher/MEMORY.md — reviewed original card revision.
+- source:https://github.com/Kunshao1117/cartridge_system/tree/3f346804c8c72944a2c61a46544421c9f9009ef2 — source tree for this static claim/ownership review; use Tracked Files for the exact source slice.
+- validation:VD-03 — 5.5.3 watcher and state-convergence validation provenance. Historical only; original receipt not revalidated in this review.
+- review:RD-03 — independent 5.5.3 review provenance. Historical only; original receipt not revalidated in this review.
 
 ## Read Contract
 
@@ -76,7 +75,8 @@ metadata:
 
 ## Conflicts and Supersession
 
-- None.
+
+- Static comparison target: 5.5.8 source 3f346804c8c72944a2c61a46544421c9f9009ef2. Historical cycle/archive records remain unchanged; old validation IDs do not establish current runtime acceptance.
 
 ## 中文摘要
 
@@ -86,8 +86,10 @@ metadata:
 
 ## Tracked Files
 
+
 - src/watcher.ts
 - src/tests/watcher.test.ts
+- src/tests/watcher-lifecycle.test.ts
 
 ## Relations
 

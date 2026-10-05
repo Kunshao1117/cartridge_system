@@ -1,10 +1,13 @@
 # 記憶卡複審與同步契約
 
-本契約對齊 AI_Rules main `feb7bca824cd069f383acb3fc337550f912c6317`。固定來源：
-- [Memory governance](https://github.com/Kunshao1117/AI_Rules/blob/feb7bca824cd069f383acb3fc337550f912c6317/Shared/policies/memory-governance.md)
-- [Workflow memory evidence](https://github.com/Kunshao1117/AI_Rules/blob/feb7bca824cd069f383acb3fc337550f912c6317/Shared/policies/references/workflow-memory-evidence.md)
-- [Review evidence](https://github.com/Kunshao1117/AI_Rules/blob/feb7bca824cd069f383acb3fc337550f912c6317/Shared/policies/references/memory-review-evidence.md)
-- [Write/sync evidence](https://github.com/Kunshao1117/AI_Rules/blob/feb7bca824cd069f383acb3fc337550f912c6317/Shared/policies/references/memory-update-sync-evidence.md)
+本契約對齊 AI_Rules main `2b6add3931ae4e5c202fa73be9fa979203934f55`。固定來源：
+- [Memory governance](https://github.com/Kunshao1117/AI_Rules/blob/2b6add3931ae4e5c202fa73be9fa979203934f55/Shared/policies/memory-governance.md)
+- [Workflow memory evidence](https://github.com/Kunshao1117/AI_Rules/blob/2b6add3931ae4e5c202fa73be9fa979203934f55/Shared/policies/references/workflow-memory-evidence.md)
+- [Review evidence](https://github.com/Kunshao1117/AI_Rules/blob/2b6add3931ae4e5c202fa73be9fa979203934f55/Shared/policies/references/memory-review-evidence.md)
+- [Write/sync evidence](https://github.com/Kunshao1117/AI_Rules/blob/2b6add3931ae4e5c202fa73be9fa979203934f55/Shared/policies/references/memory-update-sync-evidence.md)
+
+- [Authorization resolution](https://github.com/Kunshao1117/AI_Rules/blob/2b6add3931ae4e5c202fa73be9fa979203934f55/Shared/policies/authorization-resolution.md)
+- [Repository source reconciliation](https://github.com/Kunshao1117/AI_Rules/blob/2b6add3931ae4e5c202fa73be9fa979203934f55/Shared/policies/references/repository-memory-reconciliation.md)
 
 ## 來源有變動，先複審
 
@@ -56,3 +59,20 @@ INDEX_SYNC_PARTIAL：主卡寫入成功，索引交易失敗或尚未註冊。DE
 正式 18 工具：memory_list、memory_read、memory_status、memory_commit、memory_reindex、memory_deps、memory_graph、memory_audit、workspace_brief、commit_preflight、context_inventory、context_audit、context_diff、context_plan、project_context_list、project_context_read、project_context_validate、project_context_status。
 
 T05–15、T19–21、T23–24 由相應 source/unit/integration fixtures、双 OS CI 與三入口 build 驗證。T16–18/T22 的文件/contract tests 只驗證正確指引、版本規則與唯讀行為，不證明每位代理的實際 disposition 判斷品質。任何測試通過都不表示已安裝 VSIX、Electron GUI、真實 Gateway 或真實 UNC share 已驗收；每次發布必須以最終 SHA 的 CI 與獨立 review 為準。
+
+## 受控版本庫來源卡校正
+
+版本庫來源卡校正（Repository Source Reconciliation；repository-memory-reconciliation）是 AI_Rules authorization-resolution 的窄範圍路徑；詳細條件由同一固定 revision 的 `Shared/policies/references/repository-memory-reconciliation.md` 擁有。此路徑只校正已納入 Git 版本控制的來源主卡，不是 M5 cutover，也不啟用普通 runtime Memory 寫入。
+
+下列七項只是固定上游規則的對照摘要，完整授權由上游單一 owner 判定；全部須在套用前成立，缺項就保持 frozen：
+- explicit_source_scope：明確 repository、基線 commit、既有卡 allowlist、使用者授權與排除範圍
+- isolated_source_target：精確根目錄與 immutable Git base 證明是非 runtime 的獨立來源 checkout；不得是 active runtime 的 symlink/alias
+- current_claim_evidence：精確 diff、原卡與擬改卡雜湊、現行 source slice/revision、card revision/scope、變更 claims／中英摘要及唯一既有 tracking owner 綁定在同一 manifest
+- independent_patch_review：實體套用前的獨立審查接受精確 manifest 與治理 policy content hash，沒有未解阻擋；不得由實作者自行冒充
+- recoverable_history：保留所有 archive 原始 bytes 與雜湊、原卡可恢復版本、immutable Git base 及精確 old/new hashes；rollback 只可還原目前仍等於已套用 post-image 的目標，後續編輯會阻擋自動還原
+- bounded_source_effects：僅已審核既有來源卡；不增加 owner、不改 topology、Context、runtime projection、provider 或 derived index
+- truthful_validation：套用前重核基線與 diff，套用後逐檔 readback、精確變更清單、測試結果與 rollback 路徑；後續改動須重審受影響證據，保留真實工程／宣告依賴及循環診斷
+
+本路徑不授權建卡、拆分、移動、刪除歷史、runtime projection、memory_commit、memory_reindex、index sync 或無效索引修復；不得藉此解除 protected phase、trusted envelope/receipt、使用者端部署或 OS 安全限制。舊來源 bytes 與 archive 保留；Git 提交及測試紀錄不是 M5 或可信工具收據。
+
+校正後保留原有 last_verified、last_updated、cycle 與 stale 歷史值；有改動的卡以 pending_review 明示沒有整卡重新認證。來源 review 及這次版本庫 write/readback 的時間與精確 revision 由 PR/commit 與校正證據保存，不偽造舊 runtime metadata。來源卡已修改、Memory commit 未執行、index/derived sync 未執行必須分開回報；不能宣稱 stale、pending 或 ghost 已清除。日後真實 runtime 操作仍須其本身的有效授權、M5 適用性及能力證據。

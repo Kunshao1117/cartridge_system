@@ -11,7 +11,7 @@ staleness: 0
 memory_schema_version: 2
 memory_quality_version: 1
 memory_kind: source_fact
-verification_status: verified
+verification_status: pending_review
 last_verified: '2026-07-11T14:40:20+08:00'
 valid_scope: current-project
 content_language: en
@@ -35,13 +35,14 @@ metadata:
 
 ## Current Truth
 
-- `.cartridge/index.json` is the canonical persisted project state shared by Desktop, VS Code, and MCP.
-- Index transactions combine an in-process reentrant FIFO mutex with a cross-process lease lock, heartbeat, and fencing checks.
-- Every mutation reloads persisted state before applying changes, then uses atomic replacement so separate runtimes converge on one committed state.
-- Failed persistence restores the prior in-memory state and fails closed; stale or lost lease holders cannot replace a newer commit.
-- Only a full authoritative reindex may repair an invalid persisted index; normal event mutations retain the last committed state and warning.
-- Untracked reconciliation removes ignored, missing, now-owned, and managed-memory artifacts while preserving metadata for still-valid entries.
-- Visible untracked projection is owned by `core-types.visible-index` and re-exported here only for compatibility.
+
+- Owns canonical `.cartridge/index.json`, ingestion/ownership reconciliation, authoritative reindex, smart ownership and project transaction/artifact rules.
+- Transactions use an in-process reentrant FIFO mutex plus protocol-v2 cross-process generation locks; each mutation reloads persisted state and atomically replaces only while it still owns the generation.
+- V2 acquisition publishes a populated sibling candidate containing owner-UUID.json. Heartbeat never recreates a lost owner; recovery unlinks only the observed UUID then uses nonrecursive rmdir.
+- Automatic recovery requires same-host v2 ownership, expired grace and OS evidence that the PID is absent. Unknown, remote, malformed or legacy abandoned locks block instead of being guessed dead.
+- Only full authoritative reindex may repair an invalid index. Failed persistence restores trusted in-memory state; path aliases/ID collisions, malformed cards and source diagnostics remain visible.
+- Reconciliation preserves unresolved pending/ghost evidence, normalizes tracked identities and excludes managed Memory and index/lock artifacts. Shared visible projection belongs to `core-types.visible-index`.
+- All clients must stop/drain before upgrade or rollback; no mixed-version safety, hostile-writer CAS or distributed-filesystem fencing is claimed.
 
 ## Active Constraints
 
@@ -65,13 +66,11 @@ metadata:
 
 ## Evidence Base
 
-- source:src/index-manager.ts
-- source:src/memory-reindex.ts
-- source:src/project-index-transaction.ts
-- source:src/tests/index-manager.test.ts
-- source:src/tests/project-index-transaction.test.ts
-- validation:VD-03 — 5.5.3 source and runtime parity validation provenance.
-- review:RD-03 — independent 5.5.3 review provenance.
+
+- source:https://github.com/Kunshao1117/cartridge_system/blob/3f346804c8c72944a2c61a46544421c9f9009ef2/.agents/memory/index-manager/MEMORY.md — reviewed original card revision.
+- source:https://github.com/Kunshao1117/cartridge_system/tree/3f346804c8c72944a2c61a46544421c9f9009ef2 — source tree for this static claim/ownership review; use Tracked Files for the exact source slice.
+- validation:VD-03 — 5.5.3 source and runtime parity validation provenance. Historical only; original receipt not revalidated in this review.
+- review:RD-03 — independent 5.5.3 review provenance. Historical only; original receipt not revalidated in this review.
 
 ## Read Contract
 
@@ -80,7 +79,8 @@ metadata:
 
 ## Conflicts and Supersession
 
-- None.
+
+- Static comparison target: 5.5.8 source 3f346804c8c72944a2c61a46544421c9f9009ef2. Historical cycle/archive records remain unchanged; old validation IDs do not establish current runtime acceptance.
 
 ## 中文摘要
 
@@ -90,6 +90,7 @@ metadata:
 
 ## Tracked Files
 
+
 - src/index-manager.ts
 - src/memory-reindex.ts
 - src/project-index-transaction.ts
@@ -97,6 +98,11 @@ metadata:
 - src/tests/index-manager.test.ts
 - src/tests/project-index-transaction.test.ts
 - src/tests/detect-missed-changes.test.ts
+- docs/LOCK_PROTOCOL.md
+- src/project-index-artifacts.ts
+- src/tests/fixtures/index-lock-race-worker.ts
+- src/tests/project-index-lock-v2.test.ts
+- src/tests/project-index-recovery-race.test.ts
 
 ## Relations
 

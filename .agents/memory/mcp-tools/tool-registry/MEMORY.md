@@ -12,7 +12,7 @@ staleness: 0
 memory_schema_version: 2
 memory_quality_version: 1
 memory_kind: source_fact
-verification_status: verified
+verification_status: pending_review
 last_verified: '2026-07-13T22:55:00+08:00'
 valid_scope: current-project
 content_language: en
@@ -38,13 +38,12 @@ metadata:
 
 ## Current Truth
 
-- The registry exposes 18 MCP tools across memory, context, and project-context groups.
-- `memory_reindex` is a confirmed-write tool and keeps the existing explicit confirmation boundary.
-- Registry metadata drives list-tools output, dispatch safety, and the common governed response envelope.
-- Tools accept optional `projectRoot` where supported so callers can target an explicit workspace without creating a second state store.
-- Project-context tools remain read-only and separate from memory write and commit workflows.
-- Manifest-version tests assert release version 5.5.4 and built MCP bin coverage; this is a contract assertion, not a registry behavior change.
-- Response envelope time and shared result contracts depend on `core-types`.
+
+- Registry exposes 18 memory/context/project-context tools and drives public schemas, dispatcher safety metadata and the common response envelope.
+- memory_reindex remains confirmed-write; confirmation does not provide user authority, M5 cutover or permission for a broader target.
+- Shared module IDs permit Unicode and spaces in nonempty dot-separated names while rejecting path separators, controls and foreign-drive syntax. The schema is not filesystem authority.
+- Manifest tests assert version 5.5.8 and built MCP bin coverage. Project-context tools remain read-only; registry, dispatcher and handler constraints must agree.
+- The response envelope consumes `core-types` result/time contracts; adding a tool requires aligned registry, dispatch, manifest and contract tests.
 
 ## Active Constraints
 
@@ -67,13 +66,11 @@ metadata:
 
 ## Evidence Base
 
-- source:src/tool-registry.ts
-- source:src/mcp-response.ts
-- source:src/tests/tool-registry.test.ts
-- source:src/tests/mcp-response.test.ts
-- source:package.json
-- validation:5.5.4 source suite — registry manifest/version assertions accepted.
-- review:hp-review-source-final-20260713-r3 — source review accepted with P0–P3 clear.
+
+- source:https://github.com/Kunshao1117/cartridge_system/blob/3f346804c8c72944a2c61a46544421c9f9009ef2/.agents/memory/mcp-tools/tool-registry/MEMORY.md — reviewed original card revision.
+- source:https://github.com/Kunshao1117/cartridge_system/tree/3f346804c8c72944a2c61a46544421c9f9009ef2 — source tree for this static claim/ownership review; use Tracked Files for the exact source slice.
+- validation:5.5.4 source suite — registry manifest/version assertions accepted. Historical only; original receipt not revalidated in this review.
+- review:hp-review-source-final-20260713-r3 — source review accepted with P0–P3 clear. Historical only; original receipt not revalidated in this review.
 
 ## Read Contract
 
@@ -82,20 +79,24 @@ metadata:
 
 ## Conflicts and Supersession
 
-- None.
+
+- Static comparison target: 5.5.8 source 3f346804c8c72944a2c61a46544421c9f9009ef2. Historical cycle/archive records remain unchanged; old validation IDs do not establish current runtime acceptance.
 
 ## 中文摘要
 
-- MCP 名冊仍維持 18 個工具，`memory_reindex` 仍需明確確認才可寫入。
-- 5.5.4 只同步 manifest 版本斷言，並未宣稱 registry 行為變更。
-- 共用 response envelope 與契約型別仍由 `core-types` 支援。
+
+- 維持 18 個工具與明確確認邊界，manifest 測試版本為 5.5.8。
+- 共用 ID schema 支援中文與空格，禁止路徑／控制字元。
+- confirm 不可取代授權、有效根目錄與執行環境切換證據。
 
 ## Tracked Files
+
 
 - src/tool-registry.ts
 - src/mcp-response.ts
 - src/tests/tool-registry.test.ts
 - src/tests/mcp-response.test.ts
+- src/module-id.ts
 
 ## Relations
 

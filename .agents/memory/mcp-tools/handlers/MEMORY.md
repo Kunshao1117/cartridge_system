@@ -14,7 +14,7 @@ staleness: 0
 memory_schema_version: 2
 memory_quality_version: 1
 memory_kind: source_fact
-verification_status: verified
+verification_status: pending_review
 last_verified: '2026-07-11T14:40:20+08:00'
 valid_scope: current-project
 content_language: en
@@ -39,13 +39,14 @@ metadata:
 
 ## Current Truth
 
-- This card owns the low-level memory MCP handler contracts and their tests.
-- `memory_reindex` uses the same Git-standard discovery, memory processing, authoritative untracked reconciliation, and project index transaction as Desktop and VS Code.
-- Exclusion mode and fallback diagnostics are additive response fields; degraded exclusion becomes a warning finding without changing authorization or confirmation contracts.
-- Only a full persisted reindex may repair an invalid canonical index; ordinary handler mutations fail closed and retain the last committed state.
-- `memory_list` and commit cleanup use the shared visible projection so managed memory artifacts cannot leak into product untracked output.
-- Read, status, and commit operations re-check the active memory main file on disk before trusting a stale missing or conflict entry.
-- Dependency semantics remain warning-only and are provided by `index-manager.dep-engine`.
+
+- Owns memory handler contracts, reviewed source/card snapshots and the documented seven-disposition interface boundary; Cartridge supplies evidence, not an M5 cutover or workflow-disposition engine.
+- Read/status/commit resolve current main-file identity and trusted configured roots; exact IDs precede ambiguous aliases. Read-only review cannot write a card, commit, reindex or clear stale.
+- Commit captures card, source bytes and pending revision, then revalidates under the project transaction and immediately before atomic card replacement. Changed evidence returns MEMORY_REVIEW_CONFLICT.
+- Card write is reported separately from index registration, tracking and derived synchronization. synchronizationComplete requires every component; INDEX_SYNC_PARTIAL, TRACKING_SYNC_PARTIAL and DERIVED_SYNC_PARTIAL remain outstanding work.
+- Missing tracked sources retain ghost/pending and direct stale until restored or an authorized tracking correction is applied. Unknown declaration diagnostics are preserved.
+- Reindex implementation/ownership lives in `index-manager`; handlers expose its Git discovery and transaction result. Only full authoritative reindex repairs an invalid index.
+- The handler consumes `index-manager`, shared `core-types` contracts and `index-manager.dep-engine`; semantic warnings do not suppress real declared propagation edges.
 
 ## Active Constraints
 
@@ -63,12 +64,11 @@ metadata:
 
 ## Evidence Base
 
-- source:src/mcp-handlers.ts
-- source:src/memory-reindex.ts
-- source:src/tests/mcp-handlers.test.ts
-- source:src/tests/memory-deps-output.test.ts
-- validation:VD-03 — 5.5.3 MCP and cross-runtime parity validation provenance.
-- review:RD-03 — independent 5.5.3 review provenance.
+
+- source:https://github.com/Kunshao1117/cartridge_system/blob/3f346804c8c72944a2c61a46544421c9f9009ef2/.agents/memory/mcp-tools/handlers/MEMORY.md — reviewed original card revision.
+- source:https://github.com/Kunshao1117/cartridge_system/tree/3f346804c8c72944a2c61a46544421c9f9009ef2 — source tree for this static claim/ownership review; use Tracked Files for the exact source slice.
+- validation:VD-03 — 5.5.3 MCP and cross-runtime parity validation provenance. Historical only; original receipt not revalidated in this review.
+- review:RD-03 — independent 5.5.3 review provenance. Historical only; original receipt not revalidated in this review.
 
 ## Read Contract
 
@@ -77,7 +77,8 @@ metadata:
 
 ## Conflicts and Supersession
 
-- None.
+
+- Static comparison target: 5.5.8 source 3f346804c8c72944a2c61a46544421c9f9009ef2. Historical cycle/archive records remain unchanged; old validation IDs do not establish current runtime acceptance.
 
 ## 中文摘要
 
@@ -87,9 +88,14 @@ metadata:
 
 ## Tracked Files
 
+
 - src/mcp-handlers.ts
 - src/tests/mcp-handlers.test.ts
 - src/tests/memory-deps-output.test.ts
+- docs/memory-review-contract.md
+- src/memory-review-snapshot.ts
+- src/tests/mcp-audit-regressions.test.ts
+- src/tests/memory-review-contract.test.ts
 
 ## Relations
 
